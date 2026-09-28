@@ -1,4 +1,4 @@
-// Desenho do campo da partida ao vivo (porta de L.draw em legacy/js/manager/live.js).
+// Desenho do campo da partida ao vivo (porta de L.draw no antigo js/manager/live.js).
 import { FORMATIONS, clamp } from "@/game";
 import type { Sim } from "@/game";
 import type { World } from "@/game/types";

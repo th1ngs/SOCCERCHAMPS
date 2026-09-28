@@ -1,4 +1,4 @@
-// Partida do Manager decidida no futebol de botão (porta de legacy/js/manager/bridge.js).
+// Partida do Manager decidida no futebol de botão (porta do antigo js/manager/bridge.js).
 import { FORMATIONS, autoLineup, clamp, ensureLineup, gauss, randi, shuffle, teamRating, weighted } from "@/game";
 import type { Club, Match as MgrMatch, MatchResult, Position, SimGoal, World } from "@/game/types";
 import { Audio } from "@/arcade/audio";

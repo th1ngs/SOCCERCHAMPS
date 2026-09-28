@@ -1,5 +1,5 @@
 // Partida de botão: turnos, relógio, gols, entrada do jogador humano e controle da CPU.
-// Porta fiel de legacy/js/game.js (mesma máquina de estados e mesmas opções).
+// Porta fiel do antigo js/game.js (mesma máquina de estados e mesmas opções).
 import { createPlanner, type Level, type Planner, type Shot } from "./ai";
 import { Audio } from "./audio";
 import { F, P, STEP, allStopped, kickoffBodies, stepWorld, type Body, type PhysEvent } from "./physics";

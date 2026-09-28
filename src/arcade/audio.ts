@@ -1,5 +1,5 @@
 // Efeitos sonoros sintetizados com WebAudio (sem arquivos externos).
-// Porta de legacy/js/audio.js. Tudo é preguiçoso: nada toca o `window` antes de init().
+// Porta do antigo js/audio.js. Tudo é preguiçoso: nada toca o `window` antes de init().
 import type { PhysEvent } from "./physics";
 
 type AudioCtor = typeof AudioContext;

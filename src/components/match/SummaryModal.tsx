@@ -144,7 +144,7 @@ export function SummaryModal({ matchId }: { matchId: string }) {
         </div>
 
         {stats && (
-          <section className="rounded-2xl bg-ink-900/50 px-3 py-2 ring-1 ring-inset ring-white/6">
+          <section className="grid gap-x-6 rounded-2xl bg-ink-900/50 px-3 py-2 ring-1 ring-inset ring-white/6 sm:grid-cols-2">
             {statRows(stats).map(([label, a, b]) => (
               <StatBar key={label} label={label} left={a} right={b} />
             ))}

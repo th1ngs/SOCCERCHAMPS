@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
+const WIDTHS = { md: "max-w-md", xl: "max-w-5xl", "2xl": "max-w-6xl" } as const;
+
 /** Tela sobreposta ao campo (menu, seleção, chaveamento, resultado, pausa). */
-export function Panel({ children, className, label }: { children: ReactNode; className?: string; label: string }) {
+export function Panel({ children, className, label, width = "md" }: { children: ReactNode; className?: string; label: string; width?: keyof typeof WIDTHS }) {
   return (
     <section
       aria-label={label}
@@ -10,7 +12,8 @@ export function Panel({ children, className, label }: { children: ReactNode; cla
     >
       <div
         className={cn(
-          "relative flex max-h-full w-full max-w-md animate-pop flex-col overflow-y-auto rounded-[22px] bg-ink-850/95 p-5 shadow-[0_30px_80px_rgba(0,0,0,.55)] ring-1 ring-white/10 sm:p-7",
+          "relative flex max-h-full w-full animate-pop flex-col overflow-y-auto rounded-[22px] bg-ink-850/95 p-5 shadow-[0_30px_80px_rgba(0,0,0,.55)] ring-1 ring-white/10 sm:p-7",
+          WIDTHS[width],
           className,
         )}
       >

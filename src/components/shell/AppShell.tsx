@@ -41,7 +41,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const busy = !!g.matchMode;
 
   return (
-    <div className="flex min-h-dvh flex-col pb-[calc(68px+env(safe-area-inset-bottom))] md:pb-0">
+    <div className="flex min-h-dvh flex-col pb-[calc(136px+env(safe-area-inset-bottom))] md:pb-0">
       <header className="sticky top-0 z-30 border-b border-white/8 bg-ink-900/85 pt-[env(safe-area-inset-top)] backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2.5">
           <Link href="/jogo" className="flex min-w-0 items-center gap-2.5">

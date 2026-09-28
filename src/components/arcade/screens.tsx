@@ -129,7 +129,7 @@ export function SelectScreen({
         : "Toque em um time. Toque de novo em outro para trocar o adversário.";
   const need = mode === "cup" ? "Escolha seu time" : !picks[0] ? "Escolha seu time" : "Escolha o adversário";
   return (
-    <Panel label="Seleção de times" className="max-w-5xl gap-4 p-4 sm:p-6">
+    <Panel label="Seleção de times" width="xl" className="gap-4">
       <div className="flex items-center gap-3">
         <IconButton label="Voltar ao menu" icon={<ArrowLeft />} onClick={onBack} />
         <PanelTitle sub={sub}>{SELECT_TITLES[mode][Math.min(step, 1)]}</PanelTitle>
@@ -205,9 +205,9 @@ export function SelectScreen({
 // ---------- Copa ----------
 function BracketRow({ id, score, won, me }: { id: string | null; score: number | null; won: boolean; me: boolean }) {
   const t = teamById(id);
-  if (!t) return <div className="flex h-8 items-center px-2.5 text-xs italic text-mist/60">A definir</div>;
+  if (!t) return <div className="flex h-7 items-center px-2.5 text-xs italic text-mist/60">A definir</div>;
   return (
-    <div className={cn("flex h-8 items-center gap-2 px-2.5 text-[13px]", won ? "font-bold text-snow" : "text-mist")}>
+    <div className={cn("flex h-7 items-center gap-2 px-2.5 text-[13px]", won ? "font-bold text-snow" : "text-mist")}>
       <Crest club={t.club} size={15} className="shrink-0" />
       <span className={cn("min-w-0 flex-1 truncate", me && "text-gold-400")}>{t.name}</span>
       <b className="font-display text-sm text-snow tabular">{score ?? ""}</b>
@@ -242,7 +242,7 @@ export function CupScreen({ cup, onPlay, onNewCup, onBack }: { cup: ArcadeCup; o
       ? `${me?.name} é campeão da Copa!`
       : `Campeão: ${champ?.name ?? "?"}`;
   return (
-    <Panel label="Chaveamento da Copa" className="max-w-6xl gap-4 p-4 sm:p-6">
+    <Panel label="Chaveamento da Copa" width="2xl" className="gap-4">
       <div className="flex items-center gap-3">
         <IconButton label="Voltar ao menu" icon={<ArrowLeft />} onClick={onBack} />
         <PanelTitle sub={sub}>Copa arcade</PanelTitle>
@@ -253,11 +253,13 @@ export function CupScreen({ cup, onPlay, onNewCup, onBack }: { cup: ArcadeCup; o
           {ROUND_NAMES.map((name, r) => {
             const matches = cup.rounds[r] || Array.from({ length: 8 >> r }, (): CupMatch => ({ a: null, b: null, sa: null, sb: null, w: null, ot: false }));
             return (
-              <div key={name} className="flex flex-col justify-around gap-2">
+              <div key={name} className="flex flex-col gap-2">
                 <h3 className="text-center font-display text-xs font-bold uppercase tracking-wider text-gold-400">{name}</h3>
-                {matches.map((m, i) => (
-                  <BracketMatch key={i} m={m} cup={cup} round={r} />
-                ))}
+                <div className="flex flex-1 flex-col justify-around gap-2">
+                  {matches.map((m, i) => (
+                    <BracketMatch key={i} m={m} cup={cup} round={r} />
+                  ))}
+                </div>
               </div>
             );
           })}

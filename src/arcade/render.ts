@@ -1,4 +1,4 @@
-// Desenho do campo, bandeiras, discos, bola, mira e efeitos. Porta de legacy/js/render.js.
+// Desenho do campo, bandeiras, discos, bola, mira e efeitos. Porta do antigo js/render.js.
 // O estado da tela (View) é uma instância passada pelo chamador, não um global.
 import type { Flag, Match, Team } from "./game";
 import { F, type Body } from "./physics";

@@ -1,4 +1,4 @@
-// Copa arcade: mata-mata com 16 clubes (oitavas → final). Porta de legacy/js/cup.js.
+// Copa arcade: mata-mata com 16 clubes (oitavas → final). Porta do antigo js/cup.js.
 import { ARCADE_TEAMS, teamById } from "./teams";
 
 export const ROUND_NAMES = ["Oitavas de final", "Quartas de final", "Semifinal", "Final"];

@@ -1,5 +1,5 @@
 // IA: gera chutes candidatos, simula cada um com a física real e escolhe o melhor.
-// Porta fiel de legacy/js/ai.js.
+// Porta fiel do antigo js/ai.js.
 import { F, P, clone, simulate, type Body, type SimulateResult } from "./physics";
 
 export type Level = "easy" | "medium" | "hard";

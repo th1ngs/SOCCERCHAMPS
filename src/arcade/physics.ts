@@ -1,5 +1,5 @@
 // Física do futebol de botão: discos (jogadores) e bola, colisões elásticas, paredes e gols.
-// Porta fiel de legacy/js/physics.js (mesmas constantes e mesma ordem de operações).
+// Porta fiel do antigo js/physics.js (mesmas constantes e mesma ordem de operações).
 
 export interface Field {
   w: number;
