@@ -340,6 +340,17 @@
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
+  // Confirmação dentro do jogo (o confirm() nativo não funciona em todos os ambientes).
+  function askConfirm(title, text, yesLabel, onYes, onNo) {
+    $('#cfTitle').textContent = title;
+    $('#cfText').textContent = text;
+    const yes = $('#cfYes'), no = $('#cfNo');
+    yes.textContent = yesLabel;
+    yes.onclick = () => { SC.Audio.click(); onYes(); };
+    no.onclick = () => { SC.Audio.click(); onNo(); };
+    show('scr-confirm');
+  }
+
   // ---------- Ações dos botões ----------
   const actions = {
     menu: goMenu,
@@ -347,9 +358,10 @@
     pvp: () => openSelect('pvp'),
     cup: () => {
       const saved = SC.Cup.load();
-      if (saved && saved.status === 'playing' && !confirm('Começar uma nova Copa? O progresso atual será perdido.')) return;
-      SC.Cup.clear();
-      openSelect('cup');
+      const start = () => { SC.Cup.clear(); openSelect('cup'); };
+      if (saved && saved.status === 'playing') {
+        askConfirm('Nova Copa?', 'O progresso da Copa atual será perdido.', 'Começar nova Copa', start, () => show('scr-menu'));
+      } else start();
     },
     'resume-cup': () => { App.cup = SC.Cup.load(); showCup(); },
     help: () => show('scr-help'),
@@ -359,12 +371,12 @@
       startMatch(App.lastCfg);
     },
     quit: () => {
-      if (App.mode === 'cup' && !confirm('Sair agora conta como derrota (W.O.) na Copa. Sair mesmo?')) return;
-      if (App.mode === 'cup') {
+      if (App.mode !== 'cup') { goMenu(); return; }
+      askConfirm('Sair da partida?', 'Na Copa, sair agora conta como derrota por W.O. (0 x 3).', 'Sair e perder', () => {
         SC.Cup.applyPlayerResult(App.cup, 0, 3, false);
         SC.Cup.save(App.cup);
-      }
-      goMenu();
+        goMenu();
+      }, () => show('scr-pause'));
     },
   };
   document.addEventListener('click', (e) => {
