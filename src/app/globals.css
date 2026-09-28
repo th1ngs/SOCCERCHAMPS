@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+/* Tokens do Soccer Champs Manager: noite de estádio, placar dourado e gramado. */
+@theme {
+  --font-sans: var(--font-body), system-ui, sans-serif;
+  --font-display: var(--font-head), "Arial Narrow", system-ui, sans-serif;
+
+  --color-ink-950: #050d18;
+  --color-ink-900: #07121f;
+  --color-ink-850: #0a1829;
+  --color-ink-800: #0d1d31;
+  --color-ink-700: #13273f;
+  --color-ink-600: #1b3350;
+  --color-ink-500: #2a4668;
+  --color-mist: #93a8c4;
+  --color-snow: #eef3fa;
+
+  --color-gold-300: #ffe27a;
+  --color-gold-400: #f7c948;
+  --color-gold-500: #eaa817;
+  --color-gold-700: #a36a00;
+
+  --color-pitch-400: #3fd07c;
+  --color-pitch-500: #22a45d;
+  --color-pitch-700: #15703f;
+
+  --color-danger-400: #ff7a7e;
+  --color-danger-500: #ef4444;
+  --color-danger-700: #a61b1b;
+  --color-warn-400: #ffb454;
+  --color-info-400: #5cb4ff;
+  --color-info-500: #2f8cf0;
+
+  --radius-card: 16px;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 30px -12px rgb(0 0 0 / 0.6);
+  --shadow-gold: 0 4px 0 var(--color-gold-700), 0 10px 24px -8px rgb(234 168 23 / 0.55);
+
+  --animate-pop: pop 0.22s ease-out;
+  --animate-flash: flash 2.2s ease forwards;
+}
+
+@keyframes pop {
+  from { transform: translateY(6px) scale(0.98); opacity: 0; }
+}
+@keyframes flash {
+  0% { transform: scale(0.6); opacity: 0; }
+  12% { transform: scale(1.08); opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.02); }
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgb(34 164 93 / 0.10), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgb(47 140 240 / 0.08), transparent 60%),
+    var(--color-ink-900);
+  background-attachment: fixed;
+  color: var(--color-snow);
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection { background: rgb(247 201 72 / 0.35); }
+
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* Barra de rolagem discreta */
+* { scrollbar-width: thin; scrollbar-color: var(--color-ink-500) transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

@@ -1,0 +1,163 @@
+// Geração do mundo: clubes, elencos, jogadores, base e agentes livres.
+import { CLUBS, FIRST, LAST, NICK, POS } from './data';
+import type { Club, FormationKey, NewPlayerOptions, Player, Position, World } from './types';
+import { chance, clamp, gauss, pick, rand, randi, weighted } from './util';
+
+const SQUAD_TEMPLATE: Record<Position, number> = { GOL: 3, ZAG: 4, LAT: 4, VOL: 4, MEI: 5, ATA: 4 };
+
+export const wageFor = (ovr: number): number => Math.round((2600 * Math.pow(1.13, ovr - 50)) / 100) * 100;
+
+export const valueOf = (p: Pick<Player, 'pot' | 'ovr' | 'age' | 'contract'>): number => {
+  const growth = Math.max(0, p.pot - p.ovr) * clamp((25 - p.age) / 10, 0, 0.6);
+  const eff = p.ovr + growth;
+  let v = 100000 * Math.pow(1.18, eff - 50);
+  if (p.age > 29) v *= Math.pow(0.85, p.age - 29);
+  if (p.contract <= 0) v *= 0.4;
+  return Math.max(10000, Math.round(v / 10000) * 10000);
+};
+
+function makeName(): string {
+  if (chance(0.18)) return pick(NICK);
+  return pick(FIRST) + ' ' + pick(LAST);
+}
+
+export function newPlayer(w: World, o: NewPlayerOptions): Player {
+  const id = 'p' + w.nextId++;
+  const p: Player = {
+    id,
+    name: o.name || makeName(),
+    age: o.age,
+    pos: o.pos,
+    ovr: o.ovr,
+    pot: Math.max(Math.round(o.pot), Math.round(o.ovr)),
+    clubId: o.clubId || null,
+    youth: !!o.youth,
+    contract: o.contract != null ? o.contract : randi(1, 4),
+    fitness: 100,
+    morale: 70,
+    inj: 0, susp: 0, yc: 0,
+    listed: false,
+    num: 0,
+    s: { apps: 0, goals: 0, assists: 0, rsum: 0 },
+    c: { apps: 0, goals: 0, assists: 0 },
+    played: false,
+    wage: 0,
+  };
+  p.wage = o.youth ? 800 : wageFor(p.ovr) * rand(0.85, 1.15);
+  p.wage = Math.round(p.wage / 100) * 100;
+  w.players[id] = p;
+  return p;
+}
+
+function randomAge(): number {
+  const r = Math.random();
+  if (r < 0.2) return randi(18, 21);
+  if (r < 0.75) return randi(22, 29);
+  return randi(30, 34);
+}
+
+function seniorFor(w: World, club: Club, pos: Position, base: number, age: number): Player {
+  let ovr = base + gauss() * 4.5;
+  if (age < 22) ovr -= (22 - age) * 1.8;
+  ovr = clamp(ovr, 40, 92);
+  const pot = age < 25 ? clamp(ovr + rand(2, 16) * ((25 - age) / 5), ovr, 95) : ovr + rand(0, 2);
+  return newPlayer(w, { pos, age, ovr, pot, clubId: club.id });
+}
+
+const YOUTH_POS_W: Record<Position, number> = { GOL: 1, ZAG: 2, LAT: 2, VOL: 2, MEI: 2.5, ATA: 2.5 };
+
+export function makeYouth(w: World, club: Club, age?: number): Player {
+  const lvl = club.academy;
+  let pot = 48 + lvl * 6 + rand(-6, 18);
+  if (chance(0.04 + lvl * 0.01)) pot += rand(8, 14); // joia da base
+  pot = clamp(pot, 45, 96);
+  age = age || randi(15, 17);
+  const ovr = clamp(pot * rand(0.52, 0.64) + (age - 15) * 2, 30, 70);
+  const pos = weighted(POS, (p) => YOUTH_POS_W[p]) as Position;
+  const p = newPlayer(w, { pos, age, ovr, pot, clubId: club.id, youth: true, contract: 3 });
+  club.youth.push(p.id);
+  return p;
+}
+
+const NUM_PREFS: Record<Position, number[]> = { GOL: [1, 12, 23], ZAG: [3, 4, 13, 14], LAT: [2, 6, 16], VOL: [5, 8, 15], MEI: [10, 8, 7, 11, 18], ATA: [9, 11, 7, 19, 20] };
+
+export function assignNumbers(w: World, club: Club): void {
+  const used = new Set<number>();
+  const players = club.squad.map((id) => w.players[id]);
+  for (const p of players) if (p.num) used.add(p.num);
+  const next = (prefs: number[]): number => {
+    for (const n of prefs) if (!used.has(n)) { used.add(n); return n; }
+    for (let n = 2; n < 99; n++) if (!used.has(n)) { used.add(n); return n; }
+    return 99;
+  };
+  for (const p of players) if (!p.num) p.num = next(NUM_PREFS[p.pos]);
+}
+
+export function newWorld(managerName: string, clubId: string): World {
+  const w: World = {
+    version: 1,
+    manager: { name: managerName || 'Treinador' },
+    userClub: clubId,
+    season: 2026,
+    week: 0,
+    clubs: {},
+    players: {},
+    free: [],
+    nextId: 1,
+    weeks: [],
+    cup: { alive: [], champion: null },
+    inbox: [],
+    nextMsg: 1,
+    history: [],
+    board: { conf: 60, target: 0, label: '' },
+    finance: [],
+    finWeek: {},
+    finSeason: {},
+    trialUsed: false,
+    started: false,
+  };
+  const FORMATION_POOL: FormationKey[] = ['4-4-2', '4-3-3', '4-2-3-1', '4-3-3', '4-4-2', '3-5-2'];
+  CLUBS.forEach((c, i) => {
+    const club: Club = {
+      ...c,
+      colors: [c.colors[0], c.colors[1]],
+      div: i < 16 ? 'A' : 'B',
+      money: Math.round((2 + (c.rep * c.rep) / 200) * 1e6),
+      academy: clamp(Math.round(c.rep / 25 + rand(-0.5, 0.8)), 1, 5),
+      training: clamp(Math.round(c.rep / 25 + rand(-0.5, 0.8)), 1, 5),
+      formation: pick(FORMATION_POOL),
+      tactic: 'bal',
+      trainingInt: 'mid',
+      squad: [], youth: [], lineup: [], bench: [],
+      trophies: [],
+    };
+    w.clubs[c.id] = club;
+    const base = 48 + c.rep * 0.32;
+    for (const pos of Object.keys(SQUAD_TEMPLATE) as Position[]) {
+      for (let k = 0; k < SQUAD_TEMPLATE[pos]; k++) {
+        const p = seniorFor(w, club, pos, base, randomAge());
+        club.squad.push(p.id);
+      }
+    }
+    // Dois craques por clube
+    for (let k = 0; k < 2; k++) {
+      const p = w.players[pick(club.squad)];
+      p.ovr = clamp(p.ovr + rand(4, 9), 40, 93);
+      p.pot = Math.max(p.pot, Math.round(p.ovr));
+      p.wage = wageFor(p.ovr);
+    }
+    for (let k = 0; k < 4; k++) makeYouth(w, club);
+    assignNumbers(w, club);
+  });
+  for (let k = 0; k < 40; k++) makeFreeAgent(w);
+  return w;
+}
+
+export function makeFreeAgent(w: World): Player {
+  const age = randi(21, 34);
+  const pos = pick(POS);
+  const ovr = clamp(55 + gauss() * 7, 42, 80);
+  const p = newPlayer(w, { pos, age, ovr, pot: ovr + (age < 24 ? rand(2, 8) : 0), contract: 0 });
+  w.free.push(p.id);
+  return p;
+}
