@@ -26,11 +26,9 @@ export function MarketCards({ rows, onOpen }: { rows: MarketRow[]; onOpen: (pid:
               <span className="flex min-w-0 text-xs text-mist">
                 <ClubCell row={r} />
               </span>
-              <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-mist">
+              <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-mist">
                 <span>{r.p.age} anos</span>
-                <span aria-hidden>•</span>
                 <span className="tabular text-snow">{formatMoney(r.value)}</span>
-                <span aria-hidden>•</span>
                 <Stars value={potentialStars(r.p, false)} className="text-[11px]" />
               </span>
             </span>

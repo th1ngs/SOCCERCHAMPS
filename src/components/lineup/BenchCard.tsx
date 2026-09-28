@@ -23,7 +23,7 @@ export function BenchCard({ bench, onPick }: { bench: Player[]; onPick: (index: 
                 <span className="min-w-0 flex-1 truncate font-semibold">{p.name}</span>
                 <Meter value={p.fitness} label={`Condição ${Math.round(p.fitness)}%`} className="w-10" />
                 <OvrBadge value={p.ovr} />
-                <Replace className="size-4 text-mist group-hover:text-snow" aria-hidden />
+                <Replace className="size-4 text-mist group-hover:text-snow max-sm:hidden" aria-hidden />
               </button>
             </li>
           ))}

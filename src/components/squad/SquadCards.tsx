@@ -23,13 +23,10 @@ export function SquadCards({ rows, onOpen }: { rows: SquadRow[]; onOpen: (pid: s
             </div>
             <div className="min-w-0 flex-1 space-y-1">
               <div className="truncate font-semibold">{p.name}</div>
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-mist">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-mist">
                 <span>{p.age} anos</span>
-                <span aria-hidden>•</span>
                 <Meter value={p.fitness} label={`Condição ${Math.round(p.fitness)}%`} className="w-12" />
-                <span aria-hidden>•</span>
                 <span className="tabular">{formatMoney(value)}</span>
-                <span aria-hidden>•</span>
                 <span className={p.contract <= 1 ? "text-warn-400" : undefined}>{contractText(p.contract)}</span>
               </div>
               <StatusTags tags={tags} />

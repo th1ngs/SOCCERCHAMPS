@@ -22,12 +22,17 @@ const widths = { md: "max-w-lg", lg: "max-w-3xl", xl: "max-w-5xl" };
 
 export function Modal({ open, onClose, title, dismissible = true, size = "md", footer, children, className }: ModalProps) {
   const panel = useRef<HTMLDivElement>(null);
+  // Guarda o onClose mais recente sem reexecutar o efeito (evita roubar o foco a cada render).
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
     const prev = document.activeElement as HTMLElement | null;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && dismissible) onClose?.();
+      if (e.key === "Escape" && dismissible) closeRef.current?.();
     };
     document.addEventListener("keydown", onKey);
     const overflow = document.body.style.overflow;
@@ -39,7 +44,7 @@ export function Modal({ open, onClose, title, dismissible = true, size = "md", f
       document.body.style.overflow = overflow;
       prev?.focus?.({ preventScroll: true });
     };
-  }, [open, dismissible, onClose]);
+  }, [open, dismissible]);
 
   if (!open || typeof document === "undefined") return null;
 
