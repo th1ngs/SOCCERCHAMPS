@@ -9,7 +9,7 @@ export function Card({
   children,
   tone = "default",
   ...rest
-}: HTMLAttributes<HTMLElement> & { title?: ReactNode; action?: ReactNode; tone?: "default" | "highlight" }) {
+}: Omit<HTMLAttributes<HTMLElement>, "title"> & { title?: ReactNode; action?: ReactNode; tone?: "default" | "highlight" }) {
   return (
     <section
       className={cn(

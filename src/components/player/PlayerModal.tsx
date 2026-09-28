@@ -37,6 +37,9 @@ type View =
   | { kind: "confirmRelease" }
   | { kind: "confirmDismiss" };
 
+/** Rótulos longos com custo quebram linha em telas estreitas em vez de estourar o diálogo. */
+const LONG = "h-auto! min-h-10 whitespace-normal! py-2 text-center";
+
 /** Texto do motivo ao lado de um botão desabilitado. */
 function Reason({ children }: { children: ReactNode }) {
   return <span className="self-center text-xs text-mist">{children}</span>;
@@ -152,7 +155,7 @@ export function PlayerModal({ pid, onClose }: { pid: string; onClose: () => void
           <Button variant="ghost" icon={<ArrowLeft />} onClick={back} className="mr-auto">
             Voltar
           </Button>
-          <Button variant="primary" icon={<PenLine />} onClick={() => doRenew(y)}>
+          <Button variant="primary" icon={<PenLine />} onClick={() => doRenew(y)} className={LONG}>
             Renovar por {yearsText(y)} • {formatMoney(view.ask)}/sem
           </Button>
         </>
@@ -174,7 +177,7 @@ export function PlayerModal({ pid, onClose }: { pid: string; onClose: () => void
             {club ? "Enviar proposta" : "Negociar contratação"}
           </Button>
           {d && (
-            <Button variant="primary" icon={<Handshake />} onClick={() => bid.close(d)}>
+            <Button variant="primary" icon={<Handshake />} onClick={() => bid.close(d)} className={LONG}>
               {d.counter ? `Aceitar contraproposta • ${formatMoney(d.fee)}` : `Fechar contratação • ${d.fee ? formatMoney(d.fee) : "sem custo"}`}
             </Button>
           )}
@@ -194,7 +197,7 @@ export function PlayerModal({ pid, onClose }: { pid: string; onClose: () => void
           <Button variant="ghost" onClick={back}>
             Cancelar
           </Button>
-          <Button variant="danger" icon={<UserX />} onClick={doRelease}>
+          <Button variant="danger" icon={<UserX />} onClick={doRelease} className={LONG}>
             Rescindir • {formatMoney(fee)}
           </Button>
         </>
