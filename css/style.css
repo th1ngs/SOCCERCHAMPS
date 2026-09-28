@@ -194,6 +194,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .btn.primary:hover { filter: brightness(1.06); }
 .btn.primary:disabled { filter: grayscale(1) opacity(0.5); cursor: not-allowed; }
 .btn.ghost { background: transparent; }
+a.btn { text-decoration: none; color: inherit; text-align: center; }
 
 /* Seleção */
 .select { width: min(980px, 100%); display: flex; flex-direction: column; gap: 16px; padding: 22px; }

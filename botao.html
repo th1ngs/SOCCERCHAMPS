@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1d33">
+  <title>Soccer Champs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <div id="game">
+      <header id="hud" class="hidden">
+        <div class="team t0">
+          <img class="flag" alt="">
+          <span class="name"></span>
+        </div>
+        <div class="board">
+          <div class="score"><span id="s0">0</span><i>:</i><span id="s1">0</span></div>
+          <div id="clock">3:00</div>
+        </div>
+        <div class="team t1">
+          <span class="name"></span>
+          <img class="flag" alt="">
+        </div>
+        <button id="btnPause" class="icon-btn" aria-label="Pausar">❚❚</button>
+        <div id="turnbar"><div id="turnfill"></div></div>
+      </header>
+      <div id="stage"><canvas id="cv"></canvas></div>
+    </div>
+
+    <!-- Menu principal -->
+    <section id="scr-menu" class="screen">
+      <div class="panel menu">
+        <h1 class="logo"><span>SOCCER</span><b>CHAMPS</b></h1>
+        <p class="tagline">Futebol de botão • arraste, mire e solte!</p>
+        <div class="menu-buttons">
+          <button class="btn primary" data-action="cup">🏆 Copa do Mundo</button>
+          <button class="btn hidden" id="btnResumeCup" data-action="resume-cup">▶ Continuar Copa</button>
+          <button class="btn" data-action="cpu">⚽ Amistoso vs CPU</button>
+          <button class="btn" data-action="pvp">👥 2 Jogadores</button>
+          <button class="btn ghost" data-action="help">❓ Como jogar</button>
+          <a class="btn ghost" href="index.html">🏟️ Modo Manager</a>
+        </div>
+        <button id="btnSound" class="icon-btn sound" aria-label="Som">🔊</button>
+      </div>
+    </section>
+
+    <!-- Seleção de times -->
+    <section id="scr-select" class="screen hidden">
+      <div class="panel select">
+        <div class="select-head">
+          <button class="icon-btn back" data-action="menu" aria-label="Voltar">←</button>
+          <div>
+            <h2 id="selTitle">Escolha sua seleção</h2>
+            <p id="selSub" class="muted"></p>
+          </div>
+        </div>
+        <div id="teamGrid" class="team-grid"></div>
+        <div class="select-foot">
+          <div class="opts">
+            <div class="opt" id="optDiff">
+              <label>Dificuldade</label>
+              <div class="seg" data-setting="difficulty">
+                <button data-v="easy">Fácil</button>
+                <button data-v="medium">Médio</button>
+                <button data-v="hard">Difícil</button>
+              </div>
+            </div>
+            <div class="opt">
+              <label>Duração</label>
+              <div class="seg" data-setting="duration">
+                <button data-v="120">2 min</button>
+                <button data-v="180">3 min</button>
+                <button data-v="300">5 min</button>
+              </div>
+            </div>
+          </div>
+          <div class="picks">
+            <div class="pick" id="pick0"></div>
+            <span class="vs">VS</span>
+            <div class="pick" id="pick1"></div>
+          </div>
+          <button class="btn primary" id="btnStart" disabled>Jogar</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Chaveamento da Copa -->
+    <section id="scr-cup" class="screen hidden">
+      <div class="panel cup">
+        <div class="select-head">
+          <button class="icon-btn back" data-action="menu" aria-label="Menu">←</button>
+          <div>
+            <h2>Copa do Mundo</h2>
+            <p id="cupSub" class="muted"></p>
+          </div>
+        </div>
+        <div id="bracket" class="bracket"></div>
+        <div class="cup-foot">
+          <button class="btn primary" id="btnCupNext">Jogar</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Resultado -->
+    <section id="scr-result" class="screen hidden">
+      <div class="panel result">
+        <h2 id="resTitle">Vitória!</h2>
+        <div class="res-score">
+          <div class="res-team"><img id="resFlag0" alt=""><span id="resName0"></span></div>
+          <div class="res-num"><span id="resS0">0</span> - <span id="resS1">0</span></div>
+          <div class="res-team"><img id="resFlag1" alt=""><span id="resName1"></span></div>
+        </div>
+        <p id="resNote" class="muted"></p>
+        <div class="menu-buttons" id="resButtons"></div>
+      </div>
+    </section>
+
+    <!-- Pausa -->
+    <section id="scr-pause" class="screen hidden">
+      <div class="panel small">
+        <h2>Pausado</h2>
+        <div class="menu-buttons">
+          <button class="btn primary" data-action="resume">▶ Continuar</button>
+          <button class="btn" data-action="restart">↻ Reiniciar partida</button>
+          <button class="btn ghost" data-action="quit">Sair para o menu</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Confirmação -->
+    <section id="scr-confirm" class="screen hidden">
+      <div class="panel small">
+        <h2 id="cfTitle"></h2>
+        <p id="cfText" class="muted"></p>
+        <div class="menu-buttons">
+          <button class="btn primary" id="cfNo">Cancelar</button>
+          <button class="btn ghost" id="cfYes"></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Ajuda -->
+    <section id="scr-help" class="screen hidden">
+      <div class="panel small help">
+        <h2>Como jogar</h2>
+        <ol>
+          <li><b>Toque/clique</b> em um dos seus jogadores (os que estão piscando).</li>
+          <li><b>Arraste para trás</b>, como um estilingue. A seta mostra a direção do chute.</li>
+          <li>Quanto mais longe arrastar, <b>mais forte</b> o chute. <b>Solte</b> para chutar.</li>
+          <li>Os times jogam em <b>turnos</b>: um chute por vez, com <b>12 segundos</b> para decidir.</li>
+          <li>Use as <b>laterais</b> para fazer tabelas e desviar dos adversários.</li>
+          <li>Quem fizer mais gols até o fim do tempo vence. Na <b>Copa</b>, empate vai para a <b>morte súbita</b>.</li>
+        </ol>
+        <p class="muted">Atalho: <kbd>Esc</kbd> pausa a partida.</p>
+        <div class="menu-buttons"><button class="btn primary" data-action="menu">Entendi!</button></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="js/teams.js"></script>
+  <script src="js/physics.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/cup.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
