@@ -11,6 +11,36 @@ export type Division = 'A' | 'B';
 export type Competition = Division | 'CUP';
 export type KitPattern = 'h' | 'v' | 'sash' | 'solid' | 'half';
 export type FormResult = 'V' | 'E' | 'D';
+export type TicketPrice = 'popular' | 'normal' | 'premium';
+export type TraitKey =
+  | 'finalizacao' | 'cabeceio' | 'drible' | 'passe' | 'velocidade'
+  | 'marcacao' | 'desarme' | 'reflexo' | 'lideranca' | 'resistencia';
+
+export interface Trait {
+  name: string;
+  short: string;
+  desc: string;
+}
+
+export interface TicketPriceInfo {
+  name: string;
+  /** Multiplicador do preço do ingresso. */
+  mult: number;
+  /** Ajuste na ocupação do estádio. */
+  occ: number;
+}
+
+export interface Loan {
+  principal: number;
+  weekly: number;
+  weeksLeft: number;
+}
+
+export interface GateForecast {
+  attendance: number;
+  income: number;
+  derby: boolean;
+}
 
 /** Pesos de um slot em cada setor do campo (defesa, meio, ataque). */
 export interface SectorWeights {
@@ -54,10 +84,11 @@ export interface ClubStatic {
   rep: number;
   /** Capacidade do estádio. */
   cap: number;
-  nickname?: string;
-  mascot?: string;
-  stadium?: string;
-  rival?: string;
+  nickname: string;
+  mascot: string;
+  stadium: string;
+  /** Id do clube rival (clássico). */
+  rival: string;
 }
 
 export interface Trophy {
@@ -82,6 +113,12 @@ export interface Club extends ClubStatic {
   lineup: (string | null)[];
   bench: string[];
   trophies: Trophy[];
+  /** Torcida (0-100, começa em 60). */
+  fans: number;
+  ticketPrice: TicketPrice;
+  captain: string | null;
+  penTaker: string | null;
+  loan: Loan | null;
 }
 
 export interface SeasonStats {
@@ -115,6 +152,12 @@ export interface Player {
   inj: number;
   /** Lesão sofrida nesta semana (não desconta no endWeek atual). */
   injNew?: boolean;
+  /** Tipo da lesão atual ("Pancada", "Estiramento", "Distensão", "Fratura") ou null. */
+  injType: string | null;
+  /** 1-2 características. */
+  traits: TraitKey[];
+  /** Craque: +3 de overall efetivo em partidas e valor × 1,3. */
+  star: boolean;
   /** Jogos de suspensão. */
   susp: number;
   /** Amarelos acumulados. */
@@ -200,8 +243,8 @@ export interface Manager {
   name: string;
 }
 
-/** Movimentações financeiras por categoria (tickets, prize, wages, sponsor, tv, transfers, other). */
-export type FinanceCategory = 'tickets' | 'prize' | 'wages' | 'sponsor' | 'tv' | 'transfers' | 'other';
+/** Movimentações financeiras por categoria (tickets, prize, wages, sponsor, tv, transfers, other, loan). */
+export type FinanceCategory = 'tickets' | 'prize' | 'wages' | 'sponsor' | 'tv' | 'transfers' | 'other' | 'loan';
 export type FinanceLog = Partial<Record<FinanceCategory, number>>;
 
 export interface FinanceEntry extends FinanceLog {
@@ -328,7 +371,10 @@ export interface SimCard {
 
 export interface SimInjury {
   pid: string;
+  /** Gravidade sorteada (antes da redução pelo nível do CT). */
   weeks: number;
+  /** Tipo da lesão (injuryLabel(weeks)); opcional para resultados externos. */
+  type?: string;
 }
 
 export interface MatchStats {

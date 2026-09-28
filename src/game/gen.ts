@@ -1,20 +1,43 @@
 // Geração do mundo: clubes, elencos, jogadores, base e agentes livres.
-import { CLUBS, FIRST, LAST, NICK, POS } from './data';
-import type { Club, FormationKey, NewPlayerOptions, Player, Position, World } from './types';
+import { CLUBS, FIRST, LAST, NICK, POS, STAR_CHANCE, TRAIT_WEIGHTS } from './data';
+import { pickCaptain, pickPenTaker } from './squad';
+import type { Club, FormationKey, NewPlayerOptions, Player, Position, TraitKey, World } from './types';
 import { chance, clamp, gauss, pick, rand, randi, weighted } from './util';
 
 const SQUAD_TEMPLATE: Record<Position, number> = { GOL: 3, ZAG: 4, LAT: 4, VOL: 4, MEI: 5, ATA: 4 };
 
 export const wageFor = (ovr: number): number => Math.round((2600 * Math.pow(1.13, ovr - 50)) / 100) * 100;
 
-export const valueOf = (p: Pick<Player, 'pot' | 'ovr' | 'age' | 'contract'>): number => {
+/** Versão atual do formato do World. */
+export const WORLD_VERSION = 2;
+
+export const valueOf = (p: Pick<Player, 'pot' | 'ovr' | 'age' | 'contract'> & { star?: boolean }): number => {
   const growth = Math.max(0, p.pot - p.ovr) * clamp((25 - p.age) / 10, 0, 0.6);
   const eff = p.ovr + growth;
   let v = 100000 * Math.pow(1.18, eff - 50);
   if (p.age > 29) v *= Math.pow(0.85, p.age - 29);
   if (p.contract <= 0) v *= 0.4;
+  if (p.star) v *= 1.3;
   return Math.max(10000, Math.round(v / 10000) * 10000);
 };
+
+/** Sorteia 1-2 características distintas conforme a posição. */
+export function rollTraits(pos: Position): TraitKey[] {
+  const table = TRAIT_WEIGHTS[pos];
+  const keys = Object.keys(table) as TraitKey[];
+  const n = chance(0.4) ? 2 : 1;
+  const out: TraitKey[] = [];
+  for (let k = 0; k < n; k++) {
+    const t = weighted(keys.filter((x) => !out.includes(x)), (x) => table[x] || 0);
+    if (t) out.push(t);
+  }
+  return out;
+}
+
+export const rollStar = (): boolean => chance(STAR_CHANCE);
+
+/** O jogador tem a característica? (tolerante a saves sem `traits`). */
+export const hasTrait = (p: Pick<Player, 'traits'>, t: TraitKey): boolean => !!p.traits && p.traits.includes(t);
 
 function makeName(): string {
   if (chance(0.18)) return pick(NICK);
@@ -42,6 +65,9 @@ export function newPlayer(w: World, o: NewPlayerOptions): Player {
     c: { apps: 0, goals: 0, assists: 0 },
     played: false,
     wage: 0,
+    injType: null,
+    traits: rollTraits(o.pos),
+    star: rollStar(),
   };
   p.wage = o.youth ? 800 : wageFor(p.ovr) * rand(0.85, 1.15);
   p.wage = Math.round(p.wage / 100) * 100;
@@ -95,7 +121,7 @@ export function assignNumbers(w: World, club: Club): void {
 
 export function newWorld(managerName: string, clubId: string): World {
   const w: World = {
-    version: 1,
+    version: WORLD_VERSION,
     manager: { name: managerName || 'Treinador' },
     userClub: clubId,
     season: 2026,
@@ -130,6 +156,11 @@ export function newWorld(managerName: string, clubId: string): World {
       trainingInt: 'mid',
       squad: [], youth: [], lineup: [], bench: [],
       trophies: [],
+      fans: 60,
+      ticketPrice: 'normal',
+      captain: null,
+      penTaker: null,
+      loan: null,
     };
     w.clubs[c.id] = club;
     const base = 48 + c.rep * 0.32;
@@ -148,6 +179,8 @@ export function newWorld(managerName: string, clubId: string): World {
     }
     for (let k = 0; k < 4; k++) makeYouth(w, club);
     assignNumbers(w, club);
+    pickCaptain(w, club);
+    pickPenTaker(w, club);
   });
   for (let k = 0; k < 40; k++) makeFreeAgent(w);
   return w;

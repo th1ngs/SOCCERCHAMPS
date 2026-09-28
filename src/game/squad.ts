@@ -1,13 +1,14 @@
 // Escalação: disponibilidade, escalação automática e validação.
 import { FORMATIONS, SECTOR, fit } from './data';
-import { assignNumbers, newPlayer } from './gen';
+import { assignNumbers, hasTrait, newPlayer } from './gen';
 import { promoteYouth } from './market';
 import type { Club, Player, Position, SectorStrength, World } from './types';
 import { avg, rand, randi } from './util';
-import { neededPos, pushMessage } from './world';
+import { neededPos, pushMessage, user } from './world';
 
 const SLOT_PRIORITY: Record<Position, number> = { GOL: 0, ATA: 1, MEI: 2, ZAG: 3, VOL: 4, LAT: 5 };
 const BENCH_SIZE = 7;
+const PEN_W: Record<Position, number> = { GOL: 0, ZAG: 0.5, LAT: 0.8, VOL: 1.1, MEI: 3, ATA: 6 };
 
 /** Jogador apto a ser escalado (não lesionado, não suspenso, não é da base). */
 export const available = (p: Player | null | undefined): p is Player => !!p && !p.inj && !p.susp && !p.youth;
@@ -70,6 +71,58 @@ export function autoLineup(w: World, club: Club): void {
   emergencyFill(w, club);
   club.lineup = fillSlots(w, club, new Array<string | null>(11).fill(null));
   club.bench = fillBench(w, club, club.lineup, []);
+  pickCaptain(w, club);
+  pickPenTaker(w, club);
+}
+
+// ---------- Capitão e batedor ----------
+/** Candidatos: disponíveis do elenco, titulares primeiro. */
+function leaderPool(w: World, club: Club): { p: Player; starter: boolean }[] {
+  const starters = new Set(club.lineup);
+  return club.squad.map((id) => w.players[id]).filter((p) => available(p)).map((p) => ({ p, starter: starters.has(p.id) }));
+}
+
+/** Escolhe e grava o capitão do clube (experiência, overall e liderança; titulares primeiro). */
+export function pickCaptain(w: World, club: Club): string | null {
+  let best: Player | null = null, bs = -Infinity;
+  for (const { p, starter } of leaderPool(w, club)) {
+    const sc = (starter ? 100 : 0) + p.ovr * 0.5 + Math.min(p.age, 33) + (hasTrait(p, 'lideranca') ? 15 : 0);
+    if (sc > bs) { bs = sc; best = p; }
+  }
+  club.captain = best ? best.id : null;
+  return club.captain;
+}
+
+/** Escolhe e grava o batedor de pênaltis (linha, overall × posição, finalização; titulares primeiro). */
+export function pickPenTaker(w: World, club: Club): string | null {
+  let best: Player | null = null, bs = -Infinity;
+  for (const { p, starter } of leaderPool(w, club)) {
+    if (p.pos === 'GOL') continue;
+    const sc = (starter ? 1000 : 0) + p.ovr * PEN_W[p.pos] * (hasTrait(p, 'finalizacao') ? 1.15 : 1);
+    if (sc > bs) { bs = sc; best = p; }
+  }
+  club.penTaker = best ? best.id : null;
+  return club.penTaker;
+}
+
+/** Define o capitão do clube do usuário. Falso se o jogador não é do elenco profissional. */
+export function setCaptain(w: World, pid: string): boolean {
+  const u = user(w);
+  if (!u.squad.includes(pid)) return false;
+  u.captain = pid;
+  return true;
+}
+
+/** Define o batedor de pênaltis do clube do usuário. Falso se o jogador não é do elenco profissional. */
+export function setPenTaker(w: World, pid: string): boolean {
+  const u = user(w);
+  if (!u.squad.includes(pid)) return false;
+  u.penTaker = pid;
+  return true;
+}
+
+function leaderOk(w: World, club: Club, pid: string | null): boolean {
+  return !!pid && club.squad.includes(pid) && available(w.players[pid]);
 }
 
 /** Troca jogadores indisponíveis. Retorna os nomes substituídos. */
@@ -90,6 +143,9 @@ export function ensureLineup(w: World, club: Club): string[] {
   });
   club.lineup = fillSlots(w, club, lineup);
   club.bench = fillBench(w, club, club.lineup, club.bench || []);
+  // Capitão/batedor escolhidos pelo usuário: trocados só se estiverem indisponíveis.
+  if (!leaderOk(w, club, club.captain)) pickCaptain(w, club);
+  if (!leaderOk(w, club, club.penTaker)) pickPenTaker(w, club);
   return changes;
 }
 

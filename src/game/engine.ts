@@ -1,5 +1,6 @@
 // Motor de partida minuto a minuto. Usado tanto no jogo ao vivo quanto na simulação rápida.
-import { FORMATIONS, SECTOR, TACTICS, fit, say } from './data';
+import { FORMATIONS, SECTOR, TACTICS, fit, injuryLabel, injuryPhrase, say } from './data';
+import { hasTrait } from './gen';
 import { autoLineup, available, ensureLineup } from './squad';
 import type {
   Ball, BallKind, FormationKey, MatchResult, MatchStats, OnField, Player, Position, SectorWeights, SideStrength,
@@ -11,6 +12,29 @@ const SHOOT_W: Record<Position, number> = { GOL: 0, ZAG: 0.5, LAT: 0.8, VOL: 1.1
 const ASSIST_W: Record<Position, number> = { GOL: 0.05, ZAG: 0.4, LAT: 2, VOL: 1.4, MEI: 4, ATA: 2.2 };
 const FOUL_W: Record<Position, number> = { GOL: 0.1, ZAG: 3, LAT: 2, VOL: 3, MEI: 1.2, ATA: 0.8 };
 export const MAX_SUBS = 5;
+
+// Efeitos de características, Craque e capitão.
+const STAR_BONUS = 3;
+const TRAIT_SECTOR = 0.04; // drible/velocidade (ataque), marcação/desarme (defesa)
+const TRAIT_PASS_MID = 0.05; // passe (meio-campo)
+const TRAIT_PASS_ASSIST = 1.5;
+const TRAIT_FINISH_XG = 1.12;
+const TRAIT_REFLEX_XG = 0.9;
+const TRAIT_STAMINA = 0.8;
+const CAPTAIN_BONUS = 0.015;
+const CAPTAIN_LEADER_BONUS = 0.03;
+// Cabeceio: chance de uma cabeçada perigosa após escanteio, se houver cabeceador em campo.
+const HEADER_CHANCE = 0.2;
+const HEADER_XG = 0.14;
+
+/** Overall efetivo em partidas (Craque +3). */
+export const matchOvr = (p: Player): number => p.ovr + (p.star ? STAR_BONUS : 0);
+
+/** Clássico entre dois clubes (um tem o outro como rival). */
+export function isDerbyClubs(w: World, a: string, b: string): boolean {
+  const ca = w.clubs[a], cb = w.clubs[b];
+  return !!ca && !!cb && (ca.rival === b || cb.rival === a);
+}
 
 type Volume = Required<SectorWeights>;
 let BASE: Volume | null = null;
@@ -50,12 +74,15 @@ export class Sim {
   cur: SideStrength[] = [];
   /** Lesão no time do usuário (modo interativo) aguardando substituição manual. */
   pendingInjury: { side: number; pid: string } | null = null;
+  /** Clássico (rivais). */
+  derby: boolean;
 
   constructor(w: World, homeId: string, awayId: string, opts: SimOptions = {}) {
     this.w = w;
     this.opts = opts;
     this.sides = [this.makeSide(homeId), this.makeSide(awayId)];
     this.stoppage = randi(1, 5);
+    this.derby = isDerbyClubs(w, homeId, awayId);
     for (const s of this.sides) for (const o of s.on) this.ratings[o.pid] = 6.2;
   }
 
@@ -88,19 +115,38 @@ export class Sim {
     let d = 0, m = 0, a = 0, dw = 0, mw = 0, aw = 0, g = 35;
     for (const o of s.on) {
       const p = this.P(o.pid), sp = this.slotPos(s, o);
-      const eff = p.ovr * fit(p.pos, sp) * (0.7 + (0.3 * o.fat) / 100) * (0.95 + (0.1 * p.morale) / 100);
+      const eff = matchOvr(p) * fit(p.pos, sp) * (0.7 + (0.3 * o.fat) / 100) * (0.95 + (0.1 * p.morale) / 100);
       o.eff = eff;
       if (sp === 'GOL') { g = eff; continue; }
       const wt = SECTOR[sp];
-      if (wt.d) { d += eff * wt.d; dw += wt.d; }
-      if (wt.m) { m += eff * wt.m; mw += wt.m; }
-      if (wt.a) { a += eff * wt.a; aw += wt.a; }
+      const dm = 1 + (hasTrait(p, 'marcacao') ? TRAIT_SECTOR : 0) + (hasTrait(p, 'desarme') ? TRAIT_SECTOR : 0);
+      const mm = 1 + (hasTrait(p, 'passe') ? TRAIT_PASS_MID : 0);
+      const am = 1 + (hasTrait(p, 'drible') ? TRAIT_SECTOR : 0) + (hasTrait(p, 'velocidade') ? TRAIT_SECTOR : 0);
+      if (wt.d) { d += eff * dm * wt.d; dw += wt.d; }
+      if (wt.m) { m += eff * mm * wt.m; mw += wt.m; }
+      if (wt.a) { a += eff * am * wt.a; aw += wt.a; }
     }
     const vol = (total: number, wsum: number, base: number): number => (wsum ? total / wsum : 30) * (0.7 + 0.3 * Math.min(1.25, wsum / base));
     const t = TACTICS[s.tactic];
     let D = vol(d, dw, B.d) * t.def, Mi = vol(m, mw, B.m) * (t.mid || 1), A = vol(a, aw, B.a) * t.att;
     if (!this.opts.neutral && i === 0) { A *= 1.04; D *= 1.03; Mi *= 1.03; }
+    const cap = this.captainOn(i);
+    if (cap) {
+      const b = 1 + (hasTrait(cap, 'lideranca') ? CAPTAIN_LEADER_BONUS : CAPTAIN_BONUS);
+      A *= b; D *= b; Mi *= b;
+    }
     return { A, D, M: Mi, G: g };
+  }
+
+  /** Capitão do lado i, se estiver em campo. */
+  captainOn(i: number): Player | null {
+    const s = this.sides[i], cid = s.club.captain;
+    return cid && s.on.some((o) => o.pid === cid) ? this.P(cid) : null;
+  }
+
+  /** xG multiplicado pelo reflexo do goleiro adversário. */
+  private keeperMult(gkO: OnField | undefined): number {
+    return gkO && hasTrait(this.P(gkO.pid), 'reflexo') ? TRAIT_REFLEX_XG : 1;
   }
 
   step(): SimEvent[] {
@@ -108,7 +154,10 @@ export class Sim {
     this.fresh = fresh;
     if (this.finished) return fresh;
     if (this.phase === 'half') { this.phase = 'second'; this.log('info', null, say('second')); }
-    if (this.minute === 0) this.log('info', null, say('kickoff'));
+    if (this.minute === 0) {
+      this.log('info', null, say('kickoff'));
+      if (this.derby) this.log('info', null, say('derby', { h: this.sides[0].club.name, a: this.sides[1].club.name }));
+    }
     this.minute++;
     this.cur = [this.strength(0), this.strength(1)];
     const c3 = (x: number): number => x * x * x;
@@ -134,7 +183,7 @@ export class Sim {
       const t = TACTICS[s.tactic].fatigue;
       for (const o of s.on) {
         const p = this.P(o.pid);
-        const drain = (this.slotPos(s, o) === 'GOL' ? 0.08 : 0.3) * t * (p.age > 31 ? 1.15 : 1);
+        const drain = (this.slotPos(s, o) === 'GOL' ? 0.08 : 0.3) * t * (p.age > 31 ? 1.15 : 1) * (hasTrait(p, 'resistencia') ? TRAIT_STAMINA : 1);
         o.fat = Math.max(10, o.fat - drain);
       }
     }
@@ -159,15 +208,18 @@ export class Sim {
     const side = this.sides[s], opp = this.sides[1 - s];
     const field = this.outfield(side);
     if (!field.length) return 'mid';
+    const taker = penalty ? field.find((o) => o.pid === side.club.penTaker) : undefined;
     const shooterO = penalty
-      ? field.slice().sort((a, b) => this.P(b.pid).ovr * SHOOT_W[this.P(b.pid).pos] - this.P(a.pid).ovr * SHOOT_W[this.P(a.pid).pos])[0]
+      ? taker || field.slice().sort((a, b) => this.P(b.pid).ovr * SHOOT_W[this.P(b.pid).pos] - this.P(a.pid).ovr * SHOOT_W[this.P(a.pid).pos])[0]
       : (weighted(field, (o) => SHOOT_W[this.slotPos(side, o)] * Math.pow(this.P(o.pid).ovr / 70, 2)) as OnField);
     const shooter = this.P(shooterO.pid);
     const gkO = opp.on.find((o) => this.slotPos(opp, o) === 'GOL');
     const gkName = gkO ? this.P(gkO.pid).name : 'o goleiro improvisado';
     const gkEff = this.cur[1 - s].G;
     const shEff = shooterO.eff || shooter.ovr;
-    const xg = penalty ? 0.76 : clamp((Math.pow(Math.random(), 1.7) * 0.26 + 0.025) * Math.pow(shEff / gkEff, 1.3) * Math.pow(ratio, 0.5), 0.02, 0.7);
+    let xg = penalty ? 0.76 : clamp((Math.pow(Math.random(), 1.7) * 0.26 + 0.025) * Math.pow(shEff / gkEff, 1.3) * Math.pow(ratio, 0.5), 0.02, 0.7);
+    if (!penalty && hasTrait(shooter, 'finalizacao')) xg = Math.min(0.7, xg * TRAIT_FINISH_XG);
+    xg *= this.keeperMult(gkO);
     this.stats.shots[s]++;
     this.stats.xg[s] += xg;
     const vars = { p: shooter.name, t: side.club.name, g: gkName };
@@ -184,12 +236,12 @@ export class Sim {
       if (gkO) this.ratings[gkO.pid] += 0.18;
       this.ratings[shooter.id] += 0.05;
       this.log('save', s, say('save', vars));
-      if (Math.random() < 0.3) this.corner(s);
+      if (Math.random() < 0.3) return this.corner(s) || 'save';
       return 'save';
     }
     if (r < xg + 0.45) {
       this.log('miss', s, say('block', vars));
-      if (Math.random() < 0.4) this.corner(s);
+      if (Math.random() < 0.4) return this.corner(s) || 'shot';
       return 'shot';
     }
     this.log('miss', s, say('miss', vars));
@@ -197,12 +249,38 @@ export class Sim {
     return 'shot';
   }
 
-  corner(s: number): void {
+  /** Escanteio. Com um cabeceador em campo, pode virar cabeçada (retorna o tipo de lance, ou null). */
+  corner(s: number): BallKind | null {
     this.stats.corners[s]++;
     if (Math.random() < 0.3) this.log('info', s, say('corner', { t: this.sides[s].club.name }));
+    const side = this.sides[s];
+    const headers = this.outfield(side).filter((o) => hasTrait(this.P(o.pid), 'cabeceio'));
+    if (!headers.length || Math.random() >= HEADER_CHANCE) return null;
+    return this.header(s, weighted(headers, (o) => this.P(o.pid).ovr) as OnField);
   }
 
-  goal(s: number, shooterO: OnField, penalty: boolean): void {
+  header(s: number, o: OnField): BallKind {
+    const side = this.sides[s], opp = this.sides[1 - s];
+    const p = this.P(o.pid);
+    const gkO = opp.on.find((x) => this.slotPos(opp, x) === 'GOL');
+    const gkName = gkO ? this.P(gkO.pid).name : 'o goleiro improvisado';
+    const xg = clamp(HEADER_XG * Math.pow((o.eff || matchOvr(p)) / this.cur[1 - s].G, 1.3), 0.03, 0.35) * this.keeperMult(gkO);
+    this.stats.shots[s]++;
+    this.stats.xg[s] += xg;
+    const vars = { p: p.name, t: side.club.name, g: gkName };
+    const r = Math.random();
+    if (r < xg) { this.goal(s, o, false, true); return 'goal'; }
+    if (r < xg + 0.3) {
+      this.stats.onT[s]++;
+      if (gkO) this.ratings[gkO.pid] += 0.18;
+      this.log('save', s, say('headSave', vars));
+      return 'save';
+    }
+    this.log('miss', s, say('headMiss', vars));
+    return 'shot';
+  }
+
+  goal(s: number, shooterO: OnField, penalty: boolean, header = false): void {
     const side = this.sides[s], opp = this.sides[1 - s];
     const shooter = this.P(shooterO.pid);
     this.score[s]++;
@@ -210,7 +288,7 @@ export class Sim {
     let assist: Player | null = null;
     if (!penalty && Math.random() < 0.78) {
       const mates = side.on.filter((o) => o.pid !== shooter.id);
-      const a = weighted(mates, (o) => ASSIST_W[this.slotPos(side, o)] * (this.P(o.pid).ovr / 70));
+      const a = weighted(mates, (o) => ASSIST_W[this.slotPos(side, o)] * (this.P(o.pid).ovr / 70) * (hasTrait(this.P(o.pid), 'passe') ? TRAIT_PASS_ASSIST : 1));
       if (a) assist = this.P(a.pid);
     }
     this.goals.push({ side: s, pid: shooter.id, min: this.minute, assist: assist && assist.id, pen: penalty });
@@ -221,7 +299,7 @@ export class Sim {
       if (sp === 'GOL') this.ratings[o.pid] -= 0.45;
       else if (sp === 'ZAG' || sp === 'LAT') this.ratings[o.pid] -= 0.15;
     }
-    let text = penalty ? say('penGoal', { p: shooter.name }) : say('goal', { p: shooter.name, t: side.club.name });
+    let text = penalty ? say('penGoal', { p: shooter.name }) : say(header ? 'header' : 'goal', { p: shooter.name, t: side.club.name });
     if (assist) text += say('assist', { a: assist.name });
     this.log('goal', s, text);
   }
@@ -280,8 +358,9 @@ export class Sim {
     if (this.injuries.some((i) => i.pid === p.id)) return;
     const W = [1, 2, 3, 4, 6, 8], P = [5, 4, 3, 2, 1, 0.5];
     const weeks = weighted(W, (x) => P[W.indexOf(x)]) as number;
-    this.injuries.push({ pid: p.id, weeks });
-    this.log('injury', s, say('injury', { p: p.name }));
+    const type = injuryLabel(weeks);
+    this.injuries.push({ pid: p.id, weeks, type });
+    this.log('injury', s, say('injury', { p: p.name, i: injuryPhrase(type) }));
     o.fat = Math.min(o.fat, 25);
     if (side.auto) this.autoSubFor(s, o);
     else this.pendingInjury = { side: s, pid: p.id };
@@ -384,7 +463,9 @@ export class Sim {
 
   penalties(): void {
     const pens: [number, number] = [0, 0];
-    const takers = this.sides.map((side) => this.outfield(side).map((o) => this.P(o.pid)).sort((a, b) => b.ovr - a.ovr));
+    // Batedor oficial (se em campo) abre a série; depois, os de maior overall.
+    const takers = this.sides.map((side) => this.outfield(side).map((o) => this.P(o.pid))
+      .sort((a, b) => (a.id === side.club.penTaker ? -1 : 0) - (b.id === side.club.penTaker ? -1 : 0) || b.ovr - a.ovr));
     const kick = (s: number, k: number): boolean => {
       const t = takers[s][k % Math.max(1, takers[s].length)];
       const ok = Math.random() < clamp(0.72 + ((t ? t.ovr : 60) - this.cur[1 - s].G) / 250, 0.55, 0.9);

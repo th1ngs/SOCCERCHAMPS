@@ -1,46 +1,14 @@
 // Dados fixos: clubes, nomes, posições, formações e narração.
 import type {
-  ClubStatic, FormationKey, FormationSlot, Position, SectorWeights, Tactic, TacticKey, Training, TrainingKey,
+  FormationKey, FormationSlot, Position, SectorWeights, Tactic, TacticKey, TicketPrice, TicketPriceInfo, Trait, TraitKey,
+  Training, TrainingKey,
 } from './types';
 import { pick } from './util';
 
-export type { Position, FormationKey, TacticKey, TrainingKey } from './types';
+export type { Position, FormationKey, TacticKey, TrainingKey, TraitKey, TicketPrice } from './types';
 
-// Clubes fictícios. rep = reputação (0-100), cap = capacidade do estádio.
-export const CLUBS: ClubStatic[] = [
-  { id: 'guanabara', name: 'Guanabara FC', short: 'GUA', city: 'Rio de Janeiro', uf: 'RJ', colors: ['#c8102e', '#111111'], pattern: 'h', rep: 88, cap: 72000 },
-  { id: 'bandeirantes', name: 'Bandeirantes EC', short: 'BAN', city: 'São Paulo', uf: 'SP', colors: ['#f2f2f2', '#111111'], pattern: 'sash', rep: 87, cap: 62000 },
-  { id: 'paulistano', name: 'Paulistano FC', short: 'PAU', city: 'São Paulo', uf: 'SP', colors: ['#0b8a3e', '#ffffff'], pattern: 'solid', rep: 85, cap: 45000 },
-  { id: 'alvorada', name: 'Alvorada Atlético', short: 'ALV', city: 'Belo Horizonte', uf: 'MG', colors: ['#111111', '#f2f2f2'], pattern: 'v', rep: 84, cap: 60000 },
-  { id: 'farroupilha', name: 'Farroupilha FC', short: 'FAR', city: 'Porto Alegre', uf: 'RS', colors: ['#1e5aa8', '#111111'], pattern: 'v', rep: 83, cap: 55000 },
-  { id: 'carioca', name: 'Carioca AC', short: 'CAR', city: 'Rio de Janeiro', uf: 'RJ', colors: ['#7a1030', '#1d6b3a'], pattern: 'v', rep: 80, cap: 46000 },
-  { id: 'tubaroes', name: 'Tubarões FC', short: 'TUB', city: 'Santos', uf: 'SP', colors: ['#f2f2f2', '#111111'], pattern: 'solid', rep: 78, cap: 18000 },
-  { id: 'pinhais', name: 'Pinhais EC', short: 'PIN', city: 'Curitiba', uf: 'PR', colors: ['#b3001b', '#111111'], pattern: 'half', rep: 77, cap: 42000 },
-  { id: 'mare', name: 'Maré Alta SC', short: 'MAR', city: 'Salvador', uf: 'BA', colors: ['#d61f26', '#1c3f94'], pattern: 'h', rep: 76, cap: 50000 },
-  { id: 'sertao', name: 'Unidos do Sertão', short: 'SER', city: 'Recife', uf: 'PE', colors: ['#d61f26', '#111111'], pattern: 'h', rep: 75, cap: 45000 },
-  { id: 'canarinho', name: 'Canarinho EC', short: 'CAN', city: 'Fortaleza', uf: 'CE', colors: ['#f4c20d', '#1c3f94'], pattern: 'solid', rep: 74, cap: 60000 },
-  { id: 'cerrado', name: 'Real Cerrado', short: 'CER', city: 'Goiânia', uf: 'GO', colors: ['#0e7a3a', '#ffffff'], pattern: 'v', rep: 72, cap: 40000 },
-  { id: 'litoral', name: 'Atlético Litoral', short: 'LIT', city: 'Florianópolis', uf: 'SC', colors: ['#1f8f3a', '#ffffff'], pattern: 'half', rep: 70, cap: 20000 },
-  { id: 'leoes', name: 'Leões da Serra', short: 'LEO', city: 'Caxias do Sul', uf: 'RS', colors: ['#7a1f1f', '#ffffff'], pattern: 'sash', rep: 70, cap: 25000 },
-  { id: 'estrela', name: 'Estrela do Norte', short: 'EST', city: 'Belém', uf: 'PA', colors: ['#1a4fa0', '#ffffff'], pattern: 'h', rep: 69, cap: 45000 },
-  { id: 'capixaba', name: 'Operário Capixaba', short: 'OPE', city: 'Vitória', uf: 'ES', colors: ['#111111', '#f4c20d'], pattern: 'v', rep: 66, cap: 22000 },
-  { id: 'ferroviario', name: 'Ferroviário Central', short: 'FER', city: 'Campinas', uf: 'SP', colors: ['#8a1538', '#ffffff'], pattern: 'sash', rep: 62, cap: 20000 },
-  { id: 'juventude', name: 'Juventude do Vale', short: 'JUV', city: 'São José dos Campos', uf: 'SP', colors: ['#1c7a3a', '#ffffff'], pattern: 'v', rep: 60, cap: 16000 },
-  { id: 'araucaria', name: 'Araucária FC', short: 'ARA', city: 'Londrina', uf: 'PR', colors: ['#0f5132', '#f4c20d'], pattern: 'solid', rep: 58, cap: 30000 },
-  { id: 'potiguar', name: 'Potiguar SC', short: 'POT', city: 'Natal', uf: 'RN', colors: ['#d61f26', '#ffffff'], pattern: 'h', rep: 57, cap: 30000 },
-  { id: 'metropole', name: 'Metrópole FC', short: 'MET', city: 'Brasília', uf: 'DF', colors: ['#1a4fa0', '#f4c20d'], pattern: 'h', rep: 56, cap: 70000 },
-  { id: 'pantanal', name: 'Pantanal EC', short: 'PAN', city: 'Cuiabá', uf: 'MT', colors: ['#f4c20d', '#0e7a3a'], pattern: 'v', rep: 55, cap: 40000 },
-  { id: 'manauara', name: 'Manauara FC', short: 'MAN', city: 'Manaus', uf: 'AM', colors: ['#f28c00', '#1b3a6b'], pattern: 'half', rep: 54, cap: 40000 },
-  { id: 'esperanca', name: 'Vila Esperança', short: 'VIL', city: 'Aparecida de Goiânia', uf: 'GO', colors: ['#ffffff', '#d61f26'], pattern: 'sash', rep: 53, cap: 18000 },
-  { id: 'chapada', name: 'Chapada FC', short: 'CHA', city: 'Lages', uf: 'SC', colors: ['#0e7a3a', '#ffffff'], pattern: 'h', rep: 52, cap: 15000 },
-  { id: 'alagoano', name: 'Alagoano FC', short: 'ALA', city: 'Maceió', uf: 'AL', colors: ['#1a4fa0', '#ffffff'], pattern: 'v', rep: 51, cap: 20000 },
-  { id: 'ouropreto', name: 'Ouro Preto AC', short: 'OUR', city: 'Ouro Preto', uf: 'MG', colors: ['#c9a227', '#111111'], pattern: 'v', rep: 50, cap: 12000 },
-  { id: 'paraibano', name: 'Paraibano SC', short: 'PAR', city: 'João Pessoa', uf: 'PB', colors: ['#111111', '#d61f26'], pattern: 'v', rep: 50, cap: 25000 },
-  { id: 'maranhense', name: 'Maranhense EC', short: 'MRH', city: 'São Luís', uf: 'MA', colors: ['#d61f26', '#111111'], pattern: 'half', rep: 49, cap: 40000 },
-  { id: 'serrano', name: 'Serrano FC', short: 'SRR', city: 'Petrópolis', uf: 'RJ', colors: ['#1a4fa0', '#d61f26'], pattern: 'h', rep: 47, cap: 15000 },
-  { id: 'missoes', name: 'Missões FC', short: 'MIS', city: 'Santo Ângelo', uf: 'RS', colors: ['#0e5aa8', '#ffffff'], pattern: 'half', rep: 46, cap: 10000 },
-  { id: 'tocantins', name: 'Tocantins FC', short: 'TOC', city: 'Palmas', uf: 'TO', colors: ['#f28c00', '#ffffff'], pattern: 'solid', rep: 45, cap: 12000 },
-];
+// Clubes fictícios (fonte: ./clubs). Ordem = prestígio: os 16 primeiros começam na Série A.
+export { CLUBS } from './clubs';
 
 export const FIRST: string[] = ('Gabriel Lucas Mateus Pedro João Rafael Gustavo Felipe Bruno Thiago Diego Vinícius Rodrigo Leonardo Caio Daniel ' +
   'André Eduardo Marcelo Ricardo Fernando Henrique Igor Kaique Luan Murilo Nathan Otávio Paulo Renan Samuel Talles Vitor ' +
@@ -120,9 +88,13 @@ export const TXT = {
   penalty: ['PÊNALTI para o {t}! {p} vai para a cobrança.'],
   penGoal: ['{p} cobra e converte!'],
   penMiss: ['{p} cobra e {g} defende o pênalti!', '{p} isola a cobrança!'],
-  injury: ['{p} sente a lesão e pede atendimento.'],
+  injury: ['{p} sofre {i} e pede atendimento.', '{p} cai no gramado: parece {i}.'],
   sub: ['Substituição no {t}: sai {o}, entra {p}.'],
   corner: ['Escanteio para o {t}.'],
+  derby: ['É CLÁSSICO! {h} e {a} fazem o jogo mais esperado da temporada.', 'Dia de clássico: {h} x {a}. A cidade parou para ver!', 'Rivalidade em campo: {h} contra {a}, estádio lotado e pulsando!'],
+  header: ['GOL DE CABEÇA! {p} sobe mais que todo mundo no escanteio e marca para o {t}!', 'Escanteio, cabeçada certeira de {p} e GOL do {t}!'],
+  headSave: ['{p} cabeceia firme e {g} faz grande defesa!', 'Cabeçada de {p}, {g} espalma.'],
+  headMiss: ['{p} sobe no escanteio e cabeceia por cima.', 'Cabeçada de {p} passa raspando a trave.'],
 } satisfies Record<string, string[]>;
 export type TxtKey = keyof typeof TXT;
 
@@ -132,3 +104,55 @@ export const say = (key: TxtKey, vars?: Record<string, string>): string => {
   for (const k in vars) s = s.split('{' + k + '}').join(vars[k]);
   return s;
 };
+
+// ---------- Características ----------
+export const TRAITS: Record<TraitKey, Trait> = {
+  finalizacao: { name: 'Finalização', short: 'FIN', desc: 'Chutes mais perigosos (xG × 1,12).' },
+  cabeceio: { name: 'Cabeceio', short: 'CAB', desc: 'Ameaça nas bolas aéreas: pode marcar após escanteios.' },
+  drible: { name: 'Drible', short: 'DRI', desc: 'Desequilibra no ataque.' },
+  passe: { name: 'Passe', short: 'PAS', desc: 'Organiza o meio-campo e dá mais assistências.' },
+  velocidade: { name: 'Velocidade', short: 'VEL', desc: 'Arranque que fortalece o ataque.' },
+  marcacao: { name: 'Marcação', short: 'MAR', desc: 'Fecha os espaços na defesa.' },
+  desarme: { name: 'Desarme', short: 'DES', desc: 'Rouba bolas e fortalece a defesa.' },
+  reflexo: { name: 'Reflexo', short: 'REF', desc: 'Goleiro: chutes adversários menos perigosos (xG × 0,9).' },
+  lideranca: { name: 'Liderança', short: 'LID', desc: 'Como capitão, dobra o bônus da braçadeira.' },
+  resistencia: { name: 'Resistência', short: 'RES', desc: 'Cansa menos durante a partida (× 0,8).' },
+};
+export const TRAIT_KEYS = Object.keys(TRAITS) as TraitKey[];
+
+/** Pesos para sortear características conforme a posição. */
+export const TRAIT_WEIGHTS: Record<Position, Partial<Record<TraitKey, number>>> = {
+  GOL: { reflexo: 6, lideranca: 2, passe: 1, resistencia: 1 },
+  ZAG: { marcacao: 4, desarme: 3, cabeceio: 4, lideranca: 2, resistencia: 1, velocidade: 1 },
+  LAT: { velocidade: 4, resistencia: 3, passe: 2, desarme: 2, drible: 2, marcacao: 1 },
+  VOL: { desarme: 4, marcacao: 3, passe: 3, resistencia: 3, lideranca: 2 },
+  MEI: { passe: 5, drible: 4, finalizacao: 2, velocidade: 1, lideranca: 1, resistencia: 1 },
+  ATA: { finalizacao: 5, drible: 3, velocidade: 3, cabeceio: 3, lideranca: 1 },
+};
+/** Chance de um jogador gerado ser Craque. */
+export const STAR_CHANCE = 0.03;
+
+// ---------- Ingressos ----------
+export const TICKET_PRICES: Record<TicketPrice, TicketPriceInfo> = {
+  popular: { name: 'Popular', mult: 0.7, occ: +0.12 },
+  normal: { name: 'Normal', mult: 1, occ: 0 },
+  premium: { name: 'Premium', mult: 1.45, occ: -0.15 },
+};
+
+// ---------- Empréstimo bancário ----------
+export const LOAN_OPTIONS = [5e6, 10e6, 20e6];
+/** Juros totais sobre o principal. */
+export const LOAN_INTEREST = 0.12;
+export const LOAN_WEEKS = 30;
+
+// ---------- Departamento médico ----------
+/** Tipo de lesão pela gravidade em semanas: Pancada (1), Estiramento (2-3), Distensão (4-6), Fratura (7+). */
+export const injuryLabel = (weeks: number): string =>
+  weeks <= 1 ? 'Pancada' : weeks <= 3 ? 'Estiramento' : weeks <= 6 ? 'Distensão' : 'Fratura';
+
+const INJ_ARTICLE: Record<string, string> = { Pancada: 'uma pancada', Estiramento: 'um estiramento', 'Distensão': 'uma distensão', Fratura: 'uma fratura' };
+/** "uma distensão", "um estiramento"… para narração e mensagens. */
+export const injuryPhrase = (type: string): string => INJ_ARTICLE[type] || 'uma lesão';
+
+/** "1 semana" / "5 semanas". */
+export const weeksText = (n: number): string => `${n} ${n === 1 ? 'semana' : 'semanas'}`;
