@@ -7,3 +7,4 @@ export * from './squad';
 export * from './engine';
 export * from './world';
 export * from './market';
+export * from './migrate';

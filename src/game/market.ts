@@ -1,5 +1,5 @@
 // Mercado: transferências, propostas, renovações, base e estrutura do clube.
-import { POS } from './data';
+import { LOAN_INTEREST, LOAN_OPTIONS, LOAN_WEEKS, POS } from './data';
 import { assignNumbers, makeYouth, valueOf, wageFor } from './gen';
 import type { BidResult, Club, Message, Player, UpgradeKey, Upgrade, World } from './types';
 import { avg, chance, clamp, formatMoney, pick, rand, randi, shuffle } from './util';
@@ -162,6 +162,31 @@ export function upgrade(w: World, kind: UpgradeKey): boolean {
   if (kind === 'stadium') { if (u.cap >= up.max) return false; u.cap += 5000; }
   else { if (u[kind] >= up.max) return false; u[kind]++; }
   addMoney(w, u.id, -cost, 'other');
+  return true;
+}
+
+// ---------- Empréstimo bancário ----------
+/** Saldo devedor restante (parcelas que faltam). */
+export const loanBalance = (club: Club): number => (club.loan ? club.loan.weekly * club.loan.weeksLeft : 0);
+
+/** Contrata um empréstimo de LOAN_OPTIONS (12% de juros totais, 30 parcelas). Falha se já houver um ativo. */
+export function takeLoan(w: World, amount: number): boolean {
+  const u = user(w);
+  if (u.loan || !LOAN_OPTIONS.includes(amount)) return false;
+  u.loan = { principal: amount, weekly: Math.round((amount * (1 + LOAN_INTEREST)) / LOAN_WEEKS), weeksLeft: LOAN_WEEKS };
+  addMoney(w, u.id, amount, 'loan');
+  pushMessage(w, { kind: 'board', title: 'Empréstimo contratado', body: `O banco liberou ${formatMoney(amount)}. Serão ${LOAN_WEEKS} parcelas semanais de ${formatMoney(u.loan.weekly)}.` });
+  return true;
+}
+
+/** Quita o saldo restante do empréstimo. Falha sem empréstimo ativo ou sem caixa suficiente. */
+export function repayLoan(w: World): boolean {
+  const u = user(w);
+  if (!u.loan) return false;
+  const due = loanBalance(u);
+  if (u.money < due) return false;
+  addMoney(w, u.id, -due, 'loan');
+  u.loan = null;
   return true;
 }
 

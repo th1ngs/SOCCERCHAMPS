@@ -1,12 +1,12 @@
 // Temporada: calendário, resultados, tabela, Copa, semana a semana e virada de ano.
-import { TRAINING } from './data';
-import { Sim } from './engine';
+import { TICKET_PRICES, TRAINING, injuryLabel, injuryPhrase, weeksText } from './data';
+import { Sim, isDerbyClubs } from './engine';
 import { assignNumbers, makeFreeAgent, makeYouth, newPlayer, wageFor } from './gen';
 import { aiOffersToUser, aiTransfers, promoteYouth, transfer } from './market';
 import { autoLineup, ensureLineup, teamRating } from './squad';
 import type {
-  Club, Competition, Division, FinanceCategory, Fixture, FormResult, HistoryEntry, Match, MatchResult, MessageInput,
-  Player, Position, SeasonSummary, SimOptions, TableRow, Week, WeekReport, World,
+  Club, Competition, Division, FinanceCategory, Fixture, FormResult, GateForecast, HistoryEntry, Match, MatchResult,
+  MessageInput, Player, Position, SeasonSummary, SimOptions, TableRow, TicketPrice, Week, WeekReport, World,
 } from './types';
 import { chance, clamp, gauss, pick, rand, randi, shuffle, sum } from './util';
 
@@ -22,6 +22,19 @@ export const nextWindow = (w: World): number | null => {
 };
 
 const TV: Record<Division, number> = { A: 380000, B: 120000 };
+
+// Clássicos, torcida e DM
+const DERBY_INCOME = 1.4;
+const DERBY_MORALE = 8;
+const DERBY_BOARD = 3;
+const FANS_RESULT = 4;
+const FANS_START = 60;
+/** Puxão semanal da torcida de volta ao patamar inicial (evita saturar em 0 ou 100). */
+const FANS_DRIFT = 0.03;
+
+/** Semanas de lesão após a redução pelo nível do CT (1 → 100%, 5 → 80%). */
+export const injuryWeeks = (weeks: number, trainingLvl: number): number =>
+  Math.max(1, Math.round(weeks * (1.05 - 0.05 * clamp(trainingLvl, 1, 5))));
 
 // ---------- Mensagens ----------
 /** Adiciona uma mensagem à caixa de entrada (era M.msg). */
@@ -193,12 +206,33 @@ function expectedPoints(w: World, m: Match): number {
   return clamp(1.35 + d * 0.09, 0.65, 2.4);
 }
 
+// ---------- Clássicos e bilheteria ----------
+/** Verdadeiro se um clube tem o outro como rival (em qualquer direção). */
+export const isDerby = (w: World, m: Pick<Match, 'h' | 'a'>): boolean => isDerbyClubs(w, m.h, m.a);
+
+/** Público e renda previstos para o mandante (0/0 em campo neutro). */
+export function expectedGate(w: World, m: Match): GateForecast {
+  const derby = isDerby(w, m);
+  if (m.neutral) return { attendance: 0, income: 0, derby };
+  const hc = w.clubs[m.h], ac = w.clubs[m.a];
+  const tp = TICKET_PRICES[hc.ticketPrice] || TICKET_PRICES.normal;
+  const fans = typeof hc.fans === 'number' ? hc.fans : FANS_START;
+  const occ = derby ? 1 : clamp(0.35 + hc.rep / 200 + ac.rep / 400 + (m.comp === 'CUP' ? 0.1 : 0) + tp.occ + (fans - FANS_START) / 250, 0.2, 1);
+  const income = Math.round(hc.cap * occ * (15 + hc.rep * 0.3) * tp.mult * (derby ? DERBY_INCOME : 1));
+  return { attendance: Math.round(hc.cap * occ), income, derby };
+}
+
+export function setTicketPrice(w: World, price: TicketPrice): void {
+  user(w).ticketPrice = price;
+}
+
 // ---------- Resultados ----------
 export function applyResult(w: World, m: Match, res: MatchResult): void {
   m.hs = res.hs; m.as = res.as; m.pens = res.pens; m.played = true;
   m.goals = res.goals.map((g) => [g.pid, g.side, g.min, g.assist || 0, g.pen ? 1 : 0]);
   const clubsIds = [m.h, m.a];
   const winner = res.winner;
+  const derby = isDerby(w, m);
   const playedSet = new Set(res.played[0].concat(res.played[1]));
 
   // Suspensões cumpridas
@@ -216,7 +250,8 @@ export function applyResult(w: World, m: Match, res: MatchResult): void {
       p.s.rsum += res.ratings[pid] || 6;
       p.played = true;
       if (res.fat[pid] != null) p.fitness = Math.round(res.fat[pid]);
-      const mor = winner === s ? 5 : winner === 1 - s ? -5 : 0;
+      const dm = derby ? DERBY_MORALE : 5;
+      const mor = winner === s ? dm : winner === 1 - s ? -dm : 0;
       p.morale = clamp(p.morale + mor, 10, 100);
     }
   });
@@ -235,17 +270,30 @@ export function applyResult(w: World, m: Match, res: MatchResult): void {
   }
   for (const inj of res.injuries) {
     const p = w.players[inj.pid];
-    if (p) { p.inj = Math.max(p.inj, inj.weeks); p.injNew = true; }
+    if (!p) continue;
+    const club = p.clubId ? w.clubs[p.clubId] : undefined;
+    const weeks = injuryWeeks(inj.weeks, club ? club.training : 1);
+    if (weeks >= p.inj) p.injType = inj.type || injuryLabel(inj.weeks);
+    p.inj = Math.max(p.inj, weeks);
+    p.injNew = true;
+    if (club && club.id === w.userClub) {
+      pushMessage(w, { kind: 'medical', title: `${p.name} lesionado`, body: `${p.name} sofreu ${injuryPhrase(p.injType || injuryLabel(inj.weeks))} e fica fora por ${weeksText(p.inj)}.` });
+    }
   }
 
   // Bilheteria para o mandante
   if (!m.neutral) {
-    const hc = w.clubs[m.h], ac = w.clubs[m.a];
-    const occ = clamp(0.35 + hc.rep / 200 + ac.rep / 400 + (m.comp === 'CUP' ? 0.1 : 0), 0.2, 1);
-    const income = Math.round(hc.cap * occ * (15 + hc.rep * 0.3));
-    m.attendance = Math.round(hc.cap * occ);
-    addMoney(w, m.h, income, 'tickets');
+    const g = expectedGate(w, m);
+    m.attendance = g.attendance;
+    addMoney(w, m.h, g.income, 'tickets');
   }
+  // Torcida
+  const fanDelta = FANS_RESULT * (derby ? 2 : 1);
+  [m.h, m.a].forEach((cid, s) => {
+    const c = w.clubs[cid];
+    const base = typeof c.fans === 'number' ? c.fans : FANS_START;
+    c.fans = clamp(base + (winner === s ? fanDelta : winner === 1 - s ? -fanDelta : 0), 0, 100);
+  });
   if (m.comp === 'CUP') {
     const wk = currentWeek(w);
     const winId = winner === 0 ? m.h : m.a;
@@ -260,6 +308,10 @@ export function applyResult(w: World, m: Match, res: MatchResult): void {
   } else if (clubsIds.includes(w.userClub)) {
     const s = m.h === w.userClub ? 0 : 1;
     w.board.conf = clamp(w.board.conf + (winner === s ? 2.5 : -2.5), 0, 100);
+  }
+  if (derby && clubsIds.includes(w.userClub)) {
+    const s = m.h === w.userClub ? 0 : 1;
+    w.board.conf = clamp(w.board.conf + (winner === s ? DERBY_BOARD : winner === 1 - s ? -DERBY_BOARD : 0), 0, 100);
   }
 }
 
@@ -323,7 +375,10 @@ export function endWeek(w: World): WeekReport {
       if (p.injNew) p.injNew = false;
       else {
         p.inj--;
-        if (p.inj === 0 && club === u) pushMessage(w, { kind: 'medical', title: `${p.name} recuperado`, body: `${p.name} está liberado pelo departamento médico.` });
+        if (p.inj === 0) {
+          p.injType = null;
+          if (club === u) pushMessage(w, { kind: 'medical', title: `${p.name} recuperado`, body: `${p.name} está liberado pelo departamento médico.` });
+        }
       }
     }
     const tr = club ? TRAINING[club.trainingInt] : TRAINING.mid;
@@ -333,8 +388,10 @@ export function endWeek(w: World): WeekReport {
       if (!p.played && !p.inj) p.morale = clamp(p.morale - 1.2, 10, 100);
       p.morale += (65 - p.morale) * 0.04;
       if (!p.inj && chance(0.0035 * tr.injury)) {
-        p.inj = randi(1, 3);
-        if (club === u) pushMessage(w, { kind: 'medical', title: `${p.name} machucado no treino`, body: `${p.name} sofreu uma lesão no treino e fica fora por ${p.inj} semana(s).` });
+        const sev = randi(1, 3);
+        p.inj = injuryWeeks(sev, club.training);
+        p.injType = injuryLabel(sev);
+        if (club === u) pushMessage(w, { kind: 'medical', title: `${p.name} machucado no treino`, body: `${p.name} sofreu ${injuryPhrase(p.injType)} no treino e fica fora por ${weeksText(p.inj)}.` });
       }
     }
     p.played = false;
@@ -346,6 +403,16 @@ export function endWeek(w: World): WeekReport {
     addMoney(w, c.id, -wages, 'wages');
     addMoney(w, c.id, Math.round(c.rep * 3000), 'sponsor');
     addMoney(w, c.id, TV[c.div], 'tv');
+    if (c.loan) {
+      addMoney(w, c.id, -c.loan.weekly, 'loan');
+      c.loan.weeksLeft--;
+      if (c.loan.weeksLeft <= 0) {
+        c.loan = null;
+        if (c.id === w.userClub) pushMessage(w, { kind: 'board', title: 'Empréstimo quitado', body: 'A última parcela do empréstimo bancário foi paga.' });
+      }
+    }
+    const fans = typeof c.fans === 'number' ? c.fans : FANS_START;
+    c.fans = clamp(fans + (FANS_START - fans) * FANS_DRIFT, 0, 100);
   }
   w.finance.push({ season: w.season, week: w.week, balance: u.money, ...w.finWeek });
   if (w.finance.length > 60) w.finance.shift();
@@ -549,6 +616,8 @@ export function detach(w: World, p: Player): void {
     c.youth = c.youth.filter((id) => id !== p.id);
     c.lineup = c.lineup.map((id) => (id === p.id ? null : id));
     c.bench = c.bench.filter((id) => id !== p.id);
+    if (c.captain === p.id) c.captain = null;
+    if (c.penTaker === p.id) c.penTaker = null;
   }
   w.free = w.free.filter((id) => id !== p.id);
 }
