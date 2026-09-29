@@ -37,6 +37,35 @@
 
   --animate-pop: pop 0.22s ease-out;
   --animate-flash: flash 2.2s ease forwards;
+  --animate-drift: drift 7s ease-in-out infinite;
+  --animate-ball: ball-run 12s ease-in-out infinite;
+  --animate-rise: rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-floodlight: floodlight 9s ease-in-out infinite;
+}
+
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(6px, -4px); }
+  50% { transform: translate(-4px, 5px); }
+  75% { transform: translate(5px, 3px); }
+}
+@keyframes ball-run {
+  0% { transform: translate(150px, 95px); }
+  15% { transform: translate(195px, 60px); }
+  30% { transform: translate(235px, 110px); }
+  38% { transform: translate(282px, 92px); }
+  46% { transform: translate(150px, 95px); }
+  60% { transform: translate(100px, 130px); }
+  75% { transform: translate(60px, 70px); }
+  85% { transform: translate(22px, 96px); }
+  100% { transform: translate(150px, 95px); }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(18px); }
+}
+@keyframes floodlight {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 0.9; }
 }
 
 @keyframes pop {
