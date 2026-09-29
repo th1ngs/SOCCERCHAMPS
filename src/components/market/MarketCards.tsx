@@ -7,6 +7,7 @@ import { ClubCell, PotCell, ScoutCell, StarMark } from "./MarketTable";
 import type { MarketRow } from "./marketFilter";
 import { WatchButton } from "./WatchButton";
 import { TraitChips } from "@/components/player/TraitChips";
+import { PlayerAvatar } from "@/components/player/PlayerAvatar";
 
 /** Resultados do mercado em cartões (celular). O cartão abre a ficha; a estrela observa. */
 export function MarketCards({ rows, onOpen }: { rows: MarketRow[]; onOpen: (pid: string) => void }) {
@@ -19,6 +20,7 @@ export function MarketCards({ rows, onOpen }: { rows: MarketRow[]; onOpen: (pid:
             onClick={() => onOpen(r.p.id)}
             className="flex min-w-0 flex-1 items-center gap-3 rounded-xl py-2.5 pl-3 text-left transition-colors hover:bg-ink-700 focus-visible:outline-2 focus-visible:outline-gold-400"
           >
+            <PlayerAvatar player={r.p} size={36} />
             <PosBadge pos={r.p.pos} />
             <span className="min-w-0 flex-1 space-y-1">
               <span className="flex items-center gap-1.5">

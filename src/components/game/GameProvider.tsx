@@ -3,246 +3,214 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { World } from "@/game/types";
 import { migrateWorld } from "@/game";
-import { cloud } from "@/lib/cloud";
-import { clearLegacyLocal, clearLocal, hasLegacyLocal, hasLocal, readLocal, writeLocal } from "@/lib/storage";
+import { accountApi, cloud, type Account, type SlotMeta } from "@/lib/cloud";
+import { hasLegacyLocal, readLocal } from "@/lib/storage";
 
-const CLOUD_KEY = "scm.cloud.code";
-/** Versão mínima do save compatível com as ligas atuais. */
 const MIN_VERSION = 3;
-
 export type CloudStatus = "off" | "idle" | "saving" | "saved" | "error";
-
-/** Diálogos globais do jogo (abertos de qualquer tela). */
 export type Overlay =
-  | { kind: "player"; pid: string }
-  | { kind: "weekResults" }
-  | { kind: "prematch"; matchId: string }
-  | { kind: "summary"; matchId: string }
-  | { kind: "seasonEnd" }
-  | { kind: "fired" }
-  | null;
-
+  | { kind: "player"; pid: string } | { kind: "weekResults" } | { kind: "prematch"; matchId: string }
+  | { kind: "summary"; matchId: string } | { kind: "seasonEnd" } | { kind: "fired" } | null;
 export type MatchMode = { kind: "live" | "button"; matchId: string } | null;
 
 interface GameState {
   world: World | null;
-  /** Incrementa a cada mutação: use em deps de useMemo. */
   version: number;
   ready: boolean;
-  /** Aplica uma mutação no mundo, re-renderiza e agenda o salvamento. */
+  account: Account | null;
+  slots: SlotMeta[];
+  activeSlot: number | null;
+  auth: (action: "login" | "register", nickname: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  selectSlot: (slot: number) => Promise<void>;
+  createSlot: (slot: number, world: World) => Promise<void>;
+  importLegacy: (slot: number) => Promise<void>;
+  importCode: (slot: number, code: string) => Promise<void>;
+  refreshSlots: () => Promise<void>;
   mutate: (fn: (w: World) => void) => void;
-  /** Re-renderiza e salva após mutações feitas diretamente no objeto. */
   commit: () => void;
   setWorld: (w: World | null) => void;
   hasLocalSave: () => boolean;
   loadLocal: () => World | null;
   clearLocal: () => void;
-  /** Havia uma carreira de versão antiga (incompatível) neste aparelho. */
   incompatibleSave: boolean;
+  legacySaveAvailable: boolean;
   dismissIncompatible: () => void;
-
   overlay: Overlay;
   setOverlay: (o: Overlay) => void;
   matchMode: MatchMode;
   setMatchMode: (m: MatchMode) => void;
-  /** Resultado pendente (ex.: sumário após jogo) guardado fora do World. */
   scratch: Record<string, unknown>;
-
-  cloudCode: string | null;
   cloudStatus: CloudStatus;
   cloudError: string | null;
-  enableCloud: () => Promise<string | null>;
   syncCloud: () => Promise<void>;
-  loadFromCloud: (code: string) => Promise<void>;
-  disconnectCloud: () => void;
 }
 
 const Ctx = createContext<GameState | null>(null);
 
-/** Converte dados salvos em um World atual, ou null se forem de uma versão incompatível. */
 function toWorld(data: unknown): World | null {
   try {
     const w = migrateWorld(data as World);
     return w && typeof w.version === "number" && w.version >= MIN_VERSION ? w : null;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const worldRef = useRef<World | null>(null);
+  const slotRef = useRef<number | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const [world, setWorldState] = useState<World | null>(null);
   const [version, setVersion] = useState(0);
   const [ready, setReady] = useState(false);
+  const [account, setAccount] = useState<Account | null>(null);
+  const [slots, setSlots] = useState<SlotMeta[]>([]);
+  const [activeSlot, setActiveSlot] = useState<number | null>(null);
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [matchMode, setMatchMode] = useState<MatchMode>(null);
-  const [cloudCode, setCloudCode] = useState<string | null>(null);
+  const [scratch] = useState<Record<string, unknown>>(() => ({}));
   const [cloudStatus, setCloudStatus] = useState<CloudStatus>("off");
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [incompatibleSave, setIncompatible] = useState(false);
-  const [scratch] = useState<Record<string, unknown>>(() => ({}));
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cloudTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const codeRef = useRef<string | null>(null);
+  const [legacySaveAvailable, setLegacySaveAvailable] = useState(false);
+
+  const clearPending = () => { if (timer.current) clearTimeout(timer.current); timer.current = null; };
+  const showWorld = useCallback((w: World | null, slot: number | null, accountId?: string) => {
+    clearPending();
+    worldRef.current = w;
+    slotRef.current = slot;
+    setWorldState(w);
+    setActiveSlot(slot);
+    setOverlay(null);
+    setMatchMode(null);
+    setVersion((v) => v + 1);
+    setCloudStatus(slot ? "saved" : "off");
+    setCloudError(null);
+    if (accountId) localStorage.setItem(`scm.active.${accountId}`, slot ? String(slot) : "");
+  }, []);
+
+  const refreshSlots = useCallback(async () => { setSlots((await accountApi.slots()).slots); }, []);
+  const queueSave = useCallback((slot: number, w: World) => {
+    const snapshot = structuredClone(w);
+    const next = saveQueue.current.catch(() => {}).then(async () => { await accountApi.save(slot, snapshot); });
+    saveQueue.current = next;
+    return next;
+  }, []);
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      const raw = await readLocal();
-      if (!alive) return;
-      const w = raw ? toWorld(raw) : null;
-      worldRef.current = w;
-      setWorldState(w);
-      setIncompatible((!!raw && !w) || hasLegacyLocal());
       try {
-        codeRef.current = w ? localStorage.getItem(CLOUD_KEY) : null;
-      } catch {
-        codeRef.current = null;
-      }
-      setCloudCode(codeRef.current);
-      setCloudStatus(codeRef.current ? "idle" : "off");
-      setReady(true);
-      setVersion((v) => v + 1);
+        const { account: found } = await accountApi.me();
+        if (!alive) return;
+        setAccount(found);
+        if (found) {
+          const listed = (await accountApi.slots()).slots;
+          if (!alive) return;
+          setSlots(listed);
+          const remembered = Number(localStorage.getItem(`scm.active.${found.id}`));
+          if (listed.some((s) => s.slot === remembered)) {
+            const loaded = toWorld((await accountApi.load(remembered)).data);
+            if (alive && loaded) showWorld(loaded, remembered, found.id);
+          }
+        }
+        const legacy = await readLocal();
+        if (alive) {
+          setLegacySaveAvailable(!!legacy && !!toWorld(legacy));
+          setIncompatible((!!legacy && !toWorld(legacy)) || hasLegacyLocal());
+        }
+      } catch (e) {
+        if (alive) setCloudError((e as Error).message);
+      } finally { if (alive) setReady(true); }
     })();
-    return () => {
-      alive = false;
-    };
-  }, []);
+    return () => { alive = false; };
+  }, [showWorld]);
 
-  const pushCloud = useCallback(async () => {
-    const w = worldRef.current, code = codeRef.current;
-    if (!w || !code) return;
+  const syncCloud = useCallback(async () => {
+    const w = worldRef.current, slot = slotRef.current;
+    if (!w || !slot) return;
     setCloudStatus("saving");
     try {
-      await cloud.update(code, w);
+      await queueSave(slot, w);
       setCloudStatus("saved");
       setCloudError(null);
+      await refreshSlots();
     } catch (e) {
       setCloudStatus("error");
       setCloudError((e as Error).message);
     }
-  }, []);
-
-  const persist = useCallback(() => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      const w = worldRef.current;
-      if (!w) return;
-      void writeLocal(w);
-      if (codeRef.current) {
-        if (cloudTimer.current) clearTimeout(cloudTimer.current);
-        cloudTimer.current = setTimeout(pushCloud, 2500);
-      }
-    }, 300);
-  }, [pushCloud]);
+  }, [refreshSlots, queueSave]);
 
   const commit = useCallback(() => {
     setVersion((v) => v + 1);
-    persist();
-  }, [persist]);
+    clearPending();
+    timer.current = setTimeout(() => { void syncCloud(); }, 800);
+  }, [syncCloud]);
 
-  const mutate = useCallback(
-    (fn: (w: World) => void) => {
-      const w = worldRef.current;
-      if (!w) return;
-      fn(w);
-      commit();
-    },
-    [commit],
-  );
+  const mutate = useCallback((fn: (w: World) => void) => {
+    if (!worldRef.current) return;
+    fn(worldRef.current);
+    commit();
+  }, [commit]);
 
-  const setWorld = useCallback(
-    (w: World | null) => {
-      worldRef.current = w ? toWorld(w) : null;
-      setWorldState(worldRef.current);
-      setOverlay(null);
-      setMatchMode(null);
-      commit();
-    },
-    [commit],
-  );
+  const selectSlot = useCallback(async (slot: number) => {
+    if (!account || !slots.some((s) => s.slot === slot)) throw new Error("Save não encontrado.");
+    clearPending();
+    if (worldRef.current && slotRef.current) await queueSave(slotRef.current, worldRef.current);
+    else await saveQueue.current;
+    const w = toWorld((await accountApi.load(slot)).data);
+    if (!w) throw new Error("Este save é incompatível com a versão atual.");
+    showWorld(w, slot, account.id);
+  }, [account, slots, showWorld, queueSave]);
 
-  const enableCloud = useCallback(async () => {
-    const w = worldRef.current;
-    if (!w) return null;
-    setCloudStatus("saving");
-    try {
-      const r = await cloud.create(w);
-      codeRef.current = r.code;
-      localStorage.setItem(CLOUD_KEY, r.code);
-      setCloudCode(r.code);
-      setCloudStatus("saved");
-      setCloudError(null);
-      return r.code;
-    } catch (e) {
-      setCloudStatus("error");
-      setCloudError((e as Error).message);
-      return null;
-    }
-  }, []);
+  const createSlot = useCallback(async (slot: number, w: World) => {
+    if (!account || ![1, 2, 3].includes(slot)) throw new Error("Entre na conta e escolha um slot válido.");
+    const valid = toWorld(w);
+    if (!valid) throw new Error("Save inválido.");
+    clearPending();
+    if (worldRef.current && slotRef.current && slotRef.current !== slot) await queueSave(slotRef.current, worldRef.current);
+    await queueSave(slot, valid);
+    showWorld(valid, slot, account.id);
+    await refreshSlots();
+  }, [account, showWorld, refreshSlots, queueSave]);
 
-  const loadFromCloud = useCallback(
-    async (code: string) => {
-      const norm = code.trim().toUpperCase();
-      const r = await cloud.load(norm);
-      const w = toWorld(r.data);
-      if (!w) throw new Error("Esta carreira é de uma versão antiga do jogo e não pode mais ser carregada.");
-      codeRef.current = norm;
-      try {
-        localStorage.setItem(CLOUD_KEY, norm);
-      } catch {
-        /* sem armazenamento */
-      }
-      setCloudCode(norm);
-      setCloudStatus("saved");
-      setWorld(w);
-    },
-    [setWorld],
-  );
+  const importLegacy = useCallback(async (slot: number) => {
+    const w = toWorld(await readLocal());
+    if (!w) throw new Error("Nenhum save antigo compatível neste navegador.");
+    await createSlot(slot, w);
+  }, [createSlot]);
 
-  const disconnectCloud = useCallback(() => {
-    codeRef.current = null;
-    try {
-      localStorage.removeItem(CLOUD_KEY);
-    } catch {
-      /* sem armazenamento */
-    }
-    setCloudCode(null);
-    setCloudStatus("off");
-  }, []);
+  const importCode = useCallback(async (slot: number, code: string) => {
+    const w = toWorld((await cloud.load(code)).data);
+    if (!w) throw new Error("Este código não contém uma carreira compatível.");
+    await createSlot(slot, w);
+  }, [createSlot]);
 
-  const value = useMemo<GameState>(
-    () => ({
-      world,
-      version,
-      ready,
-      mutate,
-      commit,
-      setWorld,
-      hasLocalSave: hasLocal,
-      loadLocal: () => worldRef.current,
-      clearLocal,
-      incompatibleSave,
-      dismissIncompatible: () => {
-        clearLegacyLocal();
-        setIncompatible(false);
-      },
-      overlay,
-      setOverlay,
-      matchMode,
-      setMatchMode,
-      scratch,
-      cloudCode,
-      cloudStatus,
-      cloudError,
-      enableCloud,
-      syncCloud: pushCloud,
-      loadFromCloud,
-      disconnectCloud,
-    }),
-    // version muda a cada mutação no mesmo objeto world.
-    [world, version, ready, mutate, commit, setWorld, incompatibleSave, overlay, matchMode, scratch, cloudCode, cloudStatus, cloudError, enableCloud, pushCloud, loadFromCloud, disconnectCloud],
-  );
+  const auth = useCallback(async (action: "login" | "register", nickname: string, password: string) => {
+    const result = await accountApi.auth(action, nickname, password);
+    showWorld(null, null);
+    setAccount(result.account);
+    setSlots((await accountApi.slots()).slots);
+  }, [showWorld]);
+
+  const logout = useCallback(async () => {
+    clearPending();
+    if (worldRef.current && slotRef.current) await queueSave(slotRef.current, worldRef.current);
+    else await saveQueue.current;
+    await accountApi.logout();
+    showWorld(null, null);
+    setSlots([]);
+    setAccount(null);
+  }, [showWorld, queueSave]);
+
+  const value = useMemo<GameState>(() => ({
+    world, version, ready, account, slots, activeSlot, auth, logout, selectSlot, createSlot, importLegacy, importCode, refreshSlots,
+    mutate, commit, setWorld: (w) => showWorld(w ? toWorld(w) : null, slotRef.current, account?.id),
+    hasLocalSave: () => !!worldRef.current, loadLocal: () => worldRef.current, clearLocal: () => showWorld(null, null, account?.id),
+    incompatibleSave, legacySaveAvailable, dismissIncompatible: () => setIncompatible(false), overlay, setOverlay, matchMode, setMatchMode, scratch,
+    cloudStatus, cloudError, syncCloud,
+  }), [world, version, ready, account, slots, activeSlot, auth, logout, selectSlot, createSlot, importLegacy, importCode, refreshSlots,
+    mutate, commit, showWorld, incompatibleSave, legacySaveAvailable, overlay, matchMode, scratch, cloudStatus, cloudError, syncCloud]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
@@ -253,7 +221,6 @@ export function useGame(): GameState {
   return c;
 }
 
-/** Atalho para telas dentro do jogo: garante que há um mundo carregado. */
 export function useWorld(): GameState & { world: World } {
   const g = useGame();
   if (!g.world) throw new Error("Nenhuma carreira carregada.");

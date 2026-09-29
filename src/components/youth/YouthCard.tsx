@@ -11,6 +11,7 @@ import { Badge, OvrBadge, PosBadge } from "@/components/ui/primitives";
 import { countryName, type YouthView } from "./derive";
 import { GrowthTrend, PotentialBar } from "./PotentialBar";
 import { YouthTraits } from "./YouthTraits";
+import { PlayerAvatar } from "@/components/player/PlayerAvatar";
 
 export interface YouthCardProps {
   view: YouthView;
@@ -42,6 +43,7 @@ export function YouthCard({ view: v, offerClub, scoutCost, promoteBlock, loanBlo
       )}
     >
       <header className="flex items-start gap-2.5">
+        <PlayerAvatar player={p} size={40} />
         <PosBadge pos={p.pos} className="mt-0.5" />
         <div className="min-w-0 flex-1">
           <button

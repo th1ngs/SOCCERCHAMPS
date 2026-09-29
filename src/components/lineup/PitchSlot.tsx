@@ -4,6 +4,7 @@ import type { FormationSlot, Player } from "@/game/types";
 import { cn } from "@/lib/cn";
 import { surname } from "@/components/player/playerInfo";
 import { fitTone } from "./lineupLogic";
+import { PlayerAvatar } from "@/components/player/PlayerAvatar";
 
 /** Uma posição no campo: camisa nas cores do clube, número, nome, posição/overall, condição e avisos. */
 export function PitchSlot({
@@ -41,12 +42,10 @@ export function PitchSlot({
   return (
     <button type="button" onClick={onPick} style={style} className={base} aria-label={label} title={label}>
       <span className="relative">
-        <span
-          className="grid size-10 place-items-center rounded-full border-2 font-display text-lg font-extrabold shadow-[0_3px_8px_rgb(0_0_0/.45)] sm:size-11 sm:text-xl"
-          style={{ background: colors[0], borderColor: colors[1], color: colors[1], textShadow: "0 1px 2px rgb(0 0 0 / .45)" }}
-        >
-          {p.num || "–"}
+        <span className="block rounded-full border-2 shadow-[0_3px_8px_rgb(0_0_0/.45)]" style={{ borderColor: colors[1], background: colors[0] }}>
+          <PlayerAvatar player={p} size={40} />
         </span>
+        <span className="absolute -bottom-1 -right-1 grid size-5 place-items-center rounded-full bg-ink-900 font-display text-xs font-bold text-snow ring-1 ring-white/30">{p.num || "–"}</span>
         {captain && (
           <span className="absolute -right-1.5 -top-1 grid size-[18px] place-items-center rounded-full bg-gold-400 font-display text-[11px] font-extrabold text-ink-950 ring-2 ring-ink-900" aria-hidden>
             C

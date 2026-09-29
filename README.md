@@ -8,7 +8,7 @@ Feito com **Next.js 16 (App Router)**, **React 19**, **Tailwind CSS v4**, **Type
 
 ```bash
 npm install
-cp .env.example .env.local   # preencha DATABASE_URL (opcional; sem ela o jogo salva só no navegador)
+cp .env.example .env.local   # preencha DATABASE_URL (necessária para login e saves)
 npm run db:migrate           # cria as tabelas (idempotente)
 npm run dev                  # http://localhost:3000
 ```
@@ -56,8 +56,9 @@ npm run dev                  # http://localhost:3000
 - **Diretoria:** meta por temporada e confiança no treinador. Resultados ruins levam à demissão, com propostas de outros clubes.
 
 **Salvamento**
-- Automático no navegador.
-- **Nuvem:** salve a carreira e continue em outro aparelho usando um código.
+- Conta com nickname e senha (mínimo de 8 caracteres), sem e-mail.
+- Três slots de carreira por conta, salvos automaticamente no PostgreSQL e acessíveis em outros aparelhos após o login.
+- Carreiras antigas salvas neste navegador ou por código podem ser importadas para um slot vazio.
 - **Hall da Fama** global com os títulos de todas as carreiras na nuvem (`/hall-da-fama`).
 
 ## Arquitetura
@@ -83,9 +84,10 @@ docs/ENGINE_ADDITIONS.md   contrato das funções v2 do motor
 
 - **Estado:** o mundo do jogo é um objeto JSON mutado pelo motor.
   - O `GameProvider` re-renderiza com um contador de versão.
-  - Salva no `localStorage` e, se houver código de nuvem, sincroniza via `PUT /api/careers/:code`.
+  - Sincroniza o slot ativo via `PUT /api/slots/:slot`.
 - **Banco:** `careers` guarda o save completo em `jsonb` com metadados indexados; `achievements` registra os títulos para o Hall da Fama.
-  - O código da carreira funciona como credencial de acesso.
+  - As contas usam senhas com scrypt e sessões por cookie HttpOnly; cada slot pertence a uma conta.
+  - Os códigos de carreira antigos continuam disponíveis para importação.
   - A conexão vem só de `DATABASE_URL`, nunca do código.
 
 ## Deploy

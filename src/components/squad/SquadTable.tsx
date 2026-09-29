@@ -7,12 +7,13 @@ import { Meter, OvrBadge, PosBadge, Stars } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
 import { contractText, potentialStars } from "@/components/player/playerInfo";
 import { SortableTh } from "./SortableTh";
-import { StatusTags } from "./StatusTags";
+import { StatusTags } from "./StatusTagBadges";
 import type { SortKey, SortState } from "./squadSort";
 import type { StatusTag } from "./statusTags";
 import { LoanBadge, PromiseBadge } from "./TransferMarkBadges";
 import { useTransferMarks } from "./transferMarks";
 import { TraitChips } from "@/components/player/TraitChips";
+import { PlayerAvatar } from "@/components/player/PlayerAvatar";
 
 export interface SquadRow {
   p: Player;
@@ -72,7 +73,7 @@ export function SquadTable({ rows, sort, onSort, onOpen }: { rows: SquadRow[]; s
                   }}
                   className="min-h-9 max-w-56 truncate rounded-md text-left font-semibold hover:text-gold-300 focus-visible:outline-2 focus-visible:outline-gold-400"
                 >
-                  {p.name}
+                  <span className="inline-flex items-center gap-2"><PlayerAvatar player={p} size={30} />{p.name}</span>
                 </button>
               </td>
               <td className="px-2 py-2">

@@ -24,4 +24,17 @@ export const cloud = {
   load: (code: string) => call<{ data: unknown; updatedAt: string }>(`/api/careers/${encodeURIComponent(code.trim().toUpperCase())}`),
 };
 
+export interface Account { id: string; nickname: string }
+export interface SlotMeta { slot: number; managerName: string; clubName: string; season: number; week: number; updatedAt: string }
+
+export const accountApi = {
+  me: () => call<{ account: Account | null }>("/api/auth"),
+  auth: (action: "login" | "register", nickname: string, password: string) =>
+    call<{ account: Account }>("/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, nickname, password }) }),
+  logout: () => call<{ ok: true }>("/api/auth", { method: "DELETE" }),
+  slots: () => call<{ slots: SlotMeta[] }>("/api/slots"),
+  load: (slot: number) => call<{ data: unknown }>(`/api/slots/${slot}`),
+  save: async (slot: number, data: World) => call<{ slot: number }>(`/api/slots/${slot}`, { method: "PUT", ...(await saveBody(data)) }),
+};
+
 export const CODE_PATTERN = /^[2-9A-HJKMNP-Z]{5}-[2-9A-HJKMNP-Z]{5}$/;

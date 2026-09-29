@@ -2,6 +2,7 @@ import "server-only";
 import { DatabaseNotConfiguredError } from "./db";
 import { gunzipSync } from "node:zlib";
 import { MAX_JSON_BYTES, MAX_SAVE_BYTES, NotFoundError, SaveError } from "./careers";
+import { AuthError } from "./auth";
 
 export function jsonError(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
@@ -32,6 +33,7 @@ export async function readJson(req: Request): Promise<unknown> {
 }
 
 export function handleError(e: unknown) {
+  if (e instanceof AuthError) return jsonError(e.status, e.message);
   if (e instanceof SaveError) return jsonError(400, e.message);
   if (e instanceof NotFoundError) return jsonError(404, e.message);
   if (e instanceof DatabaseNotConfiguredError) return jsonError(503, "Banco de dados não configurado no servidor.");

@@ -6,6 +6,7 @@ import { Flag } from "@/components/ui/Flag";
 import { Badge, OvrBadge, PosBadge } from "@/components/ui/primitives";
 import { PotentialBar } from "./PotentialBar";
 import { TraitBadges } from "./TraitBadges";
+import { PlayerAvatar } from "./PlayerAvatar";
 
 /** Cabeçalho da ficha: overall, identificação, clube, funções, características conhecidas e faixa de potencial. */
 export function PlayerHeader({
@@ -29,6 +30,7 @@ export function PlayerHeader({
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-4">
+        <PlayerAvatar player={p} size={72} />
         <div className="flex flex-col items-center gap-1">
           <OvrBadge value={p.ovr} size="lg" />
           <span className="font-display text-xs font-bold uppercase tracking-widest text-mist">OVR</span>

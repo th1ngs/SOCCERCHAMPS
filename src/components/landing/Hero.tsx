@@ -28,7 +28,7 @@ export function Hero() {
           <p className="mt-6 max-w-xl text-lg text-mist text-pretty">
             Comande um clube em seis países, da Série C brasileira à Premier Division. Revele craques na base, feche contratações na janela e assista a cada partida ao vivo.
           </p>
-          <div className="mt-8">
+          <div id="login" className="mt-8 scroll-mt-24">
             <HeroActions />
           </div>
         </div>
