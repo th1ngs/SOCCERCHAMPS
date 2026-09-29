@@ -10,6 +10,8 @@ import { SortableTh } from "./SortableTh";
 import { StatusTags } from "./StatusTags";
 import type { SortKey, SortState } from "./squadSort";
 import type { StatusTag } from "./statusTags";
+import { LoanBadge, PromiseBadge } from "./TransferMarkBadges";
+import { useTransferMarks } from "./transferMarks";
 
 export interface SquadRow {
   p: Player;
@@ -19,10 +21,11 @@ export interface SquadRow {
 
 /** Tabela do elenco (telas ≥ 640 px). A linha inteira abre a ficha; o nome é o alvo de teclado. */
 export function SquadTable({ rows, sort, onSort, onOpen }: { rows: SquadRow[]; sort: SortState; onSort: (k: SortKey) => void; onOpen: (pid: string) => void }) {
+  const marks = useTransferMarks(rows.map((r) => r.p));
   const th = (k: SortKey, label: string, align?: "left" | "right" | "center") => <SortableTh k={k} label={label} sort={sort} onSort={onSort} align={align} />;
   return (
     <div className="overflow-x-auto rounded-(--radius-card) bg-ink-800 shadow-card ring-1 ring-inset ring-white/8">
-      <table className="w-full min-w-[1020px] text-sm">
+      <table className="w-full min-w-[1080px] text-sm">
         <caption className="sr-only">Jogadores do elenco. Use os cabeçalhos para ordenar.</caption>
         <thead className="border-b border-white/8 bg-ink-900/40">
           <tr>
@@ -38,6 +41,11 @@ export function SquadTable({ rows, sort, onSort, onOpen }: { rows: SquadRow[]; s
             {th("goals", "J / G / A", "right")}
             {th("value", "Valor", "right")}
             {th("contract", "Contrato", "right")}
+            <th scope="col" className="px-2 text-left font-display text-[12px] font-bold uppercase tracking-wider text-mist">
+              <abbr title="Papel prometido na contratação ou renovação" className="no-underline">
+                Papel
+              </abbr>
+            </th>
             <th scope="col" className="px-2 text-left font-display text-[12px] font-bold uppercase tracking-wider text-mist">
               Situação
             </th>
@@ -87,8 +95,14 @@ export function SquadTable({ rows, sort, onSort, onOpen }: { rows: SquadRow[]; s
               </td>
               <td className="px-2 py-2 text-right tabular whitespace-nowrap">{formatMoney(value)}</td>
               <td className={cn("px-2 py-2 text-right tabular whitespace-nowrap", p.contract <= 1 && "text-warn-400")}>{contractText(p.contract)}</td>
+              <td className="px-2 py-2 whitespace-nowrap">
+                <PromiseBadge marks={marks.get(p.id)} />
+              </td>
               <td className="px-2 py-2">
-                <StatusTags tags={tags} />
+                <span className="inline-flex flex-wrap items-center gap-1">
+                  <StatusTags tags={tags} />
+                  <LoanBadge marks={marks.get(p.id)} />
+                </span>
               </td>
             </tr>
           ))}

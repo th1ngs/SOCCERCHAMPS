@@ -6,9 +6,12 @@ import { Meter, OvrBadge, PosBadge } from "@/components/ui/primitives";
 import { contractText } from "@/components/player/playerInfo";
 import { StatusTags } from "./StatusTags";
 import type { SquadRow } from "./SquadTable";
+import { LoanBadge, PromiseBadge } from "./TransferMarkBadges";
+import { useTransferMarks } from "./transferMarks";
 
 /** Lista compacta do elenco para celulares (< 640 px): cada cartão abre a ficha. */
 export function SquadCards({ rows, onOpen }: { rows: SquadRow[]; onOpen: (pid: string) => void }) {
+  const marks = useTransferMarks(rows.map((r) => r.p));
   return (
     <ul className="space-y-2">
       {rows.map(({ p, value, tags }) => (
@@ -33,7 +36,11 @@ export function SquadCards({ rows, onOpen }: { rows: SquadRow[]; onOpen: (pid: s
                 <span className="tabular">{formatMoney(value)}</span>
                 <span className={p.contract <= 1 ? "text-warn-400" : undefined}>{contractText(p.contract)}</span>
               </div>
-              <StatusTags tags={tags} />
+              <span className="flex flex-wrap items-center gap-1">
+                <StatusTags tags={tags} />
+                {marks.get(p.id)?.promise && <PromiseBadge marks={marks.get(p.id)} />}
+                <LoanBadge marks={marks.get(p.id)} />
+              </span>
             </div>
             <OvrBadge value={p.ovr} />
           </button>

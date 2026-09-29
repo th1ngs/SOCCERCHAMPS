@@ -185,7 +185,7 @@ const adhoc = (w: World, h: string, a: string): Match => ({ id: 'chk' + h + a, h
 
 function runV2Checks(w: World): void {
   const u = user(w);
-  assert(w.version === WORLD_VERSION && WORLD_VERSION === 3, 'World v3');
+  assert(w.version === WORLD_VERSION && WORLD_VERSION === 4, 'World v4');
 
   // Características e Craque
   const all = Object.values(w.players);
@@ -273,7 +273,7 @@ function runV2Checks(w: World): void {
   }
   delete (old as Record<string, unknown>).finWeek;
   const mig = migrateWorld(old);
-  assert(mig.version === 3, 'migrateWorld -> v3');
+  assert(mig.version === 4, 'migrateWorld -> v4');
   assert(Object.values(mig.clubs).every((c) => c.fans === 60 && c.ticketPrice === 'normal' && c.loan === null && !!c.captain && !!c.penTaker && typeof c.rival === 'string'), 'clubes migrados');
   assert(Object.values(mig.players).every((p) => Array.isArray(p.traits) && typeof p.star === 'boolean' && !!p.nat && (p.inj > 0 ? !!p.injType : p.injType === null)), 'jogadores migrados');
   const once = JSON.stringify(mig);

@@ -10,3 +10,5 @@ export * from './world';
 export * from './competitions';
 export * from './market';
 export * from './migrate';
+export * from './scouting';
+export * from './transfers';

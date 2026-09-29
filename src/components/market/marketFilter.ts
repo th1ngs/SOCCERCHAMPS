@@ -1,6 +1,6 @@
 // Filtros do mercado de transferências (puros).
-import { marketPlayers, valueOf } from "@/game";
-import type { Club, LeagueId, Player, Position, World } from "@/game/types";
+import { marketPlayers, potentialRange, valueOf } from "@/game";
+import type { Club, LeagueId, Player, Position, PotentialRange, World } from "@/game/types";
 
 /** Liga do clube do jogador: "" = todas, "free" = só agentes livres. */
 export type LeagueFilter = "" | LeagueId | "free";
@@ -29,6 +29,13 @@ export interface MarketRow {
   p: Player;
   club: Club | null;
   value: number;
+  /** Faixa de potencial conhecida pelos olheiros. */
+  range: PotentialRange;
+  watched: boolean;
+  /** 0 básico, 1 observado, 2 relatório completo. */
+  scoutLevel: number;
+  /** Semana em que o relatório pedido fica pronto. */
+  readyWeek: number | null;
 }
 
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -51,10 +58,18 @@ export function searchMarket(w: World, f: MarketFilter): { total: number; rows: 
     if (f.max && value > maxValue) continue;
     const club = p.clubId ? w.clubs[p.clubId] ?? null : null;
     if (q && !norm(p.name).includes(q) && !(club && norm(club.name).includes(q))) continue;
-    rows.push({ p, club, value });
+    rows.push({ p, club, value, range: { min: 0, max: 0, exact: false }, watched: false, scoutLevel: 0, readyWeek: null });
   }
-  // marketPlayers já devolve por overall (desc).
-  return { total: rows.length, rows: rows.slice(0, MARKET_LIMIT) };
+  // marketPlayers já devolve por overall (desc). Detalhes de olheiros só para as linhas mostradas.
+  const shown = rows.slice(0, MARKET_LIMIT);
+  const watch = new Set(w.watchlist);
+  for (const r of shown) {
+    r.range = potentialRange(w, r.p);
+    r.watched = watch.has(r.p.id);
+    r.scoutLevel = w.scouting[r.p.id]?.level ?? 0;
+    r.readyWeek = w.scoutQueue.find((q) => q.pid === r.p.id)?.readyWeek ?? null;
+  }
+  return { total: rows.length, rows: shown };
 }
 
 export const isDefaultFilter = (f: MarketFilter): boolean =>

@@ -1,6 +1,6 @@
 // Dados fixos: clubes, nomes, posições, formações e narração.
 import type {
-  FormationKey, FormationSlot, Position, SectorWeights, Tactic, TacticKey, TicketPrice, TicketPriceInfo, Trait, TraitKey,
+  AcademyFocus, FormationKey, FormationSlot, Position, SectorWeights, Tactic, TacticKey, TicketPrice, TicketPriceInfo, Trait, TraitKey,
   Training, TrainingKey,
 } from './types';
 import { NAMES_BY_NAT } from './names';
@@ -30,11 +30,18 @@ export const SECTOR: Record<Position, SectorWeights> = {
 
 // Rendimento de um jogador fora da posição de origem.
 const NEAR: Record<string, number> = { 'ZAG-LAT': 0.88, 'ZAG-VOL': 0.86, 'LAT-MEI': 0.84, 'LAT-VOL': 0.85, 'VOL-MEI': 0.92, 'MEI-ATA': 0.88, 'VOL-ATA': 0.72 };
-export const fit = (natural: Position, slot: Position): number => {
+function fitRaw(natural: Position, slot: Position): number {
   if (natural === slot) return 1;
   if (natural === 'GOL' || slot === 'GOL') return 0.35;
   return NEAR[natural + '-' + slot] || NEAR[slot + '-' + natural] || 0.68;
-};
+}
+// Tabela pré-calculada (fit é chamado em laços quentes da escalação e do motor).
+const FIT_TABLE = {} as Record<Position, Record<Position, number>>;
+for (const a of ['GOL', 'ZAG', 'LAT', 'VOL', 'MEI', 'ATA'] as Position[]) {
+  FIT_TABLE[a] = {} as Record<Position, number>;
+  for (const b of ['GOL', 'ZAG', 'LAT', 'VOL', 'MEI', 'ATA'] as Position[]) FIT_TABLE[a][b] = fitRaw(a, b);
+}
+export const fit = (natural: Position, slot: Position): number => FIT_TABLE[natural]?.[slot] ?? fitRaw(natural, slot);
 
 // Formações: x = 0 (próprio gol) → 100 (gol adversário); y = 0 (esquerda) → 100 (direita).
 const S = (pos: Position, x: number, y: number): FormationSlot => ({ pos, x, y });
@@ -147,3 +154,22 @@ export const injuryPhrase = (type: string): string => INJ_ARTICLE[type] || 'uma 
 
 /** "1 semana" / "5 semanas". */
 export const weeksText = (n: number): string => `${n} ${n === 1 ? 'semana' : 'semanas'}`;
+
+// ---------- Categorias de base ----------
+export interface AcademyFocusInfo {
+  name: string;
+  desc: string;
+  /** Posições favorecidas (pesos da safra e evolução +15%). */
+  pos: Position[];
+}
+export const ACADEMY_FOCUS: Record<AcademyFocus, AcademyFocusInfo> = {
+  balanced: { name: 'Equilibrado', desc: 'Garotos de todas as posições, sem prioridade.', pos: [] },
+  attack: { name: 'Ataque', desc: 'Mais atacantes e meias ofensivos na safra; eles evoluem 15% mais rápido.', pos: ['ATA', 'MEI'] },
+  midfield: { name: 'Meio-campo', desc: 'Mais volantes e meias na safra; eles evoluem 15% mais rápido.', pos: ['VOL', 'MEI'] },
+  defense: { name: 'Defesa', desc: 'Mais zagueiros e laterais na safra; eles evoluem 15% mais rápido.', pos: ['ZAG', 'LAT'] },
+  goalkeepers: { name: 'Goleiros', desc: 'Mais goleiros na safra; eles evoluem 15% mais rápido.', pos: ['GOL'] },
+};
+/** Multiplicador do peso de posição da safra para o setor em foco. */
+export const FOCUS_WEIGHT = 2.5;
+/** Evolução extra dos garotos do setor em foco. */
+export const FOCUS_DEV = 1.15;

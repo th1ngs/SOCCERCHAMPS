@@ -2,9 +2,9 @@
 // Decisão: saves anteriores à v3 (sem `league` nos clubes, ou seja, o mundo de uma liga só)
 // NÃO são convertidos. `isCompatible(w)` diz se o save pode ser carregado e `migrateWorld(w)`
 // lança `IncompatibleSaveError` para eles; a UI deve pedir uma nova carreira.
-// Para saves v3, `migrateWorld` completa campos ausentes e é idempotente.
+// Saves v3 são levados à v4 (olheiros, empréstimos, negociações, histórico…); v4 é idempotente.
 import { CLUBS, TICKET_PRICES, injuryLabel } from './data';
-import { WORLD_VERSION, rollStar, rollTraits } from './gen';
+import { MIN_COMPATIBLE_VERSION, WORLD_VERSION, rollStar, rollTraits, valueOf } from './gen';
 import { DIVISIONS, LEAGUES } from './leagues';
 import { pickCaptain, pickPenTaker } from './squad';
 import type { Club, Player, World } from './types';
@@ -27,7 +27,7 @@ const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object
 /** O save pode ser carregado por esta versão do motor (v3+, todos os clubes com liga e divisão válidas)? */
 export function isCompatible(w: unknown): w is World {
   if (!isObj(w) || !isObj(w.clubs) || !isObj(w.players) || typeof w.userClub !== 'string') return false;
-  if (typeof w.version === 'number' && w.version < WORLD_VERSION) return false;
+  if (typeof w.version === 'number' && w.version < MIN_COMPATIBLE_VERSION) return false;
   const clubs = Object.values(w.clubs);
   if (!clubs.length || !(w.userClub in w.clubs)) return false;
   return clubs.every((c) => isObj(c) && typeof c.league === 'string' && c.league in LEAGUES && typeof c.div === 'string' && c.div in DIVISIONS);
@@ -48,6 +48,8 @@ function migrateClub(w: World, c: Club): void {
   if (!lc.lineup) c.lineup = [];
   if (!lc.bench) c.bench = [];
   if (!lc.trophies) c.trophies = [];
+  if (typeof lc.scouting !== 'number') c.scouting = Math.min(5, Math.max(1, Math.round(c.rep / 25)));
+  if (!lc.academyFocus) c.academyFocus = 'balanced';
   if (!c.captain && c.squad.length) pickCaptain(w, c);
   if (!c.penTaker && c.squad.length) pickPenTaker(w, c);
 }
@@ -58,11 +60,18 @@ function migratePlayer(w: World, p: Player): void {
   if (typeof lp.star !== 'boolean') p.star = rollStar();
   if (lp.injType === undefined) p.injType = p.inj > 0 ? injuryLabel(p.inj) : null;
   if (!lp.nat || !(lp.nat in LEAGUES)) p.nat = p.clubId && w.clubs[p.clubId] ? w.clubs[p.clubId].league : 'bra';
+  if (!lp.start) p.start = { season: w.season, ovr: Math.round(p.ovr * 10) / 10 };
+  if (lp.loan === undefined) p.loan = null;
+  if (typeof lp.releaseClause !== 'number') {
+    p.releaseClause = p.clubId && p.contract > 0 ? Math.max(100000, Math.round((valueOf(p) * 2.5) / 10000) * 10000) : 0;
+  }
+  // Elenco já existente é conhecido pelo clube.
+  if (!lp.joined && p.clubId) p.joined = { season: w.season - 1, week: 0 };
 }
 
 /**
  * Prepara um save para esta versão do motor. Lança IncompatibleSaveError para saves sem ligas (v1/v2).
- * Em saves v3 só completa o que está ausente ou inválido (idempotente). Muta e devolve o próprio objeto.
+ * Leva v3 → v4 completando os campos novos; em saves v4 só completa o que está ausente ou inválido (idempotente). Muta e devolve o próprio objeto.
  */
 export function migrateWorld(w: World): World {
   if (!isCompatible(w)) {
@@ -78,6 +87,13 @@ export function migrateWorld(w: World): World {
   if (!lw.free) w.free = [];
   if (!lw.cups) w.cups = {};
   if (lw.contNext === undefined) w.contNext = null;
+  if (!lw.scouting) w.scouting = {};
+  if (!lw.scoutQueue) w.scoutQueue = [];
+  if (!lw.negotiations) w.negotiations = {};
+  if (!lw.payables) w.payables = [];
+  if (!lw.watchlist) w.watchlist = [];
+  if (!lw.watchState) w.watchState = {};
+  if (!lw.transfers) w.transfers = [];
   const board = (lw.board || {}) as Loose<World['board']>;
   w.board = { conf: typeof board.conf === 'number' ? board.conf : 60, target: board.target ?? 0, label: board.label ?? '' };
   for (const p of Object.values(w.players)) migratePlayer(w, p);

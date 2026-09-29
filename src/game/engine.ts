@@ -28,6 +28,10 @@ const HEADER_CHANCE = 0.2;
 const HEADER_XG = 0.14;
 
 /** Overall efetivo em partidas (Craque +3). */
+// Funções auxiliares fora dos métodos quentes (evita recriar closures a cada minuto).
+const vol = (total: number, wsum: number, base: number): number => (wsum ? total / wsum : 30) * (0.7 + 0.3 * Math.min(1.25, wsum / base));
+const c3 = (x: number): number => x * x * x;
+
 export const matchOvr = (p: Player): number => p.ovr + (p.star ? STAR_BONUS : 0);
 
 /** Clássico entre dois clubes (um tem o outro como rival). */
@@ -141,7 +145,6 @@ export class Sim {
       if (wt.m) { m += eff * (o.mm as number) * wt.m; mw += wt.m; }
       if (wt.a) { a += eff * (o.am as number) * wt.a; aw += wt.a; }
     }
-    const vol = (total: number, wsum: number, base: number): number => (wsum ? total / wsum : 30) * (0.7 + 0.3 * Math.min(1.25, wsum / base));
     const t = TACTICS[s.tactic];
     let D = vol(d, dw, B.d) * t.def, Mi = vol(m, mw, B.m) * (t.mid || 1), A = vol(a, aw, B.a) * t.att;
     if (!this.opts.neutral && i === 0) { A *= 1.04; D *= 1.03; Mi *= 1.03; }
@@ -175,7 +178,6 @@ export class Sim {
     }
     this.minute++;
     this.cur = [this.strength(0), this.strength(1)];
-    const c3 = (x: number): number => x * x * x;
     const pHome = c3(this.cur[0].M) / (c3(this.cur[0].M) + c3(this.cur[1].M));
     const s = Math.random() < pHome ? 0 : 1;
     this.stats.poss[s]++;

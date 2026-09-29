@@ -1,5 +1,5 @@
 // Geração do mundo: clubes, elencos, jogadores, base e agentes livres.
-import { CLUBS, NAMES_BY_NAT, POS, STAR_CHANCE, TRAIT_WEIGHTS } from './data';
+import { ACADEMY_FOCUS, CLUBS, FOCUS_WEIGHT, NAMES_BY_NAT, POS, STAR_CHANCE, TRAIT_WEIGHTS } from './data';
 import { LEAGUE_IDS } from './leagues';
 import { pickCaptain, pickPenTaker } from './squad';
 import type { Club, FormationKey, LeagueId, NewPlayerOptions, Player, Position, TraitKey, World } from './types';
@@ -10,7 +10,9 @@ const SQUAD_TEMPLATE: Record<Position, number> = { GOL: 3, ZAG: 4, LAT: 4, VOL: 
 export const wageFor = (ovr: number): number => Math.round((2600 * Math.pow(1.13, ovr - 50)) / 100) * 100;
 
 /** Versão atual do formato do World. */
-export const WORLD_VERSION = 3;
+export const WORLD_VERSION = 4;
+/** Saves a partir desta versão podem ser migrados. */
+export const MIN_COMPATIBLE_VERSION = 3;
 
 /** Fração de jogadores do próprio país nos elencos. */
 export const DOMESTIC_SHARE = 0.85;
@@ -33,6 +35,12 @@ export const valueOf = (p: Pick<Player, 'pot' | 'ovr' | 'age' | 'contract'> & { 
   if (p.star) v *= 1.3;
   return Math.max(10000, Math.round(v / 10000) * 10000);
 };
+
+/** Multa rescisória nova: 2 a 3× o valor (0 para agentes livres). */
+export function releaseClauseFor(p: Player): number {
+  if (!p.clubId || p.contract <= 0) return 0;
+  return Math.max(100000, Math.round((valueOf(p) * rand(2, 3)) / 10000) * 10000);
+}
 
 /** Sorteia 1-2 características distintas conforme a posição. */
 export function rollTraits(pos: Position): TraitKey[] {
@@ -84,9 +92,14 @@ export function newPlayer(w: World, o: NewPlayerOptions): Player {
     traits: rollTraits(o.pos),
     star: rollStar(),
     nat,
+    start: { season: w.season, ovr: Math.round(o.ovr * 10) / 10 },
+    loan: null,
+    releaseClause: 0,
   };
+  if (p.clubId) p.joined = { season: w.season, week: w.week };
   p.wage = o.youth ? 800 : wageFor(p.ovr) * rand(0.85, 1.15);
   p.wage = Math.round(p.wage / 100) * 100;
+  p.releaseClause = releaseClauseFor(p);
   w.players[id] = p;
   return p;
 }
@@ -108,15 +121,22 @@ function seniorFor(w: World, club: Club, pos: Position, base: number, age: numbe
 
 const YOUTH_POS_W: Record<Position, number> = { GOL: 1, ZAG: 2, LAT: 2, VOL: 2, MEI: 2.5, ATA: 2.5 };
 
-export function makeYouth(w: World, club: Club, age?: number): Player {
+/** Opções de geração de um garoto (peneira regional/por posição). */
+export interface YouthOptions {
+  pos?: Position;
+  nat?: LeagueId;
+}
+
+export function makeYouth(w: World, club: Club, age?: number, opts: YouthOptions = {}): Player {
   const lvl = club.academy;
   let pot = 48 + lvl * 6 + rand(-6, 18);
   if (chance(0.04 + lvl * 0.01)) pot += rand(8, 14); // joia da base
   pot = clamp(pot, 45, 96);
   age = age || randi(15, 17);
   const ovr = clamp(pot * rand(0.52, 0.64) + (age - 15) * 2, 30, 70);
-  const pos = weighted(POS, (p) => YOUTH_POS_W[p]) as Position;
-  const p = newPlayer(w, { pos, age, ovr, pot, clubId: club.id, youth: true, contract: 3, nat: rollNat(club.league, 0.95) });
+  const focus = ACADEMY_FOCUS[club.academyFocus] || ACADEMY_FOCUS.balanced;
+  const pos = opts.pos || (weighted(POS, (p) => YOUTH_POS_W[p] * (focus.pos.includes(p) ? FOCUS_WEIGHT : 1)) as Position);
+  const p = newPlayer(w, { pos, age, ovr, pot, clubId: club.id, youth: true, contract: 3, nat: opts.nat || rollNat(club.league, 0.95) });
   club.youth.push(p.id);
   return p;
 }
@@ -149,6 +169,13 @@ export function newWorld(managerName: string, clubId: string): World {
     weeks: [],
     cups: {},
     contNext: null,
+    scouting: {},
+    scoutQueue: [],
+    negotiations: {},
+    payables: [],
+    watchlist: [],
+    watchState: {},
+    transfers: [],
     inbox: [],
     nextMsg: 1,
     history: [],
@@ -177,6 +204,8 @@ export function newWorld(managerName: string, clubId: string): World {
       captain: null,
       penTaker: null,
       loan: null,
+      scouting: clamp(Math.round(c.rep / 25 + rand(-0.5, 0.8)), 1, 5),
+      academyFocus: 'balanced',
     };
     w.clubs[c.id] = club;
     const base = 48 + c.rep * 0.32;
@@ -194,6 +223,8 @@ export function newWorld(managerName: string, clubId: string): World {
       p.wage = wageFor(p.ovr);
     }
     for (let k = 0; k < 4; k++) makeYouth(w, club);
+    // O clube já conhece o próprio elenco no início da carreira.
+    for (const id of club.squad) w.players[id].joined = { season: w.season - 1, week: 0 };
     assignNumbers(w, club);
     pickCaptain(w, club);
     pickPenTaker(w, club);

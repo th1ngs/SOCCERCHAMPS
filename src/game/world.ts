@@ -1,21 +1,25 @@
 // Temporada: calendário de todas as ligas, resultados, tabelas, copas, semana a semana e virada de ano.
-import { TICKET_PRICES, TRAINING, injuryLabel, injuryPhrase, weeksText } from './data';
+import { ACADEMY_FOCUS, FOCUS_DEV, TICKET_PRICES, TRAINING, injuryLabel, injuryPhrase, weeksText } from './data';
 import { contByRep, contQualifiers } from './competitions';
 import { Sim, isDerbyClubs } from './engine';
-import { FREE_MAX, FREE_MIN, assignNumbers, makeFreeAgent, makeYouth, newPlayer, rollNat, wageFor } from './gen';
+import { FREE_MAX, FREE_MIN, assignNumbers, makeFreeAgent, makeYouth, newPlayer, releaseClauseFor, rollNat, wageFor } from './gen';
 import {
   CONT_PRIZE, CONT_WEEKS, CUP_PRIZE, CUP_WEEKS, DIVISIONS, DIVISION_IDS, LEAGUES, LEAGUE_IDS, LEAGUE_PRIZE_BASE,
   LEAGUE_ROUNDS, PROMOTION_SPOTS, TOTAL_WEEKS, TV_BASE, competitionName, compLeague, cupId, cupRoundName,
   divisionFullName, firstDivisions, isKnockout,
 } from './leagues';
-import { aiOffersToUser, aiTransfers, promoteYouth, transfer } from './market';
+import { aiListPlayers, aiOffersToUser, aiTransfers, promoteYouth, transfer } from './market';
+import { potentialRange, processScoutQueue } from './scouting';
+import {
+  biggestDeals, checkPromises, checkWatchlist, isDeadlineDay, payDue, returnLoans, trimTransfers,
+} from './transfers';
 import { autoLineup, ensureLineup, teamRating } from './squad';
 import type {
   Club, Competition, DivisionId, DivisionMove, FinanceCategory, Fixture, FormResult, GateForecast, HistoryEntry,
   KnockoutId, Match, MatchResult, MessageInput, Player, Position, ScorerEntry, SeasonSummary, SimOptions, TableRow,
   TicketPrice, Week, WeekReport, World,
 } from './types';
-import { chance, clamp, gauss, pick, rand, randi, shuffle } from './util';
+import { chance, clamp, formatMoney, gauss, pick, rand, randi, shuffle } from './util';
 
 // Arredondamentos para manter o JSON do World enxuto.
 const round2 = (v: number): number => Math.round(v * 100) / 100;
@@ -128,6 +132,12 @@ export function startSeason(w: World): void {
   w.contNext = null;
 
   for (const p of Object.values(w.players)) p.s = { apps: 0, goals: 0, assists: 0, rsum: 0 };
+  // Negociações da temporada anterior expiram (mantém apenas clubes ainda "de mal").
+  const nowAbs = w.season * 100 + w.week;
+  for (const [pid, n] of Object.entries(w.negotiations || {})) {
+    if (!(n.cooldownUntil != null && n.cooldownUntil > nowAbs)) delete w.negotiations[pid];
+  }
+  aiListPlayers(w);
   w.finSeason = {};
   w.finWeek = {};
   w.trialUsed = false;
@@ -394,6 +404,9 @@ export function simulateWeek(w: World): void {
 }
 
 // ---------- Evolução ----------
+/** Semana em que as promessas de titular são cobradas. */
+export const PROMISE_CHECK_WEEK = 20;
+
 function develop(p: Player, club: Club | undefined): void {
   const trainLvl = club ? club.training : 2;
   const intensity = club ? TRAINING[club.trainingInt].dev : 1;
@@ -401,7 +414,10 @@ function develop(p: Player, club: Club | undefined): void {
   if (p.ovr < p.pot) {
     const gap = p.pot - p.ovr;
     const rate = p.age <= 18 ? 0.0085 : p.age <= 21 ? 0.007 : p.age <= 24 ? 0.0048 : p.age <= 27 ? 0.002 : 0.0005;
-    g = gap * rate * (0.75 + 0.1 * trainLvl) * intensity * (p.played ? 1.3 : p.youth ? 1.1 : 0.85) * rand(0.5, 1.5);
+    // Emprestado como titular conta como quem joga; garotos do setor em foco da base evoluem 15% mais.
+    const plays = p.played || (!!p.loan && p.loan.role === 'titular');
+    const focus = p.youth && club && (ACADEMY_FOCUS[club.academyFocus]?.pos ?? []).includes(p.pos) ? FOCUS_DEV : 1;
+    g = gap * rate * (0.75 + 0.1 * trainLvl) * intensity * (plays ? 1.3 : p.youth ? 1.1 : 0.85) * focus * rand(0.5, 1.5);
   }
   if (p.age >= 31) g -= (p.age - 30) * 0.03 * rand(0.5, 1.5);
   p.ovr = round3(clamp(p.ovr + g, 25, 99));
@@ -477,11 +493,16 @@ export function endWeek(w: World): WeekReport {
     p.played = false;
   }
 
-  // Finanças semanais
+  // Finanças semanais (emprestados: quem recebeu paga wageShare, o dono paga o resto)
+  const ownerWages: Record<string, number> = {};
+  for (const p of Object.values(w.players)) {
+    if (p.loan) ownerWages[p.loan.from] = (ownerWages[p.loan.from] || 0) + p.wage * (1 - p.loan.wageShare);
+  }
   for (const c of Object.values(w.clubs)) {
-    let wages = 0;
-    for (const id of c.squad) wages += w.players[id].wage;
+    let wages = ownerWages[c.id] || 0;
+    for (const id of c.squad) { const p = w.players[id]; wages += p.loan ? p.wage * p.loan.wageShare : p.wage; }
     for (const id of c.youth) wages += w.players[id].wage;
+    wages = Math.round(wages);
     addMoney(w, c.id, -wages, 'wages');
     addMoney(w, c.id, Math.round(c.rep * 3000), 'sponsor');
     addMoney(w, c.id, Math.round((TV_BASE[DIVISIONS[c.div].level - 1] ?? TV_BASE[TV_BASE.length - 1]) * LEAGUES[c.league].wealth), 'tv');
@@ -501,9 +522,23 @@ export function endWeek(w: World): WeekReport {
   w.finWeek = {};
 
   if (windowOpen(w)) {
-    aiTransfers(w);
-    aiOffersToUser(w);
+    const deadline = isDeadlineDay(w);
+    const before = w.transfers.length;
+    // Dia do fechamento: atividade da CPU e ofertas ao usuário em dobro.
+    for (let k = 0; k < (deadline ? 2 : 1); k++) {
+      aiTransfers(w);
+      aiOffersToUser(w);
+    }
+    if (deadline) {
+      const deals = w.transfers.slice(before).filter((t) => t.fee > 0).sort((a, b) => b.fee - a.fee).slice(0, 3);
+      const top = deals.length ? deals : biggestDeals(w, w.season, 3);
+      const lines = top.map((t) => `${t.name}: ${t.from ? w.clubs[t.from]?.name ?? '?' : 'sem clube'} → ${t.to ? w.clubs[t.to]?.name ?? '?' : '?'} (${formatMoney(t.fee)})`);
+      pushMessage(w, { kind: 'news', title: 'Dia do fechamento da janela', body: `Último dia da janela: os clubes correm atrás de reforços.${lines.length ? ` Destaques: ${lines.join('; ')}.` : ''}` });
+    }
   }
+  payDue(w);
+  if (w.week === PROMISE_CHECK_WEEK) checkPromises(w);
+  checkWatchlist(w);
   // Propostas expiradas
   for (const m of w.inbox) {
     if (m.offer && !m.offer.done && (m.offer.expires < w.week || m.season !== w.season)) {
@@ -521,12 +556,16 @@ export function endWeek(w: World): WeekReport {
   }
 
   w.week++;
+  processScoutQueue(w);
+  if (w.week === WINDOWS[1][0]) aiListPlayers(w);
   if (w.week > TOTAL_WEEKS) {
     report.seasonEnd = seasonEnd(w);
   } else {
     const next = currentWeek(w);
     if (next && next.type !== 'league' && !next.matches.length) drawKnockouts(w, next);
-    for (const c of Object.values(w.clubs)) if (c.id !== w.userClub) autoLineup(w, c);
+    // A CPU escala no início de cada jogo (Sim); aqui só o adversário do usuário, para a UI de pré-jogo.
+    const um = next ? next.matches.find((m) => m.h === w.userClub || m.a === w.userClub) : null;
+    if (um) autoLineup(w, w.clubs[um.h === w.userClub ? um.a : um.h]);
   }
   return report;
 }
@@ -618,6 +657,8 @@ export function newSeason(w: World): void {
     if (ps.contNext && ps.contNext.length) w.contNext = ps.contNext;
   }
   w.pendingSeason = null;
+  // Empréstimos voltam antes de contratos e aposentadorias.
+  returnLoans(w);
   // Envelhecimento e aposentadoria
   for (const p of Object.values(w.players)) {
     p.age++;
@@ -641,6 +682,7 @@ export function newSeason(w: World): void {
       } else if (chance(0.75)) {
         p.contract = randi(1, 3);
         p.wage = wageFor(p.ovr);
+        p.releaseClause = releaseClauseFor(p);
       } else toFree(w, p);
     }
   }
@@ -686,20 +728,28 @@ export function newSeason(w: World): void {
 
   w.season++;
   w.week = 0;
+  processScoutQueue(w);
+  // Limpeza de referências a jogadores que saíram do mundo.
+  for (const pid of Object.keys(w.scouting)) if (!w.players[pid]) delete w.scouting[pid];
+  w.watchlist = w.watchlist.filter((pid) => w.players[pid]);
+  trimTransfers(w);
   w.board.conf = 50 + (w.board.conf - 50) * 0.5;
   startSeason(w);
   for (const c of Object.values(w.clubs)) ensureLineup(w, c);
   if (news.length) pushMessage(w, { kind: 'info', title: 'Movimentações de fim de temporada', body: news.join('\n') });
   if (intake.length) {
     const best = intake.slice().sort((a, b) => b.pot - a.pot)[0];
-    pushMessage(w, { kind: 'youth', title: `Nova safra da base: ${intake.length} garotos`, body: `Chegaram à base: ${intake.map((p) => `${p.name} (${p.pos}, ${p.age})`).join(', ')}. Destaque para ${best.name}, que os olheiros acham promissor.` });
+    const r = potentialRange(w, best);
+    const range = r.exact ? `${r.min}` : `${r.min}–${r.max}`;
+    pushMessage(w, { kind: 'youth', pid: best.id, title: `Nova safra da base: ${intake.length} garotos`, body: `Chegaram à base: ${intake.map((p) => `${p.name} (${p.pos}, ${p.age})`).join(', ')}. Destaque para ${best.name}, com potencial estimado em ${range}.` });
   }
 }
 
 /** Mantém o elenco de um clube da CPU entre 23 e 30 jogadores. */
 export function aiMaintain(w: World, c: Club): void {
   while (c.squad.length > 30) {
-    const worst = clubPlayers(w, c).sort((a, b) => a.ovr - b.ovr)[0];
+    const worst = clubPlayers(w, c).filter((p) => !p.loan).sort((a, b) => a.ovr - b.ovr)[0];
+    if (!worst) break;
     toFree(w, worst);
   }
   while (c.squad.length < 23) {
@@ -748,6 +798,9 @@ export function toFree(w: World, p: Player): void {
   p.listed = false;
   p.num = 0;
   p.youth = false;
+  p.loan = null;
+  p.promise = null;
+  p.releaseClause = 0;
   w.free.push(p.id);
 }
 

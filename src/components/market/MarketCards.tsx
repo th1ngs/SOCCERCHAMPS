@@ -2,21 +2,21 @@
 
 import { formatMoney } from "@/game";
 import { Flag } from "@/components/ui/Flag";
-import { OvrBadge, PosBadge, Stars } from "@/components/ui/primitives";
-import { potentialStars } from "@/components/player/playerInfo";
-import { ClubCell, StarMark } from "./MarketTable";
+import { OvrBadge, PosBadge } from "@/components/ui/primitives";
+import { ClubCell, PotCell, ScoutCell, StarMark } from "./MarketTable";
 import type { MarketRow } from "./marketFilter";
+import { WatchButton } from "./WatchButton";
 
-/** Resultados do mercado em cartões (celular). */
+/** Resultados do mercado em cartões (celular). O cartão abre a ficha; a estrela observa. */
 export function MarketCards({ rows, onOpen }: { rows: MarketRow[]; onOpen: (pid: string) => void }) {
   return (
     <ul className="space-y-2">
       {rows.map((r) => (
-        <li key={r.p.id}>
+        <li key={r.p.id} className="flex items-stretch gap-1 rounded-xl bg-ink-800 shadow-card ring-1 ring-inset ring-white/8">
           <button
             type="button"
             onClick={() => onOpen(r.p.id)}
-            className="flex w-full items-center gap-3 rounded-xl bg-ink-800 px-3 py-2.5 text-left shadow-card ring-1 ring-inset ring-white/8 transition-colors hover:bg-ink-700 focus-visible:outline-2 focus-visible:outline-gold-400"
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-xl py-2.5 pl-3 text-left transition-colors hover:bg-ink-700 focus-visible:outline-2 focus-visible:outline-gold-400"
           >
             <PosBadge pos={r.p.pos} />
             <span className="min-w-0 flex-1 space-y-1">
@@ -31,11 +31,17 @@ export function MarketCards({ rows, onOpen }: { rows: MarketRow[]; onOpen: (pid:
               <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-mist">
                 <span>{r.p.age} anos</span>
                 <span className="tabular text-snow">{formatMoney(r.value)}</span>
-                <Stars value={potentialStars(r.p, false)} className="text-[11px]" />
+                <span>
+                  Pot. <PotCell row={r} />
+                </span>
+                <ScoutCell row={r} />
               </span>
             </span>
             <OvrBadge value={r.p.ovr} />
           </button>
+          <div className="flex items-center pr-1">
+            <WatchButton pid={r.p.id} name={r.p.name} watched={r.watched} />
+          </div>
         </li>
       ))}
     </ul>

@@ -178,6 +178,9 @@ export interface Club extends ClubStatic {
   captain: string | null;
   penTaker: string | null;
   loan: Loan | null;
+  /** Nível do departamento de olheiros (1-5). */
+  scouting: number;
+  academyFocus: AcademyFocus;
 }
 
 export interface SeasonStats {
@@ -232,6 +235,158 @@ export interface Player {
   wage: number;
   renewAsk?: number | null;
   agreedWage?: number | null;
+  /** Chegada ao clube atual (safra, peneira ou contratação): temporada e overall. */
+  start: { season: number; ovr: number };
+  /** Semana de chegada ao clube atual (para o conhecimento do potencial). */
+  joined?: { season: number; week: number; apps?: number };
+  /** Empréstimo em andamento (clubId = clube que recebeu). */
+  loan: PlayerLoan | null;
+  /** Multa rescisória (0 = agente livre). */
+  releaseClause: number;
+  /** Papel prometido na contratação/renovação. */
+  promise?: Role | null;
+  /** Temporada em que a promessa já foi cobrada. */
+  promiseChecked?: number;
+}
+
+export type Role = 'titular' | 'rotacao' | 'reserva';
+export type AcademyFocus = 'balanced' | 'attack' | 'midfield' | 'defense' | 'goalkeepers';
+
+export interface PlayerLoan {
+  /** Dono. */
+  from: string;
+  /** Clube que recebeu. */
+  to: string;
+  /** Temporada em que volta. */
+  until: number;
+  /** Fração do salário paga por quem recebeu. */
+  wageShare: number;
+  buyOption: number | null;
+  /** Papel combinado no clube que recebeu. */
+  role?: Role;
+  /** Era da base do dono (volta para a base se ainda tiver idade). */
+  youth?: boolean;
+  /** Jogos e gols na temporada no início do empréstimo (para o resumo). */
+  apps0?: number;
+  goals0?: number;
+}
+
+export type ScoutLevel = 0 | 1 | 2;
+export interface ScoutInfo {
+  level: ScoutLevel;
+  season: number;
+}
+export interface ScoutJob {
+  pid: string;
+  readyWeek: number;
+  season: number;
+}
+
+export interface Payable {
+  season: number;
+  week: number;
+  amount: number;
+  desc: string;
+  /** Clube devedor (padrão: o do usuário). */
+  club?: string;
+}
+
+export type TransferKind = 'transfer' | 'loan' | 'free' | 'release' | 'clause';
+export interface TransferRecord {
+  season: number;
+  week: number;
+  pid: string;
+  name: string;
+  from: string | null;
+  to: string | null;
+  fee: number;
+  kind: TransferKind;
+  /** Envolveu o clube do usuário (nunca é apagado). */
+  user?: boolean;
+}
+
+export interface Negotiation {
+  patience: number;
+  lastFee: number;
+  week: number;
+  season: number;
+  /** Semana absoluta (temporada × 100 + semana) até a qual o clube não negocia. */
+  cooldownUntil?: number;
+  /** Acordo com o clube (ou multa paga). */
+  agreed?: { fee: number; installments: 1 | 2 | 3; clause?: boolean };
+  /** Termos pessoais aceitos pelo jogador. */
+  contract?: Terms;
+}
+
+export interface Terms {
+  wage: number;
+  years: number;
+  bonus: number;
+  role: Role;
+  /** Multa rescisória desejada (renovação); padrão 2,5× o valor. */
+  releaseClause?: number;
+}
+
+export interface Deal extends Terms {
+  fee: number;
+  installments: 1 | 2 | 3;
+}
+
+export interface ClubResponse {
+  status: 'accepted' | 'counter' | 'rejected' | 'walkout' | 'closed' | 'full' | 'money' | 'refused';
+  counterFee?: number;
+  patience: number;
+  text: string;
+}
+
+export interface ContractResponse {
+  status: 'accepted' | 'counter' | 'rejected';
+  counter?: Terms;
+  text: string;
+}
+
+export interface CounterOfferResult {
+  status: 'accepted' | 'walkout' | 'improved';
+  fee?: number;
+  text: string;
+}
+
+export interface PotentialRange {
+  min: number;
+  max: number;
+  exact: boolean;
+}
+
+export interface ScoutRequestResult {
+  ok: boolean;
+  reason?: string;
+  readyWeek?: number;
+}
+
+export interface LoanOutOffer {
+  club: string;
+  wageShare: number;
+  role: 'titular' | 'rotacao';
+}
+
+export interface LoanInTerms {
+  ok: boolean;
+  reason?: string;
+  wageShare: number;
+  buyOption: number;
+}
+
+export interface TrialOptions {
+  region?: LeagueId;
+  pos?: Position;
+}
+
+/** Estado anterior dos jogadores observados (para os avisos). */
+export interface WatchState {
+  listed: boolean;
+  contract: number;
+  clubId: string | null;
+  clauseOk: boolean;
 }
 
 /** Gol gravado na partida: [pid, lado, minuto, assistente|0, pênalti 1|0]. */
@@ -281,6 +436,14 @@ export interface Offer {
   done?: boolean;
   expired?: boolean;
   accepted?: boolean;
+  /** Proposta por um garoto da base. */
+  youth?: boolean;
+  /** Teto escondido da CPU (não mostrar na UI). */
+  ceiling?: number;
+  /** Rodadas de contraproposta já feitas. */
+  rounds?: number;
+  /** A CPU desistiu depois de uma contraproposta. */
+  walkout?: boolean;
 }
 
 export interface Message {
@@ -292,6 +455,8 @@ export interface Message {
   title: string;
   body: string;
   offer?: Offer;
+  /** Jogador relacionado (relatório de olheiro, lista de observação, promessa…). */
+  pid?: string;
 }
 
 /** Dados que o chamador fornece a pushMessage (id/season/week/read são preenchidos). */
@@ -300,6 +465,7 @@ export interface MessageInput {
   title: string;
   body: string;
   offer?: Offer;
+  pid?: string;
   read?: boolean;
 }
 
@@ -417,6 +583,16 @@ export interface World {
   started: boolean;
   fired?: Fired | null;
   pendingSeason?: SeasonSummary | null;
+  /** Conhecimento do usuário sobre jogadores de fora (0 básico, 1 observado, 2 relatório). */
+  scouting: Record<string, ScoutInfo>;
+  scoutQueue: ScoutJob[];
+  negotiations: Record<string, Negotiation>;
+  /** Parcelas de transferências a pagar. */
+  payables: Payable[];
+  watchlist: string[];
+  watchState: Record<string, WatchState>;
+  /** Histórico de transferências (todas as do usuário + últimas 400 da CPU). */
+  transfers: TransferRecord[];
 }
 
 export interface WeekReport {
@@ -565,7 +741,7 @@ export interface BidResult {
   ask?: number;
 }
 
-export type UpgradeKey = 'academy' | 'training' | 'stadium';
+export type UpgradeKey = 'academy' | 'training' | 'stadium' | 'scouting';
 
 export interface Upgrade {
   name: string;
