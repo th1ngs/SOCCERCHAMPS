@@ -1,57 +1,152 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { UserMinus } from "lucide-react";
-import { SQUAD_MAX, dismissYouth, promoteYouth, runTrial, trialCost, user } from "@/game";
-import type { Player } from "@/game/types";
+import {
+  dismissYouth,
+  formatMoney,
+  loanOut,
+  loanOutOffers,
+  promoteYouth,
+  recallLoan,
+  requestScoutReport,
+  runTrial,
+  setAcademyFocus,
+  trialCost,
+  upgrade,
+  user,
+  windowOpen,
+} from "@/game";
+import type { LeagueId, Player, TrialOptions } from "@/game/types";
 import { useWorld } from "@/components/game/GameProvider";
-import { EmptyState, PageHeader } from "@/components/ui/primitives";
+import { PageHeader } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/Toast";
-import { ConfirmDialog } from "@/components/player/ConfirmDialog";
-import { AcademyCard } from "@/components/youth/AcademyCard";
+import { AcademySummary } from "@/components/youth/AcademySummary";
+import { DismissDialog } from "@/components/youth/DismissDialog";
+import { FocusPicker } from "@/components/youth/FocusPicker";
+import { HowItWorks } from "@/components/youth/HowItWorks";
+import { LoanOutDialog, type LoanOfferView } from "@/components/youth/LoanOutDialog";
+import { LoanedOutSection } from "@/components/youth/LoanedOutSection";
+import { ScoutingCard } from "@/components/youth/ScoutingCard";
 import { TrialCard } from "@/components/youth/TrialCard";
 import { TrialResultModal } from "@/components/youth/TrialResultModal";
-import { YouthCard } from "@/components/youth/YouthCard";
+import { YouthList, type YouthActions } from "@/components/youth/YouthList";
+import {
+  academySummary,
+  focusName,
+  loanBlock,
+  loanedViews,
+  openYouthOffers,
+  promoteBlock,
+  scoutBlock,
+  scoutState,
+  windowText,
+  youthView,
+  type AcademyFocusKey,
+  type PosFilter,
+  type YouthView,
+} from "@/components/youth/derive";
 
 export default function BasePage() {
   const { world, version, mutate, setOverlay } = useWorld();
   const toast = useToast();
-  const [trialIds, setTrialIds] = useState<string[] | null>(null);
+
+  const homeLeague = world.clubs[world.userClub].league;
+  const [region, setRegion] = useState<LeagueId>(homeLeague);
+  const [trialPos, setTrialPos] = useState<PosFilter>("all");
+  const [trial, setTrial] = useState<{ key: number; ids: string[] } | null>(null);
+  const [loan, setLoan] = useState<{ pid: string; offers: LoanOfferView[] } | null>(null);
   const [dismissId, setDismissId] = useState<string | null>(null);
 
+  // `version` muda a cada mutação do mesmo objeto `world`: todas as derivações dependem dele.
   const data = useMemo(() => {
+    void version;
     const u = user(world);
-    const youth = u.youth
+    const offers = openYouthOffers(world);
+    const views = u.youth
       .map((id) => world.players[id])
       .filter((p): p is Player => !!p)
-      .sort((a, b) => b.pot - a.pot);
-    const full = u.squad.length >= SQUAD_MAX ? `Elenco cheio (${u.squad.length}/${SQUAD_MAX})` : null;
-    return { u, youth, full, cost: trialCost(u) };
-    // `version` muda a cada mutação do mesmo objeto world.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      .map((p) => youthView(world, p, u.academyFocus, offers));
+    const scout = scoutState(world);
+    return {
+      u,
+      views,
+      scout,
+      summary: academySummary(world, views),
+      loaned: loanedViews(world),
+      promote: promoteBlock(u),
+      window: windowOpen(world) ? null : windowText(world),
+    };
   }, [world, version]);
-  const { u, youth, full, cost } = data;
+  const { u, views, scout, summary, loaned } = data;
 
-  const found = useMemo(() => (trialIds ? trialIds.map((id) => world.players[id]).filter((p): p is Player => !!p) : null), [trialIds, world]);
+  const trialOpts = useMemo<TrialOptions>(
+    () => ({ region: region === homeLeague ? undefined : region, pos: trialPos === "all" ? undefined : trialPos }),
+    [region, homeLeague, trialPos],
+  );
+  const cost = useMemo(() => {
+    void version;
+    return trialCost(world, trialOpts);
+  }, [world, version, trialOpts]);
+  const trialBlock = world.trialUsed ? "Peneira já realizada nesta temporada" : u.money < cost ? `Caixa insuficiente (${formatMoney(u.money)})` : null;
+
+  const trialViews = useMemo(() => {
+    void version;
+    if (!trial) return null;
+    const offers = openYouthOffers(world);
+    const focus = user(world).academyFocus;
+    return trial.ids.map((id) => world.players[id]).filter((p): p is Player => !!p).map((p) => youthView(world, p, focus, offers));
+  }, [trial, world, version]);
+
+  const loanPlayer = loan ? world.players[loan.pid] ?? null : null;
   const dismissing = dismissId ? world.players[dismissId] ?? null : null;
 
-  const closeTrial = useCallback(() => setTrialIds(null), []);
+  const openPlayer = useCallback((pid: string) => setOverlay({ kind: "player", pid }), [setOverlay]);
+  const closeTrial = useCallback(() => setTrial(null), []);
+  const closeLoan = useCallback(() => setLoan(null), []);
   const cancelDismiss = useCallback(() => setDismissId(null), []);
 
-  const trial = () => {
+  const changeFocus = (f: AcademyFocusKey) => {
+    mutate((w) => setAcademyFocus(w, f));
+    toast(`Foco da base: ${focusName(f)}. Vale para as próximas safras e peneiras.`, "good");
+  };
+
+  const doTrial = () => {
     const box: { ids: string[] | null } = { ids: null };
     mutate((w) => {
-      const r = runTrial(w);
+      const r = runTrial(w, trialOpts);
       box.ids = r ? r.map((p) => p.id) : null;
     });
     if (!box.ids) return toast("Não foi possível fazer a peneira agora.", "bad");
-    setTrialIds(box.ids);
+    setTrial((t) => ({ key: (t?.key ?? 0) + 1, ids: box.ids as string[] }));
   };
 
-  const promote = (p: Player) => {
-    if (full) return toast(`${full}. Libere uma vaga antes.`, "bad");
-    mutate((w) => promoteYouth(w, p.id));
-    toast(`${p.name} subiu para o profissional!`, "good");
+  const upgradeScouting = () => {
+    const box = { ok: false };
+    mutate((w) => {
+      box.ok = upgrade(w, "scouting");
+    });
+    toast(box.ok ? "Departamento de olheiros melhorado!" : "Não foi possível melhorar os olheiros agora.", box.ok ? "good" : "bad");
+  };
+
+  const recall = (pid: string) => {
+    const name = world.players[pid]?.name ?? "O jogador";
+    const box = { ok: false };
+    mutate((w) => {
+      box.ok = recallLoan(w, pid);
+    });
+    toast(box.ok ? `${name} voltou do empréstimo.` : "Não foi possível encerrar o empréstimo agora.", box.ok ? "good" : "bad");
+  };
+
+  const confirmLoan = (clubId: string) => {
+    if (!loanPlayer) return;
+    const name = loanPlayer.name;
+    const club = world.clubs[clubId];
+    const box = { ok: false };
+    mutate((w) => {
+      box.ok = loanOut(w, loanPlayer.id, clubId);
+    });
+    setLoan(null);
+    toast(box.ok ? `${name} foi emprestado ao ${club?.name ?? "clube"}.` : "O empréstimo não foi concluído.", box.ok ? "good" : "bad");
   };
 
   const confirmDismiss = () => {
@@ -62,53 +157,77 @@ export default function BasePage() {
     toast(`${name} foi dispensado da base.`);
   };
 
+  const actions: YouthActions = {
+    open: openPlayer,
+    promote: (v: YouthView) => {
+      if (data.promote) return toast(`${data.promote}. Libere uma vaga antes.`, "bad");
+      mutate((w) => promoteYouth(w, v.p.id));
+      toast(`${v.p.name} subiu para o profissional!`, "good");
+    },
+    loan: (v: YouthView) => {
+      const offers = loanOutOffers(world, v.p.id)
+        .map((o) => ({ club: world.clubs[o.club], wageShare: o.wageShare, role: o.role }))
+        .filter((o): o is LoanOfferView => !!o.club);
+      setLoan({ pid: v.p.id, offers });
+    },
+    scout: (v: YouthView) => {
+      const box: { r: ReturnType<typeof requestScoutReport> | null } = { r: null };
+      mutate((w) => {
+        box.r = requestScoutReport(w, v.p.id);
+      });
+      const r = box.r;
+      if (r?.ok) toast(`Olheiro a caminho: relatório de ${v.p.name} pronto na semana ${r.readyWeek}.`, "good");
+      else toast(r?.reason ?? "Não foi possível pedir o relatório.", "bad");
+    },
+    dismiss: (v: YouthView) => setDismissId(v.p.id),
+  };
+
   return (
     <>
       <PageHeader
         title="Categorias de base"
-        subtitle="Todo início de temporada chega uma nova safra. Quanto melhor a estrutura da base, maior o potencial dos garotos. Aos 19 anos eles sobem ao profissional ou são dispensados."
+        subtitle="Revele joias, acompanhe a evolução e decida o futuro dos garotos: promover, emprestar ou dispensar. Aos 19 anos eles sobem ao profissional ou deixam o clube."
       />
 
-      <div className="mb-6 grid gap-4 md:grid-cols-2">
-        <TrialCard cost={cost} used={world.trialUsed} money={u.money} onRun={trial} />
-        <AcademyCard club={u} />
+      <AcademySummary s={summary} season={world.season} />
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <TrialCard
+          homeLeague={homeLeague}
+          region={region}
+          onRegion={setRegion}
+          pos={trialPos}
+          onPos={setTrialPos}
+          cost={cost}
+          block={trialBlock}
+          bonusKid={scout.level >= 4}
+          onRun={doTrial}
+        />
+        <ScoutingCard s={scout} academy={summary.academy} week={world.week} money={u.money} onUpgrade={upgradeScouting} onOpenPlayer={openPlayer} />
       </div>
 
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-display text-xl font-bold uppercase tracking-wide">
-          Garotos da base <span className="text-mist tabular">({youth.length})</span>
-        </h2>
-        {full && <p className="text-xs text-warn-400">{full}: libere uma vaga para promover.</p>}
+      <div className="mt-4">
+        <FocusPicker value={u.academyFocus} onChange={changeFocus} />
       </div>
 
-      {youth.length ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {youth.map((p) => (
-            <YouthCard
-              key={p.id}
-              player={p}
-              promoteBlocked={full}
-              onOpen={() => setOverlay({ kind: "player", pid: p.id })}
-              onPromote={() => promote(p)}
-              onDismiss={() => setDismissId(p.id)}
-            />
-          ))}
-        </div>
-      ) : (
-        <EmptyState>Nenhum garoto na base agora. Faça uma peneira ou aguarde a próxima safra.</EmptyState>
-      )}
+      <YouthList
+        world={world}
+        views={views}
+        scout={scout}
+        promoteBlock={data.promote}
+        windowBlock={data.window}
+        scoutBlockFor={(v) => scoutBlock(world, v, scout)}
+        loanBlockFor={(v) => loanBlock(world, v.p)}
+        actions={actions}
+      />
 
-      <TrialResultModal players={found} onClose={closeTrial} />
-      <ConfirmDialog
-        open={!!dismissing}
-        title={`Dispensar ${dismissing?.name ?? ""}?`}
-        confirmLabel="Dispensar da base"
-        confirmIcon={<UserMinus />}
-        onConfirm={confirmDismiss}
-        onCancel={cancelDismiss}
-      >
-        O garoto deixa o clube e não pode voltar.
-      </ConfirmDialog>
+      <LoanedOutSection list={loaned} recallBlock={data.window} onRecall={recall} onOpen={openPlayer} />
+
+      <HowItWorks />
+
+      <TrialResultModal trialKey={trial?.key ?? 0} views={trialViews} onClose={closeTrial} />
+      <LoanOutDialog player={loanPlayer} offers={loan?.offers ?? []} onConfirm={confirmLoan} onClose={closeLoan} />
+      <DismissDialog player={dismissing} onConfirm={confirmDismiss} onCancel={cancelDismiss} />
     </>
   );
 }
