@@ -86,7 +86,7 @@ export const CUP_PRIZE = [1e6, 2e6, 3.5e6, 6e6, 12e6];
 /** Prêmio por fase vencida na Copa dos Campeões (sem fator wealth). */
 export const CONT_PRIZE = [4e6, 8e6, 15e6, 30e6];
 /** Cota de TV semanal por nível de divisão (× wealth). */
-export const TV_BASE = [380000, 120000, 45000];
+export const TV_BASE = [380000, 120000, 90000];
 /** Prêmio da liga por posição: (17 − posição) × base[nível] × wealth. */
 export const LEAGUE_PRIZE_BASE = [0.8e6, 0.25e6, 0.1e6];
 /** Vagas por primeira divisão na Copa dos Campeões (antes do corte para 16). */

@@ -1,6 +1,7 @@
 import "server-only";
 import { randomInt } from "node:crypto";
 import { ensureSchema, pool, withTx } from "./db";
+import { competitionName } from "@/game/leagues";
 
 const ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
 /** Limite do corpo recebido (JSON puro ou gzip). */
@@ -43,18 +44,20 @@ export function readSave(data: unknown): SaveMeta {
     if (!isObj(h) || !isObj(h.user) || typeof h.season !== "number") continue;
     const uc = (h.user as Obj).club;
     if (typeof uc !== "string") continue;
-    const won = (key: string, comp: string) => {
-      if (h[key] === uc) titles.push({ season: h.season as number, competition: comp, clubId: uc, clubName: name(uc) });
-    };
-    won("champA", "Série A");
-    won("champB", "Série B");
-    won("cup", "Copa");
+    // Formato v3: campeões por divisão e por copa (ids de competição → id do clube).
+    for (const key of ["champions", "cups"] as const) {
+      const map = h[key];
+      if (!isObj(map)) continue;
+      for (const [comp, winner] of Object.entries(map)) {
+        if (winner === uc) titles.push({ season: h.season as number, competition: competitionName(comp), clubId: uc, clubName: name(uc) });
+      }
+    }
   }
   return {
     managerName: String(manager.name ?? "Treinador").slice(0, 40),
     clubId: userClub,
     clubName: String(club.name ?? userClub).slice(0, 60),
-    division: String(club.div ?? "?").slice(0, 2),
+    division: typeof club.div === "string" ? competitionName(club.div).slice(0, 40) : "?",
     season: data.season,
     week: data.week,
     titles,
