@@ -6,6 +6,8 @@ import { avg, chance, clamp, formatMoney, pick, rand, randi, shuffle } from './u
 import { addMoney, clubPlayers, detach, neededPos, pushMessage, removePlayer, toFree, user, windowOpen } from './world';
 
 export const SQUAD_MAX = 32;
+/** Fração das buscas da CPU feitas fora da própria liga. */
+const INTL_SHARE = 0.3;
 
 /** Move o jogador para `toId` pagando `fee` ao clube de origem (se houver). */
 export function transfer(w: World, pid: string, toId: string, fee: number, silent?: boolean): Player {
@@ -195,15 +197,21 @@ export function aiTransfers(w: World): void {
   const clubs = Object.values(w.clubs).filter((c) => c.id !== w.userClub);
   const all = Object.values(w.players).filter((p) => p.clubId && p.clubId !== w.userClub && !p.youth);
   const userDiv = user(w).div;
-  const n = randi(2, 5);
+  // Escala com o número de clubes (legado: 2-5 tentativas para 32 clubes).
+  const n = Math.round((randi(2, 5) * clubs.length) / 32);
   for (let k = 0; k < n; k++) {
     const buyer = pick(clubs);
     if (buyer.money < 3e6 || buyer.squad.length >= 30) continue;
     const pos = chance(0.5) ? neededPos(w, buyer) : pick(POS);
     const mine = clubPlayers(w, buyer).filter((p) => p.pos === pos).sort((a, b) => b.ovr - a.ovr);
     const bar = mine.length ? mine[Math.min(1, mine.length - 1)].ovr + 1 : 50;
-    const cands = all.filter((p) => p.pos === pos && p.clubId !== buyer.id && p.ovr > bar &&
-      w.clubs[p.clubId as string].rep <= buyer.rep + 8 && w.clubs[p.clubId as string].squad.length > 20);
+    // 70% das buscas no mercado doméstico, 30% em qualquer liga.
+    const intl = chance(INTL_SHARE);
+    const cands = all.filter((p) => {
+      const from = w.clubs[p.clubId as string];
+      return p.pos === pos && from.id !== buyer.id && p.ovr > bar && (intl || from.league === buyer.league) &&
+        from.rep <= buyer.rep + 8 && from.squad.length > 20;
+    });
     if (!cands.length) continue;
     const t = pick(cands.sort((a, b) => b.ovr - a.ovr).slice(0, 5));
     const fee = Math.round((valueOf(t) * rand(1, 1.35)) / 10000) * 10000;

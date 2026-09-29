@@ -1,11 +1,37 @@
-// Atualização de saves antigos para o formato atual do World (idempotente).
+// Compatibilidade de saves.
+// Decisão: saves anteriores à v3 (sem `league` nos clubes, ou seja, o mundo de uma liga só)
+// NÃO são convertidos. `isCompatible(w)` diz se o save pode ser carregado e `migrateWorld(w)`
+// lança `IncompatibleSaveError` para eles; a UI deve pedir uma nova carreira.
+// Para saves v3, `migrateWorld` completa campos ausentes e é idempotente.
 import { CLUBS, TICKET_PRICES, injuryLabel } from './data';
 import { WORLD_VERSION, rollStar, rollTraits } from './gen';
+import { DIVISIONS, LEAGUES } from './leagues';
 import { pickCaptain, pickPenTaker } from './squad';
 import type { Club, Player, World } from './types';
 
+/** Save de uma versão antiga (sem ligas) ou malformado. */
+export class IncompatibleSaveError extends Error {
+  readonly version: number | null;
+  constructor(version: number | null) {
+    super(`Save incompatível (versão ${version ?? '?'}); é preciso começar uma nova carreira.`);
+    this.name = 'IncompatibleSaveError';
+    this.version = version;
+  }
+}
+
 /** Visão "talvez incompleta" de um objeto salvo por uma versão antiga. */
 type Loose<T> = { [K in keyof T]?: T[K] };
+
+const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null;
+
+/** O save pode ser carregado por esta versão do motor (v3+, todos os clubes com liga e divisão válidas)? */
+export function isCompatible(w: unknown): w is World {
+  if (!isObj(w) || !isObj(w.clubs) || !isObj(w.players) || typeof w.userClub !== 'string') return false;
+  if (typeof w.version === 'number' && w.version < WORLD_VERSION) return false;
+  const clubs = Object.values(w.clubs);
+  if (!clubs.length || !(w.userClub in w.clubs)) return false;
+  return clubs.every((c) => isObj(c) && typeof c.league === 'string' && c.league in LEAGUES && typeof c.div === 'string' && c.div in DIVISIONS);
+}
 
 function migrateClub(w: World, c: Club): void {
   const lc = c as Loose<Club>;
@@ -26,19 +52,23 @@ function migrateClub(w: World, c: Club): void {
   if (!c.penTaker && c.squad.length) pickPenTaker(w, c);
 }
 
-function migratePlayer(p: Player): void {
+function migratePlayer(w: World, p: Player): void {
   const lp = p as Loose<Player>;
   if (!Array.isArray(lp.traits)) p.traits = rollTraits(p.pos);
   if (typeof lp.star !== 'boolean') p.star = rollStar();
   if (lp.injType === undefined) p.injType = p.inj > 0 ? injuryLabel(p.inj) : null;
+  if (!lp.nat || !(lp.nat in LEAGUES)) p.nat = p.clubId && w.clubs[p.clubId] ? w.clubs[p.clubId].league : 'bra';
 }
 
 /**
- * Completa campos que faltam em saves antigos e marca o World como versão atual.
- * Seguro para rodar várias vezes: só preenche o que está ausente ou inválido.
- * Muta e devolve o próprio objeto.
+ * Prepara um save para esta versão do motor. Lança IncompatibleSaveError para saves sem ligas (v1/v2).
+ * Em saves v3 só completa o que está ausente ou inválido (idempotente). Muta e devolve o próprio objeto.
  */
 export function migrateWorld(w: World): World {
+  if (!isCompatible(w)) {
+    const v = isObj(w) && typeof (w as Loose<World>).version === 'number' ? (w as Loose<World>).version ?? null : null;
+    throw new IncompatibleSaveError(v);
+  }
   const lw = w as Loose<World>;
   if (!lw.finWeek) w.finWeek = {};
   if (!lw.finSeason) w.finSeason = {};
@@ -46,11 +76,11 @@ export function migrateWorld(w: World): World {
   if (!lw.history) w.history = [];
   if (!lw.inbox) w.inbox = [];
   if (!lw.free) w.free = [];
+  if (!lw.cups) w.cups = {};
+  if (lw.contNext === undefined) w.contNext = null;
   const board = (lw.board || {}) as Loose<World['board']>;
   w.board = { conf: typeof board.conf === 'number' ? board.conf : 60, target: board.target ?? 0, label: board.label ?? '' };
-  const cup = (lw.cup || {}) as Loose<World['cup']>;
-  w.cup = { alive: Array.isArray(cup.alive) ? cup.alive : [], champion: cup.champion ?? null };
-  for (const p of Object.values(w.players)) migratePlayer(p);
+  for (const p of Object.values(w.players)) migratePlayer(w, p);
   for (const c of Object.values(w.clubs)) migrateClub(w, c);
   if (!(typeof lw.version === 'number' && lw.version >= WORLD_VERSION)) w.version = WORLD_VERSION;
   return w;

@@ -7,8 +7,22 @@ export type Position = 'GOL' | 'ZAG' | 'LAT' | 'VOL' | 'MEI' | 'ATA';
 export type FormationKey = '4-4-2' | '4-3-3' | '4-2-3-1' | '3-5-2' | '5-3-2' | '4-5-1';
 export type TacticKey = 'def' | 'bal' | 'att' | 'press';
 export type TrainingKey = 'low' | 'mid' | 'high';
-export type Division = 'A' | 'B';
-export type Competition = Division | 'CUP';
+export type LeagueId = 'bra' | 'arg' | 'por' | 'esp' | 'eng' | 'ita';
+export type DivisionId =
+  | 'bra1' | 'bra2' | 'bra3'
+  | 'arg1' | 'arg2'
+  | 'por1' | 'por2'
+  | 'esp1' | 'esp2'
+  | 'eng1' | 'eng2'
+  | 'ita1' | 'ita2';
+/** @deprecated use DivisionId. */
+export type Division = DivisionId;
+/** Copa Nacional de uma liga. */
+export type CupId = `cup:${LeagueId}`;
+/** Copa Nacional ou Copa dos Campeões ('cont'). */
+export type KnockoutId = CupId | 'cont';
+/** Competição de uma partida: divisão (liga), Copa Nacional ou Copa dos Campeões. */
+export type Competition = DivisionId | KnockoutId;
 export type KitPattern = 'h' | 'v' | 'sash' | 'solid' | 'half';
 export type FormResult = 'V' | 'E' | 'D';
 export type TicketPrice = 'popular' | 'normal' | 'premium';
@@ -71,7 +85,50 @@ export interface Training {
   injury: number;
 }
 
-/** Dados fixos de um clube (tabela CLUBS). */
+export interface LeagueInfo {
+  id: LeagueId;
+  /** Nome do país ("Brasil"). */
+  name: string;
+  country: string;
+  flag: string;
+  /** Força econômica: multiplica cota de TV e prêmios. */
+  wealth: number;
+  /** Divisões, da mais alta para a mais baixa. */
+  divisions: DivisionId[];
+}
+
+export interface DivisionInfo {
+  id: DivisionId;
+  league: LeagueId;
+  name: string;
+  /** 1 = primeira divisão. */
+  level: number;
+  /** Divisão de cima (acesso) ou null. */
+  up: DivisionId | null;
+  /** Divisão de baixo (rebaixamento) ou null. */
+  down: DivisionId | null;
+}
+
+/** Item dos arquivos de dados src/game/clubs/<liga>.ts. */
+export interface ClubSeed {
+  /** Único global; estrangeiros com prefixo do país ("arg-rosario"). */
+  id: string;
+  name: string;
+  short: string;
+  city: string;
+  uf: string;
+  colors: [string, string] | string[];
+  pattern: KitPattern;
+  rep: number;
+  cap: number;
+  nickname: string;
+  mascot: string;
+  stadium: string;
+  /** Id do rival (mesma liga). */
+  rival: string;
+}
+
+/** Dados fixos de um clube (tabela CLUBS), com liga e divisão inicial. */
 export interface ClubStatic {
   id: string;
   name: string;
@@ -80,6 +137,9 @@ export interface ClubStatic {
   uf: string;
   colors: [string, string];
   pattern: KitPattern;
+  league: LeagueId;
+  /** Divisão inicial (no World, a divisão atual). */
+  div: DivisionId;
   /** Reputação 0-100. */
   rep: number;
   /** Capacidade do estádio. */
@@ -98,7 +158,6 @@ export interface Trophy {
 
 /** Clube dentro do mundo (dados fixos + estado da carreira). */
 export interface Club extends ClubStatic {
-  div: Division;
   money: number;
   /** Nível da base (1-5). */
   academy: number;
@@ -158,6 +217,8 @@ export interface Player {
   traits: TraitKey[];
   /** Craque: +3 de overall efetivo em partidas e valor × 1,3. */
   star: boolean;
+  /** Nacionalidade. */
+  nat: LeagueId;
   /** Jogos de suspensão. */
   susp: number;
   /** Amarelos acumulados. */
@@ -190,13 +251,22 @@ export interface Match {
   attendance?: number;
 }
 
+/**
+ * Semana do calendário.
+ * - 'league': rodada `round` (1-30) de todas as divisões;
+ * - 'cup': fase `round` (0-4) de todas as Copas Nacionais (cada partida diz a sua em `comp`);
+ * - 'cont': fase `round` (0-3) da Copa dos Campeões.
+ */
 export interface Week {
-  type: 'league' | 'cup';
+  type: 'league' | 'cup' | 'cont';
   round: number;
   matches: Match[];
 }
 
 export interface Cup {
+  /** Participantes desta temporada. */
+  entrants: string[];
+  /** Ainda vivos. */
   alive: string[];
   champion: string | null;
 }
@@ -253,14 +323,23 @@ export interface FinanceEntry extends FinanceLog {
   balance: number;
 }
 
+export interface ScorerEntry {
+  name: string;
+  club: string;
+  goals: number;
+}
+
+/** Histórico por temporada (Hall da Fama). */
 export interface HistoryEntry {
   season: number;
-  champA: string;
-  champB: string;
-  cup: string | null;
-  user: { club: string; div: Division; pos: number; objective: string; success: boolean };
-  scorerA: { name: string; club: string | null; goals: number } | null;
-  best: { name: string; club: string | null; avg: number } | null;
+  /** Campeão de cada divisão. */
+  champions: Record<DivisionId, string>;
+  /** "cup:bra" … e "cont" → id do campeão. */
+  cups: Record<string, string | null>;
+  /** Artilheiros das primeiras divisões. */
+  scorers: Partial<Record<DivisionId, ScorerEntry | null>>;
+  best: { name: string; club: string; avg: number } | null;
+  user: { club: string; league: LeagueId; div: DivisionId; pos: number; objective: string; success: boolean };
 }
 
 export interface TableRow {
@@ -280,18 +359,29 @@ export interface TableRow {
   form: FormResult[];
 }
 
+export interface DivisionMove {
+  club: string;
+  from: DivisionId;
+  to: DivisionId;
+}
+
 export interface SeasonSummary {
   entry: HistoryEntry;
-  tA: TableRow[];
-  tB: TableRow[];
-  relegated: string[];
+  /** Classificação final de cada divisão. */
+  tables: Record<DivisionId, TableRow[]>;
+  /** Todas as trocas de divisão (aplicadas em newSeason). */
+  moves: DivisionMove[];
+  /** Clubes da liga do usuário que sobem / caem. */
   promoted: string[];
+  relegated: string[];
   userPos: number;
   success: boolean;
   fired: boolean;
-  scA: Player | null;
-  scB: Player | null;
+  /** Artilheiro de cada divisão (cópia do jogador no fim da temporada). */
+  scorers: Partial<Record<DivisionId, Player | null>>;
   best: Player | null;
+  /** Classificados para a Copa dos Campeões da próxima temporada (16). */
+  contNext: string[];
   /** Clube maior interessado no treinador. */
   offer?: string;
 }
@@ -312,7 +402,10 @@ export interface World {
   nextId: number;
   /** Índice = semana; weeks[0] = null (pré-temporada). */
   weeks: (Week | null)[];
-  cup: Cup;
+  /** Copas da temporada: "cup:<liga>" e "cont". */
+  cups: Partial<Record<KnockoutId, Cup>>;
+  /** Classificados para a próxima Copa dos Campeões (definidos no fim da temporada). */
+  contNext: string[] | null;
   inbox: Message[];
   nextMsg: number;
   history: HistoryEntry[];
@@ -394,6 +487,16 @@ export interface OnField {
   fat: number;
   yc: number;
   eff?: number;
+  /** Cache interno do Sim (recalculado ao trocar jogador, slot ou formação). */
+  sp?: Position;
+  /** overall efetivo × encaixe × moral (sem o cansaço). */
+  k?: number;
+  /** Multiplicadores de características por setor (defesa, meio, ataque). */
+  dm?: number;
+  mm?: number;
+  am?: number;
+  /** Desgaste por minuto (antes do fator tático). */
+  drain?: number;
 }
 
 export interface SimSide {
@@ -473,6 +576,8 @@ export interface Upgrade {
 }
 
 export interface NewPlayerOptions {
+  /** Nacionalidade; padrão: 85% a do clube, senão aleatória. */
+  nat?: LeagueId;
   name?: string;
   age: number;
   pos: Position;

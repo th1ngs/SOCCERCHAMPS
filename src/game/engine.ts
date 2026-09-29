@@ -101,7 +101,24 @@ export class Sim {
   }
 
   P(pid: string): Player { return this.w.players[pid]; }
-  slotPos(side: SimSide, o: OnField): Position { return FORMATIONS[side.formation][o.slot].pos; }
+  slotPos(side: SimSide, o: OnField): Position { return o.sp ?? FORMATIONS[side.formation][o.slot].pos; }
+
+  /** Calcula o cache do jogador em campo (posição do slot, força base, características, desgaste). */
+  private prep(side: SimSide, o: OnField): void {
+    const p = this.P(o.pid);
+    const sp = FORMATIONS[side.formation][o.slot].pos;
+    o.sp = sp;
+    o.k = matchOvr(p) * fit(p.pos, sp) * (0.95 + (0.1 * p.morale) / 100);
+    o.dm = 1 + (hasTrait(p, 'marcacao') ? TRAIT_SECTOR : 0) + (hasTrait(p, 'desarme') ? TRAIT_SECTOR : 0);
+    o.mm = 1 + (hasTrait(p, 'passe') ? TRAIT_PASS_MID : 0);
+    o.am = 1 + (hasTrait(p, 'drible') ? TRAIT_SECTOR : 0) + (hasTrait(p, 'velocidade') ? TRAIT_SECTOR : 0);
+    o.drain = (sp === 'GOL' ? 0.08 : 0.3) * (p.age > 31 ? 1.15 : 1) * (hasTrait(p, 'resistencia') ? TRAIT_STAMINA : 1);
+  }
+
+  /** Invalida o cache (troca de jogador, slot ou formação). */
+  private dirty(o: OnField): void {
+    o.sp = undefined; o.k = undefined;
+  }
 
   log(type: SimEventType, side: number | null, text: string): SimEvent {
     const ev: SimEvent = { min: this.minute, type, side, text };
@@ -114,17 +131,15 @@ export class Sim {
     const s = this.sides[i], B = baseVolume();
     let d = 0, m = 0, a = 0, dw = 0, mw = 0, aw = 0, g = 35;
     for (const o of s.on) {
-      const p = this.P(o.pid), sp = this.slotPos(s, o);
-      const eff = matchOvr(p) * fit(p.pos, sp) * (0.7 + (0.3 * o.fat) / 100) * (0.95 + (0.1 * p.morale) / 100);
+      if (o.k === undefined) this.prep(s, o);
+      const sp = o.sp as Position;
+      const eff = (o.k as number) * (0.7 + (0.3 * o.fat) / 100);
       o.eff = eff;
       if (sp === 'GOL') { g = eff; continue; }
       const wt = SECTOR[sp];
-      const dm = 1 + (hasTrait(p, 'marcacao') ? TRAIT_SECTOR : 0) + (hasTrait(p, 'desarme') ? TRAIT_SECTOR : 0);
-      const mm = 1 + (hasTrait(p, 'passe') ? TRAIT_PASS_MID : 0);
-      const am = 1 + (hasTrait(p, 'drible') ? TRAIT_SECTOR : 0) + (hasTrait(p, 'velocidade') ? TRAIT_SECTOR : 0);
-      if (wt.d) { d += eff * dm * wt.d; dw += wt.d; }
-      if (wt.m) { m += eff * mm * wt.m; mw += wt.m; }
-      if (wt.a) { a += eff * am * wt.a; aw += wt.a; }
+      if (wt.d) { d += eff * (o.dm as number) * wt.d; dw += wt.d; }
+      if (wt.m) { m += eff * (o.mm as number) * wt.m; mw += wt.m; }
+      if (wt.a) { a += eff * (o.am as number) * wt.a; aw += wt.a; }
     }
     const vol = (total: number, wsum: number, base: number): number => (wsum ? total / wsum : 30) * (0.7 + 0.3 * Math.min(1.25, wsum / base));
     const t = TACTICS[s.tactic];
@@ -182,9 +197,8 @@ export class Sim {
     for (const s of this.sides) {
       const t = TACTICS[s.tactic].fatigue;
       for (const o of s.on) {
-        const p = this.P(o.pid);
-        const drain = (this.slotPos(s, o) === 'GOL' ? 0.08 : 0.3) * t * (p.age > 31 ? 1.15 : 1) * (hasTrait(p, 'resistencia') ? TRAIT_STAMINA : 1);
-        o.fat = Math.max(10, o.fat - drain);
+        if (o.k === undefined) this.prep(s, o);
+        o.fat = Math.max(10, o.fat - (o.drain as number) * t);
       }
     }
   }
@@ -345,7 +359,7 @@ export class Sim {
       if (gk && out) {
         this.doSub(s, out.pid, gk.id);
         const nw = side.on.find((x) => x.pid === gk.id);
-        if (nw) nw.slot = o.slot;
+        if (nw) { nw.slot = o.slot; this.dirty(nw); }
       }
     }
   }
@@ -395,6 +409,7 @@ export class Sim {
     o.pid = inPid;
     o.fat = this.P(inPid).fitness;
     o.yc = 0;
+    this.dirty(o);
     side.subs++;
     side.played.push(inPid);
     if (this.ratings[inPid] == null) this.ratings[inPid] = 6.2;
@@ -442,6 +457,7 @@ export class Sim {
       let best = free[0], bs = -1;
       for (const i of free) { const sc = fit(p.pos, slots[i].pos); if (sc > bs) { bs = sc; best = i; } }
       o.slot = best;
+      this.dirty(o);
       free.splice(free.indexOf(best), 1);
     }
   }

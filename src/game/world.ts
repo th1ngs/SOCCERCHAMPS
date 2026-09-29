@@ -1,27 +1,28 @@
-// Temporada: calendário, resultados, tabela, Copa, semana a semana e virada de ano.
+// Temporada: calendário de todas as ligas, resultados, tabelas, copas, semana a semana e virada de ano.
 import { TICKET_PRICES, TRAINING, injuryLabel, injuryPhrase, weeksText } from './data';
+import { contByRep, contQualifiers } from './competitions';
 import { Sim, isDerbyClubs } from './engine';
-import { assignNumbers, makeFreeAgent, makeYouth, newPlayer, wageFor } from './gen';
+import { FREE_MAX, FREE_MIN, assignNumbers, makeFreeAgent, makeYouth, newPlayer, rollNat, wageFor } from './gen';
+import {
+  CONT_PRIZE, CONT_WEEKS, CUP_PRIZE, CUP_WEEKS, DIVISIONS, DIVISION_IDS, LEAGUES, LEAGUE_IDS, LEAGUE_PRIZE_BASE,
+  LEAGUE_ROUNDS, PROMOTION_SPOTS, TOTAL_WEEKS, TV_BASE, competitionName, compLeague, cupId, cupRoundName,
+  divisionFullName, firstDivisions, isDivision, isKnockout,
+} from './leagues';
 import { aiOffersToUser, aiTransfers, promoteYouth, transfer } from './market';
 import { autoLineup, ensureLineup, teamRating } from './squad';
 import type {
-  Club, Competition, Division, FinanceCategory, Fixture, FormResult, GateForecast, HistoryEntry, Match, MatchResult,
-  MessageInput, Player, Position, SeasonSummary, SimOptions, TableRow, TicketPrice, Week, WeekReport, World,
+  Club, Competition, DivisionId, DivisionMove, FinanceCategory, Fixture, FormResult, GateForecast, HistoryEntry,
+  KnockoutId, Match, MatchResult, MessageInput, Player, Position, ScorerEntry, SeasonSummary, SimOptions, TableRow,
+  TicketPrice, Week, WeekReport, World,
 } from './types';
 import { chance, clamp, gauss, pick, rand, randi, shuffle, sum } from './util';
 
-const CUP_WEEKS = [4, 10, 16, 22, 28];
-export const TOTAL_WEEKS = 35;
-export const CUP_ROUNDS = ['1ª fase', 'Oitavas de final', 'Quartas de final', 'Semifinal', 'Final'];
-export const CUP_PRIZE = [1e6, 2e6, 3.5e6, 6e6, 12e6];
 export const WINDOWS: [number, number][] = [[0, 4], [15, 19]];
 export const windowOpen = (w: World): boolean => WINDOWS.some(([a, b]) => w.week >= a && w.week <= b);
 export const nextWindow = (w: World): number | null => {
   const nx = WINDOWS.find(([a]) => a > w.week);
   return nx ? nx[0] : null;
 };
-
-const TV: Record<Division, number> = { A: 380000, B: 120000 };
 
 // Clássicos, torcida e DM
 const DERBY_INCOME = 1.4;
@@ -31,6 +32,8 @@ const FANS_RESULT = 4;
 const FANS_START = 60;
 /** Puxão semanal da torcida de volta ao patamar inicial (evita saturar em 0 ou 100). */
 const FANS_DRIFT = 0.03;
+/** Variação de reputação por posição na tabela, por nível de divisão. */
+const REP_BY_POS = [0.35, 0.25, 0.2];
 
 /** Semanas de lesão após a redução pelo nível do CT (1 → 100%, 5 → 80%). */
 export const injuryWeeks = (weeks: number, trainingLvl: number): number =>
@@ -55,6 +58,16 @@ export function addMoney(w: World, clubId: string, amount: number, cat: FinanceC
   }
 }
 
+/** Fator econômico da liga do clube. */
+export const wealthOf = (w: World, clubId: string): number => LEAGUES[w.clubs[clubId].league].wealth;
+
+/** Prêmio por vencer a fase `round` de uma copa. */
+export function knockoutPrize(comp: KnockoutId, round: number): number {
+  if (comp === 'cont') return CONT_PRIZE[round] || 0;
+  const lg = compLeague(comp);
+  return Math.round((CUP_PRIZE[round] || 0) * (lg ? LEAGUES[lg].wealth : 1));
+}
+
 // ---------- Calendário ----------
 type Pair = [string, string];
 function roundRobin(ids: string[]): Pair[][] {
@@ -74,23 +87,40 @@ function roundRobin(ids: string[]): Pair[][] {
 let mid = 1;
 const mkMatch = (h: string, a: string, comp: Competition): Match => ({ id: 'm' + Date.now().toString(36) + mid++, h, a, comp, hs: null, as: null, pens: null, played: false, goals: [] });
 
-export const divClubs = (w: World, div: Division): string[] => Object.values(w.clubs).filter((c) => c.div === div).map((c) => c.id);
+/** Ids dos clubes de uma divisão. */
+export const divClubs = (w: World, div: DivisionId): string[] => Object.values(w.clubs).filter((c) => c.div === div).map((c) => c.id);
+/** Clubes (objetos) de uma divisão. */
+export const clubsByDivision = (w: World, div: DivisionId): Club[] => Object.values(w.clubs).filter((c) => c.div === div);
 
 export function startSeason(w: World): void {
-  const rA = roundRobin(shuffle(divClubs(w, 'A')));
-  const rB = roundRobin(shuffle(divClubs(w, 'B')));
+  const schedules = DIVISION_IDS.map((div) => ({ div, rounds: roundRobin(shuffle(divClubs(w, div))) }));
   w.weeks = [null];
   let li = 0;
   for (let wk = 1; wk <= TOTAL_WEEKS; wk++) {
     if (CUP_WEEKS.includes(wk)) {
       w.weeks.push({ type: 'cup', round: CUP_WEEKS.indexOf(wk), matches: [] });
+    } else if (CONT_WEEKS.includes(wk)) {
+      w.weeks.push({ type: 'cont', round: CONT_WEEKS.indexOf(wk), matches: [] });
     } else {
-      const ms = rA[li].map(([h, a]) => mkMatch(h, a, 'A')).concat(rB[li].map(([h, a]) => mkMatch(h, a, 'B')));
+      const ms: Match[] = [];
+      for (const { div, rounds } of schedules) for (const [h, a] of rounds[li] || []) ms.push(mkMatch(h, a, div));
       w.weeks.push({ type: 'league', round: li + 1, matches: ms });
       li++;
     }
   }
-  w.cup = { alive: shuffle(Object.keys(w.clubs)), champion: null };
+  // Copas Nacionais: as duas primeiras divisões de cada liga.
+  w.cups = {};
+  for (const lg of LEAGUE_IDS) {
+    const divs = LEAGUES[lg].divisions.slice(0, 2);
+    const entrants = Object.values(w.clubs).filter((c) => divs.includes(c.div)).map((c) => c.id);
+    w.cups[cupId(lg)] = { entrants, alive: shuffle(entrants.slice()), champion: null };
+  }
+  // Copa dos Campeões: classificados da temporada anterior (ou os de maior reputação na 1ª temporada).
+  const valid = (w.contNext || []).filter((id) => w.clubs[id]);
+  const cont = valid.length >= 2 ? valid : contByRep(w);
+  w.cups.cont = { entrants: cont.slice(), alive: shuffle(cont.slice()), champion: null };
+  w.contNext = null;
+
   for (const p of Object.values(w.players)) p.s = { apps: 0, goals: 0, assists: 0, rsum: 0 };
   w.finSeason = {};
   w.finWeek = {};
@@ -100,14 +130,31 @@ export function startSeason(w: World): void {
   pushMessage(w, {
     kind: 'board',
     title: `Temporada ${w.season}: objetivo da diretoria`,
-    body: `A diretoria do ${u.name} espera: ${w.board.label} na Série ${u.div}. A janela de transferências está aberta até a semana ${WINDOWS[0][1]}.`,
+    body: `A diretoria do ${u.name} espera: ${w.board.label} na ${divisionFullName(u.div)}. A janela de transferências está aberta até a semana ${WINDOWS[0][1]}.`,
   });
 }
 
-function drawCup(w: World, week: Week): void {
-  const alive = shuffle(w.cup.alive.slice());
-  for (let i = 0; i + 1 < alive.length; i += 2) week.matches.push(mkMatch(alive[i], alive[i + 1], 'CUP'));
-  if (week.round === 4) week.matches.forEach((m) => (m.neutral = true));
+/** Sorteia os confrontos da semana de copa (todas as Copas Nacionais ou a Copa dos Campeões). */
+function drawKnockouts(w: World, week: Week): void {
+  const comps: KnockoutId[] = week.type === 'cont' ? ['cont'] : LEAGUE_IDS.map(cupId);
+  for (const comp of comps) {
+    const cup = w.cups[comp];
+    if (!cup || cup.alive.length < 2) continue;
+    const alive = shuffle(cup.alive.slice());
+    const final = alive.length === 2;
+    for (let i = 0; i + 1 < alive.length; i += 2) {
+      const m = mkMatch(alive[i], alive[i + 1], comp);
+      if (final) m.neutral = true;
+      week.matches.push(m);
+    }
+  }
+}
+
+/** Vencedor de um jogo eliminatório já disputado. */
+export function knockoutWinner(m: Match): string {
+  const hs = m.hs as number, as = m.as as number;
+  if (hs !== as) return hs > as ? m.h : m.a;
+  return m.pens && m.pens[0] > m.pens[1] ? m.h : m.a;
 }
 
 export const currentWeek = (w: World): Week | null => w.weeks[w.week] || null;
@@ -129,15 +176,18 @@ export function nextFixture(w: World): Fixture | null {
   return null;
 }
 
+/** Rótulo da semana: "Rodada 3 de 30", "Copa Nacional • Oitavas de final", "Copa dos Campeões • Final". */
 export function weekLabel(w: World): string {
   if (w.week === 0) return 'Pré-temporada';
   const wk = currentWeek(w);
   if (!wk) return 'Fim de temporada';
-  return wk.type === 'cup' ? `Copa • ${CUP_ROUNDS[wk.round]}` : `Rodada ${wk.round} de 30`;
+  if (wk.type === 'cup') return `Copa Nacional • ${cupRoundName(cupId(user(w).league), wk.round)}`;
+  if (wk.type === 'cont') return `${competitionName('cont')} • ${cupRoundName('cont', wk.round)}`;
+  return `Rodada ${wk.round} de ${LEAGUE_ROUNDS}`;
 }
 
 // ---------- Tabela ----------
-export function table(w: World, div: Division): TableRow[] {
+export function table(w: World, div: DivisionId): TableRow[] {
   const rows: Record<string, TableRow> = {};
   for (const id of divClubs(w, div)) rows[id] = { id, p: 0, j: 0, v: 0, e: 0, d: 0, gf: 0, ga: 0, form: [] };
   for (const wk of w.weeks) {
@@ -155,11 +205,12 @@ export function table(w: World, div: Division): TableRow[] {
   return Object.values(rows).sort((x, y) => y.p - x.p || y.v - x.v || (y.gf - y.ga) - (x.gf - x.ga) || y.gf - x.gf || w.clubs[x.id].name.localeCompare(w.clubs[y.id].name));
 }
 
+/** Posição do clube na tabela da sua divisão. */
 export const position = (w: World, clubId: string): number => table(w, w.clubs[clubId].div).findIndex((r) => r.id === clubId) + 1;
 
-export function topScorers(w: World, div: Division, n = 10): Player[] {
+export function topScorers(w: World, div: DivisionId, n = 10): Player[] {
   return Object.values(w.players)
-    .filter((p) => p.clubId && w.clubs[p.clubId].div === div && p.s.goals > 0)
+    .filter((p) => p.clubId && w.clubs[p.clubId] && w.clubs[p.clubId].div === div && p.s.goals > 0)
     .sort((a, b) => b.s.goals - a.s.goals || b.s.assists - a.s.assists)
     .slice(0, n);
 }
@@ -181,22 +232,29 @@ export function userForm(w: World, n = 5): FormResult[] {
 }
 
 // ---------- Diretoria ----------
-function setObjective(w: World): void {
-  const u = user(w);
-  const rank = Object.values(w.clubs).filter((c) => c.div === u.div).sort((a, b) => b.rep - a.rep).findIndex((c) => c.id === u.id) + 1;
-  let target: number, label: string;
-  if (u.div === 'A') {
-    if (rank <= 3) { target = 3; label = 'brigar pelo título (top 3)'; }
-    else if (rank <= 8) { target = 8; label = 'terminar entre os 8 primeiros'; }
-    else if (rank <= 12) { target = 12; label = 'fazer uma campanha tranquila (top 12)'; }
-    else { target = 13; label = 'evitar o rebaixamento'; }
-  } else {
-    if (rank <= 5) { target = 3; label = 'conquistar o acesso (top 3)'; }
-    else if (rank <= 10) { target = 9; label = 'terminar entre os 9 primeiros'; }
-    else { target = 14; label = 'fazer uma campanha digna (top 14)'; }
+/** Objetivo pelo ranking de reputação dentro da divisão (rótulos genéricos). */
+export function objectiveFor(w: World, club: Club): { target: number; label: string } {
+  const info = DIVISIONS[club.div];
+  const peers = Object.values(w.clubs).filter((c) => c.div === club.div);
+  const n = peers.length;
+  const rank = peers.sort((a, b) => b.rep - a.rep).findIndex((c) => c.id === club.id) + 1;
+  const safe = n - PROMOTION_SPOTS; // última posição fora da zona de rebaixamento
+  if (!info.up) {
+    if (rank <= 3) return { target: 3, label: 'brigar pelo título (top 3)' };
+    if (rank <= 8) return { target: 8, label: 'terminar entre os 8 primeiros' };
+    if (rank <= 12) return { target: 12, label: 'fazer uma campanha tranquila (top 12)' };
+    return { target: safe, label: 'evitar o rebaixamento' };
   }
-  w.board.target = target;
-  w.board.label = label;
+  if (rank <= 5) return { target: PROMOTION_SPOTS, label: `conquistar o acesso (top ${PROMOTION_SPOTS})` };
+  if (rank <= 10) return { target: 9, label: 'terminar entre os 9 primeiros' };
+  if (info.down) return { target: safe, label: 'evitar o rebaixamento' };
+  return { target: n - 2, label: `fazer uma campanha digna (top ${n - 2})` };
+}
+
+function setObjective(w: World): void {
+  const o = objectiveFor(w, user(w));
+  w.board.target = o.target;
+  w.board.label = o.label;
 }
 
 function expectedPoints(w: World, m: Match): number {
@@ -217,7 +275,7 @@ export function expectedGate(w: World, m: Match): GateForecast {
   const hc = w.clubs[m.h], ac = w.clubs[m.a];
   const tp = TICKET_PRICES[hc.ticketPrice] || TICKET_PRICES.normal;
   const fans = typeof hc.fans === 'number' ? hc.fans : FANS_START;
-  const occ = derby ? 1 : clamp(0.35 + hc.rep / 200 + ac.rep / 400 + (m.comp === 'CUP' ? 0.1 : 0) + tp.occ + (fans - FANS_START) / 250, 0.2, 1);
+  const occ = derby ? 1 : clamp(0.35 + hc.rep / 200 + ac.rep / 400 + (isKnockout(m.comp) ? 0.1 : 0) + tp.occ + (fans - FANS_START) / 250, 0.2, 1);
   const income = Math.round(hc.cap * occ * (15 + hc.rep * 0.3) * tp.mult * (derby ? DERBY_INCOME : 1));
   return { attendance: Math.round(hc.cap * occ), income, derby };
 }
@@ -294,14 +352,14 @@ export function applyResult(w: World, m: Match, res: MatchResult): void {
     const base = typeof c.fans === 'number' ? c.fans : FANS_START;
     c.fans = clamp(base + (winner === s ? fanDelta : winner === 1 - s ? -fanDelta : 0), 0, 100);
   });
-  if (m.comp === 'CUP') {
+  if (isKnockout(m.comp)) {
     const wk = currentWeek(w);
     const winId = winner === 0 ? m.h : m.a;
-    if (wk) addMoney(w, winId, CUP_PRIZE[wk.round], 'prize');
+    if (wk) addMoney(w, winId, knockoutPrize(m.comp, wk.round), 'prize');
   }
 
   // Confiança da diretoria
-  if (clubsIds.includes(w.userClub) && m.comp !== 'CUP') {
+  if (clubsIds.includes(w.userClub) && !isKnockout(m.comp)) {
     const s = m.h === w.userClub ? 0 : 1;
     const pts = winner === s ? 3 : winner === -1 ? 1 : 0;
     w.board.conf = clamp(w.board.conf + (pts - expectedPoints(w, m)) * 2.4, 0, 100);
@@ -316,7 +374,7 @@ export function applyResult(w: World, m: Match, res: MatchResult): void {
 }
 
 export function simMatch(w: World, m: Match, opts: SimOptions = {}): Sim {
-  const sim = new Sim(w, m.h, m.a, { knockout: m.comp === 'CUP', neutral: !!m.neutral, ...opts });
+  const sim = new Sim(w, m.h, m.a, { knockout: isKnockout(m.comp), neutral: !!m.neutral, ...opts });
   sim.runToEnd();
   applyResult(w, m, sim.result());
   return sim;
@@ -329,6 +387,10 @@ export function simulateWeek(w: World): void {
   for (const m of wk.matches) if (!m.played) simMatch(w, m);
 }
 
+// Arredondamentos para manter o JSON do World enxuto.
+const round2 = (v: number): number => Math.round(v * 100) / 100;
+const round3 = (v: number): number => Math.round(v * 1000) / 1000;
+
 // ---------- Evolução ----------
 function develop(p: Player, club: Club | undefined): void {
   const trainLvl = club ? club.training : 2;
@@ -340,7 +402,36 @@ function develop(p: Player, club: Club | undefined): void {
     g = gap * rate * (0.75 + 0.1 * trainLvl) * intensity * (p.played ? 1.3 : p.youth ? 1.1 : 0.85) * rand(0.5, 1.5);
   }
   if (p.age >= 31) g -= (p.age - 30) * 0.03 * rand(0.5, 1.5);
-  p.ovr = clamp(p.ovr + g, 25, 99);
+  p.ovr = round3(clamp(p.ovr + g, 25, 99));
+}
+
+/** Atualiza as copas ao fim de uma semana de mata-mata. */
+function closeKnockoutWeek(w: World, wk: Week): void {
+  const u = user(w);
+  const comps: KnockoutId[] = wk.type === 'cont' ? ['cont'] : LEAGUE_IDS.map(cupId);
+  for (const comp of comps) {
+    const cup = w.cups[comp];
+    const ms = wk.matches.filter((m) => m.comp === comp);
+    if (!cup || !ms.length) continue;
+    const inMatch = new Set<string>();
+    for (const m of ms) { inMatch.add(m.h); inMatch.add(m.a); }
+    // Quem não jogou (número ímpar de vivos) passa direto.
+    const winners = ms.map(knockoutWinner).concat(cup.alive.filter((id) => !inMatch.has(id)));
+    const userOut = cup.alive.includes(u.id) && !winners.includes(u.id);
+    cup.alive = winners;
+    const name = competitionName(comp);
+    if (userOut) pushMessage(w, { kind: 'info', title: `Eliminados da ${name}`, body: `O ${u.name} caiu na ${cupRoundName(comp, wk.round).toLowerCase()} da ${name}.` });
+    if (winners.length === 1) {
+      cup.champion = winners[0];
+      const champ = w.clubs[winners[0]];
+      champ.trophies.push({ season: w.season, comp: name });
+      const mine = champ.id === u.id;
+      if (mine || comp === 'cont' || comp === cupId(u.league)) {
+        pushMessage(w, { kind: mine ? 'trophy' : 'info', title: `${champ.name} é campeão da ${name}!`, body: mine ? 'Título! A torcida está em festa e a diretoria, radiante.' : `O ${champ.name} levantou a taça da ${name}.` });
+      }
+      if (mine) w.board.conf = clamp(w.board.conf + (comp === 'cont' ? 20 : 15), 0, 100);
+    }
+  }
 }
 
 export function endWeek(w: World): WeekReport {
@@ -348,27 +439,14 @@ export function endWeek(w: World): WeekReport {
   const u = user(w);
   const report: WeekReport = { news: [] };
 
-  if (wk && wk.type === 'cup') {
-    const winners = wk.matches.map((m) => {
-      const hs = m.hs as number, as = m.as as number;
-      const win = hs > as ? 0 : hs < as ? 1 : m.pens && m.pens[0] > m.pens[1] ? 0 : 1;
-      return win === 0 ? m.h : m.a;
-    });
-    const userOut = w.cup.alive.includes(w.userClub) && !winners.includes(w.userClub);
-    w.cup.alive = winners;
-    if (userOut) pushMessage(w, { kind: 'info', title: 'Eliminados da Copa', body: `O ${u.name} caiu na ${CUP_ROUNDS[wk.round].toLowerCase()} da Copa.` });
-    if (wk.round === 4) {
-      w.cup.champion = winners[0];
-      const champ = w.clubs[winners[0]];
-      champ.trophies.push({ season: w.season, comp: 'Copa' });
-      pushMessage(w, { kind: champ.id === u.id ? 'trophy' : 'info', title: `${champ.name} é campeão da Copa!`, body: champ.id === u.id ? 'Título! A torcida está em festa e a diretoria, radiante.' : `O ${champ.name} levantou a taça da Copa.` });
-      if (champ.id === u.id) w.board.conf = clamp(w.board.conf + 15, 0, 100);
-    }
-  }
+  if (wk && (wk.type === 'cup' || wk.type === 'cont')) closeKnockoutWeek(w, wk);
 
   // Jogadores
   const ownerOf: Record<string, Club> = {};
-  for (const c of Object.values(w.clubs)) for (const id of c.squad.concat(c.youth)) ownerOf[id] = c;
+  for (const c of Object.values(w.clubs)) {
+    for (const id of c.squad) ownerOf[id] = c;
+    for (const id of c.youth) ownerOf[id] = c;
+  }
   for (const p of Object.values(w.players)) {
     const club: Club | undefined = ownerOf[p.id];
     if (p.inj > 0) {
@@ -386,7 +464,7 @@ export function endWeek(w: World): WeekReport {
     develop(p, club);
     if (club && !p.youth) {
       if (!p.played && !p.inj) p.morale = clamp(p.morale - 1.2, 10, 100);
-      p.morale += (65 - p.morale) * 0.04;
+      p.morale = round2(p.morale + (65 - p.morale) * 0.04);
       if (!p.inj && chance(0.0035 * tr.injury)) {
         const sev = randi(1, 3);
         p.inj = injuryWeeks(sev, club.training);
@@ -399,10 +477,12 @@ export function endWeek(w: World): WeekReport {
 
   // Finanças semanais
   for (const c of Object.values(w.clubs)) {
-    const wages = sum(c.squad.concat(c.youth), (id) => w.players[id].wage);
+    let wages = 0;
+    for (const id of c.squad) wages += w.players[id].wage;
+    for (const id of c.youth) wages += w.players[id].wage;
     addMoney(w, c.id, -wages, 'wages');
     addMoney(w, c.id, Math.round(c.rep * 3000), 'sponsor');
-    addMoney(w, c.id, TV[c.div], 'tv');
+    addMoney(w, c.id, Math.round((TV_BASE[DIVISIONS[c.div].level - 1] ?? TV_BASE[TV_BASE.length - 1]) * LEAGUES[c.league].wealth), 'tv');
     if (c.loan) {
       addMoney(w, c.id, -c.loan.weekly, 'loan');
       c.loan.weeksLeft--;
@@ -412,7 +492,7 @@ export function endWeek(w: World): WeekReport {
       }
     }
     const fans = typeof c.fans === 'number' ? c.fans : FANS_START;
-    c.fans = clamp(fans + (FANS_START - fans) * FANS_DRIFT, 0, 100);
+    c.fans = round2(clamp(fans + (FANS_START - fans) * FANS_DRIFT, 0, 100));
   }
   w.finance.push({ season: w.season, week: w.week, balance: u.money, ...w.finWeek });
   if (w.finance.length > 60) w.finance.shift();
@@ -443,31 +523,46 @@ export function endWeek(w: World): WeekReport {
     report.seasonEnd = seasonEnd(w);
   } else {
     const next = currentWeek(w);
-    if (next && next.type === 'cup' && !next.matches.length) drawCup(w, next);
+    if (next && next.type !== 'league' && !next.matches.length) drawKnockouts(w, next);
     for (const c of Object.values(w.clubs)) if (c.id !== w.userClub) autoLineup(w, c);
   }
   return report;
 }
 
 // ---------- Fim de temporada ----------
+const scorerEntry = (p: Player | null): ScorerEntry | null => (p ? { name: p.name, club: p.clubId || '', goals: p.s.goals } : null);
+
 export function seasonEnd(w: World): SeasonSummary {
   const u = user(w);
-  const tA = table(w, 'A'), tB = table(w, 'B');
-  const userDiv = u.div;
-  const userPos = (userDiv === 'A' ? tA : tB).findIndex((r) => r.id === u.id) + 1;
-  tA.forEach((r, i) => addMoney(w, r.id, (17 - (i + 1)) * 0.8e6, 'prize'));
-  tB.forEach((r, i) => addMoney(w, r.id, (17 - (i + 1)) * 0.25e6, 'prize'));
-  const champA = w.clubs[tA[0].id], champB = w.clubs[tB[0].id];
-  champA.trophies.push({ season: w.season, comp: 'Série A' });
-  champB.trophies.push({ season: w.season, comp: 'Série B' });
-  const relegated = tA.slice(-3).map((r) => r.id);
-  const promoted = tB.slice(0, 3).map((r) => r.id);
-  relegated.forEach((id) => { w.clubs[id].rep = clamp(w.clubs[id].rep - 4, 30, 95); });
-  promoted.forEach((id) => { w.clubs[id].rep = clamp(w.clubs[id].rep + 3, 30, 95); });
-  tA.forEach((r, i) => { const c = w.clubs[r.id]; c.rep = clamp(c.rep + (8.5 - (i + 1)) * 0.35, 30, 95); });
-  tB.forEach((r, i) => { const c = w.clubs[r.id]; c.rep = clamp(c.rep + (8.5 - (i + 1)) * 0.25, 30, 95); });
+  const tables = {} as Record<DivisionId, TableRow[]>;
+  for (const div of DIVISION_IDS) tables[div] = table(w, div);
+  const userPos = tables[u.div].findIndex((r) => r.id === u.id) + 1;
 
-  const scA = topScorers(w, 'A', 1)[0] ?? null, scB = topScorers(w, 'B', 1)[0] ?? null;
+  const moves: DivisionMove[] = [];
+  const champions = {} as Record<DivisionId, string>;
+  for (const div of DIVISION_IDS) {
+    const t = tables[div], info = DIVISIONS[div];
+    if (!t.length) continue;
+    const wealth = LEAGUES[info.league].wealth;
+    const base = LEAGUE_PRIZE_BASE[info.level - 1] ?? LEAGUE_PRIZE_BASE[LEAGUE_PRIZE_BASE.length - 1];
+    t.forEach((r, i) => addMoney(w, r.id, Math.max(0, Math.round((17 - (i + 1)) * base * wealth)), 'prize'));
+    champions[div] = t[0].id;
+    w.clubs[t[0].id].trophies.push({ season: w.season, comp: competitionName(div) });
+    if (info.down) for (const r of t.slice(-PROMOTION_SPOTS)) moves.push({ club: r.id, from: div, to: info.down });
+    if (info.up) for (const r of t.slice(0, PROMOTION_SPOTS)) moves.push({ club: r.id, from: div, to: info.up });
+  }
+  for (const mv of moves) {
+    const c = w.clubs[mv.club];
+    const up = DIVISIONS[mv.to].level < DIVISIONS[mv.from].level;
+    c.rep = clamp(c.rep + (up ? 3 : -4), 30, 95);
+  }
+  for (const div of DIVISION_IDS) {
+    const k = REP_BY_POS[DIVISIONS[div].level - 1] ?? REP_BY_POS[REP_BY_POS.length - 1];
+    tables[div].forEach((r, i) => { const c = w.clubs[r.id]; c.rep = round2(clamp(c.rep + (8.5 - (i + 1)) * k, 30, 95)); });
+  }
+
+  const scorers: Partial<Record<DivisionId, Player | null>> = {};
+  for (const div of DIVISION_IDS) scorers[div] = topScorers(w, div, 1)[0] ?? null;
   const best = Object.values(w.players)
     .filter((p) => p.clubId && p.s.apps >= 15)
     .sort((a, b) => b.s.rsum / b.s.apps - a.s.rsum / a.s.apps)[0] ?? null;
@@ -477,20 +572,36 @@ export function seasonEnd(w: World): SeasonSummary {
   w.board.conf = clamp(w.board.conf + delta, 0, 100);
   const fired = w.board.conf < 20;
 
+  const cups: Record<string, string | null> = {};
+  for (const [comp, cup] of Object.entries(w.cups)) cups[comp] = cup ? cup.champion : null;
+  const entryScorers: HistoryEntry['scorers'] = {};
+  for (const div of firstDivisions()) entryScorers[div] = scorerEntry(scorers[div] ?? null);
   const entry: HistoryEntry = {
     season: w.season,
-    champA: champA.id, champB: champB.id, cup: w.cup.champion,
-    user: { club: u.id, div: userDiv, pos: userPos, objective: w.board.label, success },
-    scorerA: scA ? { name: scA.name, club: scA.clubId, goals: scA.s.goals } : null,
-    best: best ? { name: best.name, club: best.clubId, avg: best.s.rsum / best.s.apps } : null,
+    champions,
+    cups,
+    scorers: entryScorers,
+    best: best ? { name: best.name, club: best.clubId || '', avg: best.s.rsum / best.s.apps } : null,
+    user: { club: u.id, league: u.league, div: u.div, pos: userPos, objective: w.board.label, success },
   };
   w.history.push(entry);
 
-  const summary: SeasonSummary = { entry, tA, tB, relegated, promoted, userPos, success, fired, scA, scB, best };
+  const contNext = contQualifiers(w, tables);
+  w.contNext = contNext;
+  const lvl = (d: DivisionId): number => DIVISIONS[d].level;
+  const mine = moves.filter((mv) => DIVISIONS[mv.from].league === u.league);
+  const summary: SeasonSummary = {
+    entry, tables, moves,
+    promoted: mine.filter((mv) => lvl(mv.to) < lvl(mv.from)).map((mv) => mv.club),
+    relegated: mine.filter((mv) => lvl(mv.to) > lvl(mv.from)).map((mv) => mv.club),
+    userPos, success, fired, scorers, best, contNext,
+  };
   if (fired) w.fired = { reason: `Objetivo não cumprido: a meta era ${w.board.label}, e o time terminou em ${userPos}º.` };
-  else if (userPos <= Math.max(1, w.board.target - 3) || (userDiv === 'B' && userPos <= 3)) {
+  else if (userPos <= Math.max(1, w.board.target - 3) || (DIVISIONS[u.div].up && userPos <= PROMOTION_SPOTS)) {
     const bigger = Object.values(w.clubs).filter((c) => c.rep > u.rep + 4 && c.id !== u.id);
-    if (bigger.length && chance(0.6)) summary.offer = pick(bigger).id;
+    const near = bigger.filter((c) => c.rep <= u.rep + 15);
+    const pool = near.length ? near : bigger;
+    if (pool.length && chance(0.6)) summary.offer = pick(pool).id;
   }
   w.pendingSeason = summary;
   return summary;
@@ -501,8 +612,8 @@ export function newSeason(w: World): void {
   const news: string[] = [];
   const ps = w.pendingSeason;
   if (ps) {
-    ps.relegated.forEach((id) => (w.clubs[id].div = 'B'));
-    ps.promoted.forEach((id) => (w.clubs[id].div = 'A'));
+    for (const mv of ps.moves) if (w.clubs[mv.club]) w.clubs[mv.club].div = mv.to;
+    if (ps.contNext && ps.contNext.length) w.contNext = ps.contNext;
   }
   w.pendingSeason = null;
   // Envelhecimento e aposentadoria
@@ -557,13 +668,13 @@ export function newSeason(w: World): void {
       if (c.id === u.id) intake.push(y);
     }
   }
-  // Agentes livres
+  // Agentes livres: mantém entre FREE_MIN e FREE_MAX (descarta os piores).
   w.free = w.free.filter((id) => w.players[id]);
-  while (w.free.length > 70) {
-    const worst = w.free.map((id) => w.players[id]).sort((a, b) => a.ovr - b.ovr)[0];
-    removePlayer(w, worst);
+  if (w.free.length > FREE_MAX) {
+    const sorted = w.free.map((id) => w.players[id]).sort((a, b) => a.ovr - b.ovr);
+    for (const p of sorted.slice(0, w.free.length - FREE_MAX)) removePlayer(w, p);
   }
-  while (w.free.length < 40) makeFreeAgent(w);
+  while (w.free.length < FREE_MIN) makeFreeAgent(w);
 
   w.season++;
   w.week = 0;
@@ -590,7 +701,7 @@ export function aiMaintain(w: World, c: Club): void {
     else {
       const base = 48 + c.rep * 0.32;
       const age = randi(19, 30);
-      const p = newPlayer(w, { pos: need, age, ovr: clamp(base - 3 + gauss() * 4, 40, 90), pot: base + rand(0, 8), clubId: c.id, contract: randi(1, 4) });
+      const p = newPlayer(w, { pos: need, age, ovr: clamp(base - 3 + gauss() * 4, 40, 90), pot: base + rand(0, 8), clubId: c.id, contract: randi(1, 4), nat: rollNat(c.league) });
       c.squad.push(p.id);
     }
   }
@@ -637,11 +748,14 @@ export function removePlayer(w: World, p: Player): void {
   delete w.players[p.id];
 }
 
-/** Demissão: propostas de clubes menores. */
+/** Demissão: propostas de clubes menores, de qualquer liga (preferindo reputação até 20 pontos abaixo). */
 export function jobOffers(w: World): string[] {
   const u = user(w);
-  const pool = Object.values(w.clubs).filter((c) => c.id !== u.id && c.rep < u.rep - 3);
-  return shuffle(pool.length >= 3 ? pool : Object.values(w.clubs).filter((c) => c.id !== u.id)).slice(0, 3).map((c) => c.id);
+  const others = Object.values(w.clubs).filter((c) => c.id !== u.id);
+  let pool = others.filter((c) => c.rep < u.rep - 3 && c.rep >= u.rep - 20);
+  if (pool.length < 3) pool = others.filter((c) => c.rep < u.rep - 3);
+  if (pool.length < 3) pool = others;
+  return shuffle(pool.slice()).slice(0, 3).map((c) => c.id);
 }
 
 export function switchClub(w: World, clubId: string): void {
@@ -654,5 +768,5 @@ export function switchClub(w: World, clubId: string): void {
   setObjective(w);
   ensureLineup(w, w.clubs[clubId]);
   const c = w.clubs[clubId];
-  pushMessage(w, { kind: 'board', title: `Bem-vindo ao ${c.name}!`, body: `A diretoria do ${c.name} confia no seu trabalho. Objetivo: ${w.board.label}.` });
+  pushMessage(w, { kind: 'board', title: `Bem-vindo ao ${c.name}!`, body: `A diretoria do ${c.name} (${divisionFullName(c.div)}) confia no seu trabalho. Objetivo: ${w.board.label}.` });
 }

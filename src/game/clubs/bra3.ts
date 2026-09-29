@@ -1,0 +1,22 @@
+// Série C: 16 clubes brasileiros fictícios (nomes checados para não coincidir com clubes reais conhecidos).
+// Ordem = prestígio.
+import type { ClubSeed } from "../types";
+
+export const BRA3_CLUBS: ClubSeed[] = [
+  {id: "lavrado", name: "Lavrado EC", short: "LAV", city: "Boa Vista", uf: "RR", colors: ["#F4A261", "#2A9D8F"], pattern: "h", rep: 46, cap: 10000, nickname: "Laranja do Lavrado", mascot: "Cavalo lavradeiro", stadium: "Estádio do Caimbé", rival: "ajuricaba"},
+  {id: "gragoata", name: "Gragoatá FC", short: "GRA", city: "Niterói", uf: "RJ", colors: ["#0077B6", "#FFD60A"], pattern: "v", rep: 45, cap: 12000, nickname: "Anil-Ouro da Baía", mascot: "Tartaruga-marinha", stadium: "Estádio da Boa Viagem", rival: "gamboa"},
+  {id: "valongo", name: "AA Valongo", short: "VAL", city: "Santos", uf: "SP", colors: ["#111111", "#E63946"], pattern: "h", rep: 44, cap: 11000, nickname: "Rubro-Negro do Cais", mascot: "Guará-vermelho", stadium: "Estádio da Estação", rival: "tamanduatei"},
+  {id: "itacolomi", name: "Atlético Itacolomi", short: "ICO", city: "Ouro Preto", uf: "MG", colors: ["#FFFFFF", "#6A040F"], pattern: "sash", rep: 44, cap: 9000, nickname: "Inconfidente", mascot: "Gavião-pega-macaco", stadium: "Estádio das Lajes", rival: "mangabeiras"},
+  {id: "enxaimel", name: "Grêmio Enxaimel", short: "ENX", city: "Blumenau", uf: "SC", colors: ["#C1121F", "#FFFFFF"], pattern: "half", rep: 43, cap: 9500, nickname: "Colorado do Vale", mascot: "Sabiá-laranjeira", stadium: "Estádio Vale do Itajaí", rival: "desterro"},
+  {id: "tresfronteiras", name: "Três Fronteiras EC", short: "TFR", city: "Foz do Iguaçu", uf: "PR", colors: ["#1D3557", "#80ED99"], pattern: "sash", rep: 42, cap: 8000, nickname: "Tríplice", mascot: "Quati", stadium: "Estádio das Cataratas", rival: "pevermelho"},
+  {id: "terere", name: "Tereré AC", short: "TER", city: "Campo Grande", uf: "MS", colors: ["#70E000", "#212529"], pattern: "v", rep: 41, cap: 9000, nickname: "Verdão Pantaneiro", mascot: "Arara-vermelha", stadium: "Estádio Cidade Morena", rival: "coxipo"},
+  {id: "capimdourado", name: "Capim Dourado EC", short: "CPD", city: "Palmas", uf: "TO", colors: ["#E9C46A", "#1B4332"], pattern: "h", rep: 40, cap: 7000, nickname: "Dourado do Jalapão", mascot: "Raposa-do-campo", stadium: "Estádio do Jalapão", rival: "pireneus"},
+  {id: "velhochico", name: "Velho Chico FC", short: "VCH", city: "Petrolina", uf: "PE", colors: ["#0096C7", "#F3722C"], pattern: "v", rep: 40, cap: 8000, nickname: "Carranca do Sertão", mascot: "Carranca", stadium: "Estádio da Orla Fluvial", rival: "pontal"},
+  {id: "pontal", name: "Pontal EC", short: "PON", city: "Ilhéus", uf: "BA", colors: ["#582F0E", "#F2C14E"], pattern: "v", rep: 39, cap: 7000, nickname: "Cacaueiro", mascot: "Mico-leão-de-cara-dourada", stadium: "Estádio do Pontal", rival: "tororo"},
+  {id: "acudevelho", name: "Açude Velho FC", short: "ACV", city: "Campina Grande", uf: "PB", colors: ["#E85D04", "#370617"], pattern: "sash", rep: 38, cap: 8000, nickname: "Rei do Forró", mascot: "Asa-branca", stadium: "Estádio Parque do Povo", rival: "sanhaua"},
+  {id: "pireneus", name: "União Pireneus", short: "PIR", city: "Pirenópolis", uf: "GO", colors: ["#264653", "#F4A261"], pattern: "v", rep: 37, cap: 5000, nickname: "Cavaleiro das Cavalhadas", mascot: "Mascarado", stadium: "Estádio das Cavalhadas", rival: "buriti"},
+  {id: "monolitos", name: "Monólitos EC", short: "MON", city: "Quixadá", uf: "CE", colors: ["#BC6C25", "#FEFAE0"], pattern: "h", rep: 36, cap: 6000, nickname: "Rei do Sertão Central", mascot: "Carcará", stadium: "Estádio Pedra do Cruzeiro", rival: "dragaodomar"},
+  {id: "mariafumaca", name: "Maria Fumaça FC", short: "MFU", city: "Porto Velho", uf: "RO", colors: ["#343A40", "#F77F00"], pattern: "sash", rep: 36, cap: 6000, nickname: "Locomotiva do Madeira", mascot: "Jacaré-açu", stadium: "Estádio da Estrada de Ferro", rival: "gameleira"},
+  {id: "gameleira", name: "Gameleira EC", short: "GML", city: "Rio Branco", uf: "AC", colors: ["#6A994E", "#BC4749"], pattern: "half", rep: 35, cap: 5000, nickname: "Gigante do Acre", mascot: "Seringueiro", stadium: "Estádio Beira do Acre", rival: "mariafumaca"},
+  {id: "charqueador", name: "EC Charqueador", short: "CHQ", city: "Pelotas", uf: "RS", colors: ["#FCA311", "#14213D"], pattern: "sash", rep: 34, cap: 4000, nickname: "Doceiro da Lagoa", mascot: "Cavalo crioulo", stadium: "Estádio das Charqueadas", rival: "minuano"},
+];

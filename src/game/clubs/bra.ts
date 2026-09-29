@@ -1,8 +1,9 @@
 // Clubes fictícios (nomes pesquisados para soar brasileiros sem copiar clubes reais).
-// Ordem = prestígio: os 16 primeiros começam na Série A.
-import type { ClubStatic } from "./types";
+// Ordem = prestígio: 16 na Série A, 16 na Série B e, de bra3.ts, 16 na Série C.
+import type { ClubSeed } from "../types";
+import { BRA3_CLUBS } from "./bra3";
 
-export const CLUBS: ClubStatic[] = [
+const BRA12_CLUBS: ClubSeed[] = [
   {id: "anhangabau", name: "EC Anhangabaú", short: "ANH", city: "São Paulo", uf: "SP", colors: ["#0B2A5B", "#FFFFFF"], pattern: "v", rep: 90, cap: 62000, nickname: "Alvianil do Vale", mascot: "Onça-pintada", stadium: "Arena do Vale", rival: "tamanduatei"},
   {id: "arpoador", name: "CR Arpoador", short: "ARP", city: "Rio de Janeiro", uf: "RJ", colors: ["#F77F00", "#FFFFFF"], pattern: "h", rep: 88, cap: 55000, nickname: "Laranja da Orla", mascot: "Golfinho", stadium: "Estádio da Pedra", rival: "gamboa"},
   {id: "minuano", name: "Minuano FC", short: "MIN", city: "Porto Alegre", uf: "RS", colors: ["#6D1A36", "#E9C46A"], pattern: "sash", rep: 86, cap: 50000, nickname: "Grená dos Pampas", mascot: "Quero-quero", stadium: "Estádio Coxilha Grande", rival: "vindima"},
@@ -36,3 +37,5 @@ export const CLUBS: ClubStatic[] = [
   {id: "poxim", name: "Operário do Poxim", short: "POX", city: "Aracaju", uf: "SE", colors: ["#1D3557", "#E63946"], pattern: "h", rep: 46, cap: 8500, nickname: "Rubro-Anil do Poxim", mascot: "Siri", stadium: "Estádio da Maré", rival: "mundau"},
   {id: "marcozero", name: "Marco Zero EC", short: "MZE", city: "Macapá", uf: "AP", colors: ["#FFFFFF", "#2D6A4F"], pattern: "sash", rep: 44, cap: 7000, nickname: "Alviverde do Equador", mascot: "Pirarucu", stadium: "Estádio Meio do Mundo", rival: "marajo"},
 ];
+
+export const BRA_CLUBS: ClubSeed[] = [...BRA12_CLUBS, ...BRA3_CLUBS];
