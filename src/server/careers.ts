@@ -3,7 +3,10 @@ import { randomInt } from "node:crypto";
 import { ensureSchema, pool, withTx } from "./db";
 
 const ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
-export const MAX_SAVE_BYTES = 4 * 1024 * 1024;
+/** Limite do corpo recebido (JSON puro ou gzip). */
+export const MAX_SAVE_BYTES = 8 * 1024 * 1024;
+/** Limite do JSON depois de descompactado. */
+export const MAX_JSON_BYTES = 24 * 1024 * 1024;
 
 export function newCode(): string {
   let s = "";

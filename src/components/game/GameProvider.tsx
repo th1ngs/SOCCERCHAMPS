@@ -4,9 +4,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { World } from "@/game/types";
 import { migrateWorld } from "@/game";
 import { cloud } from "@/lib/cloud";
+import { clearLegacyLocal, clearLocal, hasLegacyLocal, hasLocal, readLocal, writeLocal } from "@/lib/storage";
 
-const SAVE_KEY = "scm.save.v2";
 const CLOUD_KEY = "scm.cloud.code";
+/** Versão mínima do save compatível com as ligas atuais. */
+const MIN_VERSION = 3;
 
 export type CloudStatus = "off" | "idle" | "saving" | "saved" | "error";
 
@@ -35,6 +37,9 @@ interface GameState {
   hasLocalSave: () => boolean;
   loadLocal: () => World | null;
   clearLocal: () => void;
+  /** Havia uma carreira de versão antiga (incompatível) neste aparelho. */
+  incompatibleSave: boolean;
+  dismissIncompatible: () => void;
 
   overlay: Overlay;
   setOverlay: (o: Overlay) => void;
@@ -54,10 +59,11 @@ interface GameState {
 
 const Ctx = createContext<GameState | null>(null);
 
-function readLocal(): World | null {
+/** Converte dados salvos em um World atual, ou null se forem de uma versão incompatível. */
+function toWorld(data: unknown): World | null {
   try {
-    const s = localStorage.getItem(SAVE_KEY);
-    return s ? migrateWorld(JSON.parse(s) as World) : null;
+    const w = migrateWorld(data as World);
+    return w && typeof w.version === "number" && w.version >= MIN_VERSION ? w : null;
   } catch {
     return null;
   }
@@ -73,23 +79,34 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [cloudCode, setCloudCode] = useState<string | null>(null);
   const [cloudStatus, setCloudStatus] = useState<CloudStatus>("off");
   const [cloudError, setCloudError] = useState<string | null>(null);
+  const [incompatibleSave, setIncompatible] = useState(false);
   const [scratch] = useState<Record<string, unknown>>(() => ({}));
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cloudTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const codeRef = useRef<string | null>(null);
 
   useEffect(() => {
-    worldRef.current = readLocal();
-    setWorldState(worldRef.current);
-    try {
-      codeRef.current = localStorage.getItem(CLOUD_KEY);
-    } catch {
-      codeRef.current = null;
-    }
-    setCloudCode(codeRef.current);
-    setCloudStatus(codeRef.current ? "idle" : "off");
-    setReady(true);
-    setVersion((v) => v + 1);
+    let alive = true;
+    (async () => {
+      const raw = await readLocal();
+      if (!alive) return;
+      const w = raw ? toWorld(raw) : null;
+      worldRef.current = w;
+      setWorldState(w);
+      setIncompatible((!!raw && !w) || hasLegacyLocal());
+      try {
+        codeRef.current = w ? localStorage.getItem(CLOUD_KEY) : null;
+      } catch {
+        codeRef.current = null;
+      }
+      setCloudCode(codeRef.current);
+      setCloudStatus(codeRef.current ? "idle" : "off");
+      setReady(true);
+      setVersion((v) => v + 1);
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const pushCloud = useCallback(async () => {
@@ -111,11 +128,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     saveTimer.current = setTimeout(() => {
       const w = worldRef.current;
       if (!w) return;
-      try {
-        localStorage.setItem(SAVE_KEY, JSON.stringify(w));
-      } catch {
-        /* armazenamento cheio ou bloqueado: a nuvem continua valendo */
-      }
+      void writeLocal(w);
       if (codeRef.current) {
         if (cloudTimer.current) clearTimeout(cloudTimer.current);
         cloudTimer.current = setTimeout(pushCloud, 2500);
@@ -140,7 +153,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const setWorld = useCallback(
     (w: World | null) => {
-      worldRef.current = w ? migrateWorld(w) : null;
+      worldRef.current = w ? toWorld(w) : null;
       setWorldState(worldRef.current);
       setOverlay(null);
       setMatchMode(null);
@@ -172,6 +185,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     async (code: string) => {
       const norm = code.trim().toUpperCase();
       const r = await cloud.load(norm);
+      const w = toWorld(r.data);
+      if (!w) throw new Error("Esta carreira é de uma versão antiga do jogo e não pode mais ser carregada.");
       codeRef.current = norm;
       try {
         localStorage.setItem(CLOUD_KEY, norm);
@@ -180,7 +195,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
       setCloudCode(norm);
       setCloudStatus("saved");
-      setWorld(r.data);
+      setWorld(w);
     },
     [setWorld],
   );
@@ -204,20 +219,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
       mutate,
       commit,
       setWorld,
-      hasLocalSave: () => {
-        try {
-          return !!localStorage.getItem(SAVE_KEY);
-        } catch {
-          return false;
-        }
-      },
-      loadLocal: readLocal,
-      clearLocal: () => {
-        try {
-          localStorage.removeItem(SAVE_KEY);
-        } catch {
-          /* sem armazenamento */
-        }
+      hasLocalSave: hasLocal,
+      loadLocal: () => worldRef.current,
+      clearLocal,
+      incompatibleSave,
+      dismissIncompatible: () => {
+        clearLegacyLocal();
+        setIncompatible(false);
       },
       overlay,
       setOverlay,
@@ -233,7 +241,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       disconnectCloud,
     }),
     // version muda a cada mutação no mesmo objeto world.
-    [world, version, ready, mutate, commit, setWorld, overlay, matchMode, scratch, cloudCode, cloudStatus, cloudError, enableCloud, pushCloud, loadFromCloud, disconnectCloud],
+    [world, version, ready, mutate, commit, setWorld, incompatibleSave, overlay, matchMode, scratch, cloudCode, cloudStatus, cloudError, enableCloud, pushCloud, loadFromCloud, disconnectCloud],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
