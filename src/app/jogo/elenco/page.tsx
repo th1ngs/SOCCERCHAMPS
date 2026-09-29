@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { POS, SQUAD_MAX, clubPlayers, formatMoney, sum, user, valueOf } from "@/game";
+import { POS, SQUAD_MAX, clubPlayers, formatMoney, potentialRange, sum, user, valueOf } from "@/game";
 import type { Position } from "@/game/types";
 import { useWorld } from "@/components/game/GameProvider";
 import { EmptyState, PageHeader } from "@/components/ui/primitives";
@@ -23,7 +23,10 @@ export default function ElencoPage() {
     const u = user(world);
     const all = clubPlayers(world, u);
     const filtered = pos === "all" ? all : all.filter((p) => p.pos === pos);
-    const rows: SquadRow[] = sortPlayers(filtered, sort).map((p) => ({ p, value: valueOf(p), tags: statusTags(u, p) }));
+    const rows: SquadRow[] = sortPlayers(filtered, sort, (p) => {
+      const r = potentialRange(world, p);
+      return (r.min + r.max) / 2;
+    }).map((p) => ({ p, value: valueOf(p), tags: statusTags(u, p) }));
     return { count: all.length, wages: sum(all, (p) => p.wage), rows };
     // `version` muda a cada mutação do mesmo objeto world.
     // eslint-disable-next-line react-hooks/exhaustive-deps

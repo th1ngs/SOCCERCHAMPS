@@ -14,11 +14,3 @@ export function offerState(w: World, m: Message): OfferState | null {
   if (!p || p.clubId !== w.userClub) return "gone";
   return windowOpen(w) ? "pending" : "windowClosed";
 }
-
-export const OFFER_TEXT: Record<Exclude<OfferState, "pending">, string> = {
-  windowClosed: "A janela de transferências fechou antes da resposta.",
-  accepted: "Proposta aceita.",
-  expired: "Proposta expirada.",
-  declined: "Proposta recusada.",
-  gone: "O jogador não está mais no elenco.",
-};

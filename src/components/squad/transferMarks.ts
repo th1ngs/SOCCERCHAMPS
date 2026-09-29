@@ -1,7 +1,8 @@
 "use client";
 // Promessas de papel e empréstimos dos jogadores do elenco (derivação pura + hook memoizado).
 import { useMemo } from "react";
-import type { Player, Role, World } from "@/game/types";
+import { potentialRange } from "@/game";
+import type { Player, PotentialRange, Role, World } from "@/game/types";
 import type { BadgeTone } from "@/components/ui/primitives";
 import { useWorld } from "@/components/game/GameProvider";
 
@@ -81,6 +82,8 @@ export function loanMark(w: World, p: Player): LoanMark | null {
 export interface TransferMarks {
   promise: PromiseStatus | null;
   loan: LoanMark | null;
+  /** Potencial conhecido (exato só após 10 semanas no clube). */
+  range: PotentialRange;
 }
 
 /** Marcas de transferência de uma lista de jogadores, recalculadas a cada mutação do mundo. */
@@ -92,7 +95,7 @@ export function useTransferMarks(players: Player[]): Map<string, TransferMarks> 
       const out = new Map<string, TransferMarks>();
       for (const id of ids ? ids.split(",") : []) {
         const p = world.players[id];
-        if (p) out.set(id, { promise: promiseStatus(world, p), loan: loanMark(world, p) });
+        if (p) out.set(id, { promise: promiseStatus(world, p), loan: loanMark(world, p), range: potentialRange(world, p) });
       }
       return out;
     },

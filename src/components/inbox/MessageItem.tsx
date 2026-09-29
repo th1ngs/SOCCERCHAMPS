@@ -1,26 +1,25 @@
 "use client";
 
-import { Check, ChevronDown, HandCoins, X } from "lucide-react";
-import { formatMoney } from "@/game";
+import { ChevronDown, UserRound } from "lucide-react";
 import type { Message } from "@/game/types";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/primitives";
 import { useWorld } from "@/components/game/GameProvider";
 import { cn } from "@/lib/cn";
 import { kindStyle } from "./kinds";
-import { OFFER_TEXT, offerState } from "./offers";
+import { OfferActions } from "@/components/market/OfferActions";
+import { offerState } from "./offers";
 
 export interface MessageItemProps {
   m: Message;
   open: boolean;
   onToggle: () => void;
-  onAccept: () => void;
-  onDecline: () => void;
 }
 
 /** Uma mensagem: cabeçalho clicável e corpo expandido com as ações de proposta. */
-export function MessageItem({ m, open, onToggle, onAccept, onDecline }: MessageItemProps) {
-  const { world: w } = useWorld();
+export function MessageItem({ m, open, onToggle }: MessageItemProps) {
+  const { world: w, setOverlay } = useWorld();
+  const linked = m.pid && w.players[m.pid] ? m.pid : null;
   const k = kindStyle(m.kind);
   const Icon = k.icon;
   const state = offerState(w, m);
@@ -55,21 +54,15 @@ export function MessageItem({ m, open, onToggle, onAccept, onDecline }: MessageI
       {open && (
         <div id={bodyId} className="border-t border-white/6 py-3 pl-4 pr-4 sm:pl-[68px]">
           <p className="whitespace-pre-line text-sm leading-relaxed text-snow/90">{m.body}</p>
-          {m.offer && state === "pending" && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button variant="primary" icon={<HandCoins />} onClick={onAccept}>
-                Aceitar {formatMoney(m.offer.fee)}
-              </Button>
-              <Button variant="ghost" icon={<X />} onClick={onDecline}>
-                Recusar
-              </Button>
+          {m.offer && (
+            <div className="mt-3">
+              <OfferActions msgId={m.id} />
             </div>
           )}
-          {state && state !== "pending" && (
-            <p className={cn("mt-3 flex items-center gap-2 text-sm", state === "accepted" ? "text-pitch-400" : "text-mist")}>
-              {state === "accepted" && <Check className="size-4" aria-hidden />}
-              {OFFER_TEXT[state]}
-            </p>
+          {linked && !m.offer && (
+            <Button variant="ghost" size="sm" icon={<UserRound />} className="mt-3" onClick={() => setOverlay({ kind: "player", pid: linked })}>
+              Ver ficha do jogador
+            </Button>
           )}
         </div>
       )}

@@ -544,9 +544,17 @@ export function PlayerModal({ pid, onClose }: { pid: string; onClose: () => void
         const clauseReason = reason ?? (p.releaseClause > u.money ? "Multa acima do seu caixa" : null);
         const loanReason = reason ?? (loanQuote && !loanQuote.ok ? (loanQuote.reason ?? "O clube não empresta") : null);
         const resume = !!neg?.agreed;
+        // Motivos visíveis (também no celular, sem tooltip): geral, depois os específicos de cada botão.
+        const notes = Array.from(
+          new Set(
+            [reason ?? cooldown, !reason && clauseReason && p.releaseClause > 0 ? clauseReason : null, !reason && loanReason ? `Empréstimo: ${loanReason}` : null].filter(
+              (x): x is string => !!x,
+            ),
+          ),
+        );
         footer = (
           <>
-            {(reason ?? cooldown) && <Reason>{reason ?? cooldown}</Reason>}
+            {notes.length > 0 && <Reason>{notes.join(" • ")}</Reason>}
             <Button variant="outline" icon={<PlaneLanding />} onClick={() => setView({ kind: "loanIn" })} disabled={!!loanReason} title={loanReason ?? undefined}>
               Pedir emprestado
             </Button>

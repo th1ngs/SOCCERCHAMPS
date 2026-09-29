@@ -96,7 +96,8 @@ export function newPlayer(w: World, o: NewPlayerOptions): Player {
     loan: null,
     releaseClause: 0,
   };
-  if (p.clubId) p.joined = { season: w.season, week: w.week };
+  // `joined` só importa para o clube do usuário (conhecimento do potencial); sem ele, o clube já conhece o jogador.
+  if (p.clubId && p.clubId === w.userClub && w.weeks.length > 0) p.joined = { season: w.season, week: w.week };
   p.wage = o.youth ? 800 : wageFor(p.ovr) * rand(0.85, 1.15);
   p.wage = Math.round(p.wage / 100) * 100;
   p.releaseClause = releaseClauseFor(p);
@@ -221,10 +222,9 @@ export function newWorld(managerName: string, clubId: string): World {
       p.ovr = clamp(p.ovr + rand(4, 9), 40, 93);
       p.pot = Math.max(p.pot, Math.round(p.ovr));
       p.wage = wageFor(p.ovr);
+      p.releaseClause = releaseClauseFor(p);
     }
     for (let k = 0; k < 4; k++) makeYouth(w, club);
-    // O clube já conhece o próprio elenco no início da carreira.
-    for (const id of club.squad) w.players[id].joined = { season: w.season - 1, week: 0 };
     assignNumbers(w, club);
     pickCaptain(w, club);
     pickPenTaker(w, club);

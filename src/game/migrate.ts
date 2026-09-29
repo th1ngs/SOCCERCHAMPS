@@ -65,8 +65,7 @@ function migratePlayer(w: World, p: Player): void {
   if (typeof lp.releaseClause !== 'number') {
     p.releaseClause = p.clubId && p.contract > 0 ? Math.max(100000, Math.round((valueOf(p) * 2.5) / 10000) * 10000) : 0;
   }
-  // Elenco já existente é conhecido pelo clube.
-  if (!lp.joined && p.clubId) p.joined = { season: w.season - 1, week: 0 };
+
 }
 
 /**

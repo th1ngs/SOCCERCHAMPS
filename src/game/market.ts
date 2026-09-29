@@ -40,7 +40,8 @@ export function transfer(w: World, pid: string, toId: string, fee: number, silen
   p.promise = null;
   delete p.promiseChecked;
   p.start = { season: w.season, ovr: Math.round(p.ovr * 10) / 10 };
-  p.joined = { season: w.season, week: w.week, apps: p.s.apps };
+  if (toId === w.userClub) p.joined = { season: w.season, week: w.week, apps: p.s.apps };
+  else delete p.joined;
   p.releaseClause = releaseClauseFor(p);
   to.squad.push(pid);
   assignNumbers(w, to);

@@ -2,7 +2,10 @@
 import { ACADEMY_FOCUS, FOCUS_DEV, TICKET_PRICES, TRAINING, injuryLabel, injuryPhrase, weeksText } from './data';
 import { contByRep, contQualifiers } from './competitions';
 import { Sim, isDerbyClubs } from './engine';
-import { FREE_MAX, FREE_MIN, assignNumbers, makeFreeAgent, makeYouth, newPlayer, releaseClauseFor, rollNat, wageFor } from './gen';
+import { FREE_MAX, FREE_MIN, assignNumbers, makeFreeAgent, makeYouth, newPlayer, releaseClauseFor, rollNat, valueOf, wageFor } from './gen';
+
+/** Piso da multa rescisória em relação ao valor de mercado. */
+export const RELEASE_MIN_MULT = 1.8;
 import {
   CONT_PRIZE, CONT_WEEKS, CUP_PRIZE, CUP_WEEKS, DIVISIONS, DIVISION_IDS, LEAGUES, LEAGUE_IDS, LEAGUE_PRIZE_BASE,
   LEAGUE_ROUNDS, PROMOTION_SPOTS, TOTAL_WEEKS, TV_BASE, competitionName, compLeague, cupId, cupRoundName,
@@ -13,7 +16,7 @@ import { potentialRange, processScoutQueue } from './scouting';
 import {
   biggestDeals, checkPromises, checkWatchlist, isDeadlineDay, payDue, returnLoans, trimTransfers,
 } from './transfers';
-import { autoLineup, ensureLineup, teamRating } from './squad';
+import { autoLineup, ensureLineup, pickCaptain, pickPenTaker, teamRating } from './squad';
 import type {
   Club, Competition, DivisionId, DivisionMove, FinanceCategory, Fixture, FormResult, GateForecast, HistoryEntry,
   KnockoutId, Match, MatchResult, MessageInput, Player, Position, ScorerEntry, SeasonSummary, SimOptions, TableRow,
@@ -497,6 +500,11 @@ export function endWeek(w: World): WeekReport {
   const ownerWages: Record<string, number> = {};
   for (const p of Object.values(w.players)) {
     if (p.loan) ownerWages[p.loan.from] = (ownerWages[p.loan.from] || 0) + p.wage * (1 - p.loan.wageShare);
+    // A multa acompanha a valorização: nunca fica abaixo de 1,8× o valor atual.
+    if (p.clubId && p.contract > 0 && !p.youth) {
+      const v = valueOf(p);
+      if (p.releaseClause < v * RELEASE_MIN_MULT) p.releaseClause = Math.round((v * 2.5) / 10000) * 10000;
+    }
   }
   for (const c of Object.values(w.clubs)) {
     let wages = ownerWages[c.id] || 0;
@@ -785,8 +793,9 @@ export function detach(w: World, p: Player): void {
     c.youth = c.youth.filter((id) => id !== p.id);
     c.lineup = c.lineup.map((id) => (id === p.id ? null : id));
     c.bench = c.bench.filter((id) => id !== p.id);
-    if (c.captain === p.id) c.captain = null;
-    if (c.penTaker === p.id) c.penTaker = null;
+    // Capitão/batedor que saem são substituídos na hora.
+    if (c.captain === p.id) { c.captain = null; if (c.squad.length) pickCaptain(w, c); }
+    if (c.penTaker === p.id) { c.penTaker = null; if (c.squad.length) pickPenTaker(w, c); }
   }
   w.free = w.free.filter((id) => id !== p.id);
 }

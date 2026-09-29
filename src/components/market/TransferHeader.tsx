@@ -35,7 +35,7 @@ export function TransferHeader({ win, h }: { win: WindowInfo; h: MarketHeader })
           label="Janela"
           tone={win.deadline ? "gold" : win.open ? "good" : "warn"}
           value={win.deadline ? "Dia do fechamento" : win.open ? `Aberta até a sem. ${win.until}` : "Fechada"}
-          hint={win.deadline ? "Última semana: clubes aceleram negócios." : win.open ? "Compras, vendas e empréstimos liberados." : win.next !== null ? `Abre na semana ${win.next}.` : "Reabre na pré-temporada."}
+          hint={win.deadline ? "Última semana da janela." : win.open ? "Negócios liberados." : win.next !== null ? `Abre na semana ${win.next}.` : "Reabre na pré-temporada."}
         />
       </div>
       <Tile icon={<Wallet />} label="Caixa" value={<span className={h.cash < 0 ? "text-danger-400" : undefined}>{formatMoney(h.cash)}</span>} />

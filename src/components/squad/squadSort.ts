@@ -56,8 +56,9 @@ export const SORT_LABEL: Record<SortKey, string> = {
   contract: "Contrato",
 };
 
-export function sortPlayers(list: Player[], s: SortState): Player[] {
-  const cmp = ASC[s.key];
+/** `potOf` devolve o potencial conhecido (meio da faixa) para não revelar o valor real. */
+export function sortPlayers(list: Player[], s: SortState, potOf?: (p: Player) => number): Player[] {
+  const cmp = s.key === "pot" && potOf ? (a: Player, b: Player) => potOf(a) - potOf(b) : ASC[s.key];
   const k = s.dir === "asc" ? 1 : -1;
   return list.slice().sort((a, b) => k * cmp(a, b));
 }

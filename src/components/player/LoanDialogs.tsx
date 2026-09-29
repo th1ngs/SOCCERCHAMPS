@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ArrowLeft, PlaneLanding, PlaneTakeoff } from "lucide-react";
-import { ensureLineup, formatMoney, loanIn, loanInTerms, loanOut, loanOutOffers, user } from "@/game";
+import { divisionName, ensureLineup, formatMoney, loanIn, loanInTerms, loanOut, loanOutOffers, user } from "@/game";
 import type { LoanOutOffer } from "@/game/types";
 import { useWorld } from "@/components/game/GameProvider";
 import { Button } from "@/components/ui/Button";
@@ -12,7 +12,6 @@ import { Modal } from "@/components/ui/Modal";
 import { Segmented } from "@/components/ui/Segmented";
 import { useToast } from "@/components/ui/Toast";
 import { Alert, Badge, EmptyState, KV } from "@/components/ui/primitives";
-import { divisionName } from "@/game";
 import { cn } from "@/lib/cn";
 
 const LONG = "h-auto! min-h-10 whitespace-normal! py-2 text-center";

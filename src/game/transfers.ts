@@ -1,6 +1,6 @@
 // Negociações (clube e jogador), multa rescisória, parcelas, empréstimos de jogadores,
 // contrapropostas às ofertas da CPU, lista de observação, histórico de transferências e dia do fechamento.
-import { TOTAL_WEEKS } from './leagues';
+import { TOTAL_WEEKS, divisionLevel } from './leagues';
 import { assignNumbers, releaseClauseFor, valueOf } from './gen';
 import { SQUAD_MAX, acceptOffer, askingPrice, offerCeiling, renewDemand, transfer, wageDemand } from './market';
 import { hash01, isOwnPlayer, weeksSince } from './scouting';
@@ -366,7 +366,9 @@ export function loanOutOffers(w: World, pid: string): LoanOutOffer[] {
   if (!p || p.loan || p.clubId !== u.id || (p.youth && p.age < 17)) return [];
   const out: (LoanOutOffer & { k: number })[] = [];
   for (const c of Object.values(w.clubs)) {
-    if (c.id === u.id || c.rep >= u.rep || c.squad.length >= 30) continue;
+    // Clubes menores, de nível parecido ou de divisão abaixo aceitam o empréstimo.
+    const lowerDiv = c.league === u.league && divisionLevel(c.div) > divisionLevel(u.div);
+    if (c.id === u.id || (c.rep >= u.rep + 3 && !lowerDiv) || c.squad.length >= 30) continue;
     const ovrs = c.squad.map((id) => w.players[id].ovr).sort((a, b) => b - a);
     const better = ovrs.filter((o) => o > p.ovr).length;
     if (better >= 16) continue;

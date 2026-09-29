@@ -1,4 +1,4 @@
-import { AlertTriangle, PlaneLanding, PlaneTakeoff } from "lucide-react";
+import { AlertTriangle, Handshake, PlaneLanding, PlaneTakeoff } from "lucide-react";
 import { Badge } from "@/components/ui/primitives";
 import { ROLE_SHORT, type TransferMarks } from "./transferMarks";
 
@@ -10,6 +10,7 @@ export function PromiseBadge({ marks }: { marks: TransferMarks | undefined }) {
   return (
     <span className="inline-flex items-center gap-1">
       <Badge tone={r.tone} title={pr.text}>
+        <Handshake className="size-3" aria-hidden />
         <span aria-hidden>{r.label}</span>
         <span className="sr-only">Prometido: {r.name}</span>
       </Badge>

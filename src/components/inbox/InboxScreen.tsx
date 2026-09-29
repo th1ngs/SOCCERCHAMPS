@@ -1,13 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCheck, HandCoins } from "lucide-react";
-import { acceptOffer, divisionFullName, ensureLineup, formatMoney, user } from "@/game";
+import { CheckCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Modal } from "@/components/ui/Modal";
-import { Flag } from "@/components/ui/Flag";
 import { EmptyState, PageHeader } from "@/components/ui/primitives";
-import { useToast } from "@/components/ui/Toast";
 import { useWorld } from "@/components/game/GameProvider";
 import { MessageItem } from "./MessageItem";
 import { offerState } from "./offers";
@@ -22,9 +18,7 @@ function hashMessage(): number | null {
 /** Caixa de entrada: mensagens da diretoria, DM, base, mercado e propostas por jogadores. */
 export function InboxScreen() {
   const { world: w, mutate } = useWorld();
-  const toast = useToast();
   const [openId, setOpenId] = useState<number | null>(hashMessage);
-  const [selling, setSelling] = useState<number | null>(null);
   const unread = w.inbox.filter((m) => !m.read).length;
 
   const toggle = (id: number) => {
@@ -36,33 +30,6 @@ export function InboxScreen() {
   };
 
   const readAll = () => mutate((x) => x.inbox.forEach((m) => (m.read = true)));
-
-  const decline = (id: number) =>
-    mutate((x) => {
-      const m = x.inbox.find((y) => y.id === id);
-      if (m?.offer) m.offer.done = true;
-      if (m) m.read = true;
-    });
-
-  const sellMsg = selling !== null ? w.inbox.find((m) => m.id === selling) : undefined;
-  const sellPlayer = sellMsg?.offer ? w.players[sellMsg.offer.pid] : undefined;
-  const buyer = sellMsg?.offer ? w.clubs[sellMsg.offer.club] : undefined;
-
-  const confirmSale = () => {
-    if (!sellMsg?.offer || !sellPlayer) return setSelling(null);
-    const { fee } = sellMsg.offer;
-    const name = sellPlayer.name;
-    let ok = false;
-    mutate((x) => {
-      const m = x.inbox.find((y) => y.id === sellMsg.id);
-      if (m && acceptOffer(x, m)) {
-        ensureLineup(x, user(x));
-        ok = true;
-      }
-    });
-    setSelling(null);
-    toast(ok ? `${name} vendido por ${formatMoney(fee)}.` : "Não foi possível concluir a venda.", ok ? "good" : "bad");
-  };
 
   return (
     <>
@@ -85,8 +52,6 @@ export function InboxScreen() {
               m={m}
               open={openId === m.id || offerState(w, m) === "pending"}
               onToggle={() => toggle(m.id)}
-              onAccept={() => setSelling(m.id)}
-              onDecline={() => decline(m.id)}
             />
           ))}
         </ul>
@@ -94,34 +59,6 @@ export function InboxScreen() {
         <EmptyState>Caixa vazia.</EmptyState>
       )}
 
-      <Modal
-        open={!!sellMsg && !!sellPlayer}
-        onClose={() => setSelling(null)}
-        title={sellPlayer ? `Vender ${sellPlayer.name}?` : "Vender jogador?"}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setSelling(null)}>Cancelar</Button>
-            <Button variant="danger" icon={<HandCoins />} onClick={confirmSale}>
-              Vender por {formatMoney(sellMsg?.offer?.fee ?? 0)}
-            </Button>
-          </>
-        }
-      >
-        <p className="text-sm text-mist">
-          {buyer ? (
-            <>
-              <b className="text-snow">{buyer.name}</b>{" "}
-              <span className="inline-flex items-center gap-1 align-baseline">
-                (<Flag code={buyer.league} /> {divisionFullName(buyer.div)})
-              </span>
-            </>
-          ) : (
-            "O clube interessado"
-          )}{" "}
-          paga <b className="text-snow">{formatMoney(sellMsg?.offer?.fee ?? 0)}</b>.{" "}
-          {sellPlayer?.name} deixa o elenco imediatamente e a escalação é ajustada automaticamente. A venda não pode ser desfeita.
-        </p>
-      </Modal>
     </>
   );
 }

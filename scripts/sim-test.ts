@@ -1,10 +1,12 @@
-// Teste de balanceamento headless do motor do Manager (6 ligas, World v3).
+// Teste de balanceamento headless do motor do Manager (6 ligas, World v4).
 //   npx tsx scripts/sim-test.ts [clubId] [--seasons N] [--checks]
 // Sem --checks: simula N temporadas (padrão 3) com todos os clubes no automático e imprime
 // campeões, gols por jogo e artilheiros por liga, tempo por temporada e tamanho do JSON.
 // Com --checks: exercita a API de mercado/base, uma partida ao vivo interativa, as novidades da v2
-// (capitão/batedor, ingresso, empréstimo, clássico, DM) e as da v3 (ligas, copas, acesso, histórico).
+// (capitão/batedor, ingresso, empréstimo, clássico, DM), as da v3 (ligas, copas, acesso, histórico)
+// e as da v4 (olheiros, base, empréstimos de jogadores, negociação, histórico de transferências).
 import { gzipSync } from 'node:zlib';
+import * as G from '../src/game';
 import {
   CLUBS, DIVISIONS, DIVISION_IDS, DIVISION_SIZE, IncompatibleSaveError, LEAGUES, LEAGUE_IDS, LOAN_OPTIONS, Sim, TRAITS,
   UPGRADES, WORLD_VERSION, autoLineup, applyResult, clubPlayers, completeBuy, competitionName, contEntrants,
@@ -175,6 +177,7 @@ function runChecks(): void {
 
   runV2Checks(w);
   runLeagueChecks(w);
+  runV4Checks();
 
   const json = JSON.stringify(w);
   assert(JSON.stringify(JSON.parse(json)) === json, 'World é serializável em JSON');
@@ -366,6 +369,263 @@ function runLeagueChecks(w: World): void {
   const offers = jobOffers(w);
   assert(offers.length === 3 && new Set(offers).size === 3, 'jobOffers');
   console.log(`switchClub ok: ${foreign.name} (${divisionFullName(foreign.div)}), objetivo "${w.board.label}"; ofertas de ${[...new Set(offers.map((id) => w.clubs[id].league))].join('/')}`);
+}
+
+
+/** Avança uma semana (joga a rodada e fecha a semana). */
+function advance(w: World): void {
+  simulateWeek(w);
+  const r = endWeek(w);
+  if (r.seasonEnd) newSeason(w);
+}
+const advanceTo = (w: World, week: number): void => { while (w.week < week) advance(w); };
+const lastMsg = (w: World, pred: (m: G.Message) => boolean): G.Message | undefined => w.inbox.find(pred);
+
+/** Base, olheiros e transferências (World v4). */
+function runV4Checks(): void {
+  const w = freshWorld();
+  const u = user(w);
+  u.money += 400e6;
+  const t0 = performance.now();
+  const others = Object.values(w.players).filter((p) => p.clubId && p.clubId !== u.id && !p.youth && w.clubs[p.clubId].rep <= u.rep);
+
+  // ---- potentialRange: contém o real, estável, larguras exatas ----
+  for (const p of Object.values(w.players)) {
+    const r = G.potentialRange(w, p), r2 = G.potentialRange(w, p);
+    assert(r.min <= Math.round(p.pot) && Math.round(p.pot) <= r.max, `faixa contém o potencial real (${p.id})`);
+    assert(r.min === r2.min && r.max === r2.max && r.exact === r2.exact, 'faixa estável entre leituras');
+  }
+  const o1 = others[0];
+  assert(G.potentialRange(w, o1).max - G.potentialRange(w, o1).min === 22 && !G.potentialRange(w, o1).exact, 'outro clube, nível 0: largura 22');
+  assert(G.knownTraits(w, o1) === null, 'características desconhecidas de outro clube');
+  G.observe(w, o1.id);
+  assert(G.potentialRange(w, o1).max - G.potentialRange(w, o1).min === 12 && w.scouting[o1.id].level === 1, 'observado: largura 12');
+  const mine = clubPlayers(w, u)[0];
+  assert(G.potentialRange(w, mine).exact && Array.isArray(G.knownTraits(w, mine)), 'elenco do usuário: exato e características conhecidas');
+  const y0 = w.players[u.youth[0]];
+  const yw = Math.max(4, 24 - 3 * u.academy - 2 * u.scouting);
+  assert(G.potentialRange(w, y0).max - G.potentialRange(w, y0).min === yw, `base: largura ${yw}`);
+  console.log(`potentialRange ok: ${Object.keys(w.players).length} jogadores, base com largura ${yw}`);
+
+  // ---- relatório do olheiro ----
+  const target = others[1];
+  const req = G.requestScoutReport(w, target.id);
+  assert(req.ok && req.readyWeek != null && req.readyWeek > w.week && req.readyWeek <= w.week + 2, 'requestScoutReport ok');
+  assert(!G.requestScoutReport(w, target.id).ok, 'relatório duplicado recusado');
+  const fillers = others.slice(2, 2 + G.scoutSlots(w));
+  const results = fillers.map((p) => G.requestScoutReport(w, p.id));
+  assert(results.some((r) => !r.ok && /ocupados/.test(r.reason ?? '')), 'limite de olheiros (scoutSlots)');
+  assert(!G.potentialRange(w, target).exact, 'ainda não exato antes do relatório');
+  const readyWeek = req.readyWeek as number;
+
+  // ---- foco da base, peneira regional/posição, joia ----
+  G.setAcademyFocus(w, 'goalkeepers');
+  const gen: G.Player[] = [];
+  for (let k = 0; k < 400; k++) gen.push(G.makeYouth(w, u, 16));
+  const gk = gen.filter((p) => p.pos === 'GOL').length / gen.length;
+  for (const p of gen) G.removePlayer(w, p);
+  assert(gk > 0.12, `foco em goleiros aumenta a safra de goleiros (${(gk * 100).toFixed(0)}%)`);
+  G.setAcademyFocus(w, 'balanced');
+  const reg = LEAGUE_IDS.find((l) => l !== u.league) as LeagueId;
+  const baseCost = G.trialCost(w), foreignCost = G.trialCost(w, { region: reg });
+  assert(Math.abs(foreignCost / baseCost - 1.8) < 0.01 && G.trialCost(u) === baseCost, 'trialCost ×1,8 no exterior (e aceita o clube)');
+  w.trialUsed = false;
+  const found = runTrial(w, { region: reg, pos: 'ATA' });
+  assert(found && found.length >= 1 && found.every((p) => p.nat === reg && p.pos === 'ATA' && p.youth && p.start.season === w.season), 'peneira regional por posição');
+  assert(runTrial(w) === null, 'uma peneira por temporada');
+  assert(G.isGem({ ...found[0], pot: 85, age: 16 }) && !G.isGem({ ...found[0], pot: 79, age: 16 }), 'isGem');
+  console.log(`academy ok: foco goleiros ${(gk * 100).toFixed(0)}% GOL; peneira ${reg}/ATA ${found.length} garoto(s) por ${formatMoney(foreignCost)}`);
+
+  // ---- oferta da CPU por garoto da base ----
+  const gem = found[0];
+  gem.pot = 88;
+  let yo: G.Message | undefined;
+  for (let k = 0; k < 400 && !yo; k++) {
+    G.aiOffersToUser(w);
+    yo = w.inbox.find((m) => m.offer && m.offer.youth && m.offer.pid === gem.id && !m.offer.done);
+  }
+  assert(yo && yo.kind === 'offer', 'oferta da CPU por garoto da base');
+  const yBuyer = (yo.offer as G.Offer).club;
+  assert(G.acceptOffer(w, yo) && gem.clubId === yBuyer && w.clubs[yBuyer].youth.includes(gem.id) && !u.youth.includes(gem.id), 'aceitar faz o garoto sair');
+  console.log(`youth offer ok: ${gem.name} vendido ao ${w.clubs[yBuyer].name}`);
+
+  // ---- empréstimos ----
+  const sq = clubPlayers(w, u).sort((a, b) => b.ovr - a.ovr);
+  // Jogadores do fim do elenco que clubes menores aceitam receber.
+  const loanable = sq.slice(8).filter((p) => G.loanOutOffers(w, p.id).length > 0);
+  assert(loanable.length >= 2, 'há jogadores emprestáveis');
+  const lo = loanable[0];
+  const offers = G.loanOutOffers(w, lo.id);
+  assert(offers.length >= 1 && offers.length <= 3 && offers.every((o) => { const c = w.clubs[o.club]; return c.rep < u.rep + 3 || (c.league === u.league && G.divisionLevel(c.div) > G.divisionLevel(u.div)); }), 'loanOutOffers');
+  assert(JSON.stringify(G.loanOutOffers(w, lo.id)) === JSON.stringify(offers), 'loanOutOffers estável');
+  assert(G.loanOut(w, lo.id, offers[0].club), 'loanOut');
+  assert(lo.clubId === offers[0].club && lo.loan?.from === u.id && G.loanedOut(w).some((p) => p.id === lo.id) && !u.squad.includes(lo.id), 'emprestado sai do elenco');
+  assert(G.recallLoan(w, lo.id) && lo.clubId === u.id && u.squad.includes(lo.id) && !lo.loan, 'recallLoan');
+  const lo2 = loanable.slice(1).find((p) => p.contract >= 2 && p.age < 33) ?? loanable[1];
+  assert(G.loanOut(w, lo2.id, G.loanOutOffers(w, lo2.id)[0].club), 'loanOut até o fim da temporada');
+  const lyouth = w.players[u.youth.find((id) => w.players[id].age >= 17) ?? u.youth[0]];
+  if (lyouth.age < 17) lyouth.age = 17;
+  const yOffers = G.loanOutOffers(w, lyouth.id);
+  const yLoaned = yOffers.length > 0 && G.loanOut(w, lyouth.id, yOffers[0].club);
+  const cands = others.filter((p) => p.id !== target.id && p.id !== o1.id && !fillers.some((f) => f.id === p.id)).filter((p) => {
+    const c = w.clubs[p.clubId as string];
+    return c.squad.filter((id) => w.players[id].ovr > p.ovr).length >= 13;
+  });
+  const li = cands[0], li2 = cands[1];
+  const terms = G.loanInTerms(w, li.id);
+  assert(terms.ok && terms.buyOption > 0, 'loanInTerms ok para quem não está entre os 13 melhores');
+  const top = others.find((p) => w.clubs[p.clubId as string].squad.filter((id) => w.players[id].ovr > p.ovr).length < 13) as G.Player;
+  assert(!G.loanInTerms(w, top.id).ok, 'loanInTerms recusa titulares');
+  const liOwner = li.clubId as string;
+  assert(G.loanIn(w, li.id, true) && li.clubId === u.id && li.loan?.buyOption === terms.buyOption && (li.loan?.wageShare ?? 0) > terms.wageShare, 'loanIn com opção');
+  const m0 = u.money;
+  assert(G.exerciseBuyOption(w, li.id) && !li.loan && u.money === m0 - terms.buyOption && u.squad.includes(li.id), 'exerciseBuyOption');
+  const li2Owner = li2.clubId as string;
+  assert(G.loanIn(w, li2.id, false) && G.loanedIn(w).some((p) => p.id === li2.id), 'loanIn sem opção');
+  console.log(`loans ok: out ${lo2.name}${yLoaned ? ` + garoto ${lyouth.name}` : ''}, in ${li2.name}; opção exercida em ${li.name} (${formatMoney(terms.buyOption)}) do ${w.clubs[liOwner].name}`);
+
+  // ---- negociação com o clube: paciência → walkout → cooldown ----
+  const nt = others.find((p) => G.askingPrice(w, p) > 2e6 && ![li.id, li2.id, target.id].includes(p.id)) as G.Player;
+  const r1 = G.negotiateTransfer(w, nt.id, { fee: 10000, installments: 1 });
+  const r2 = G.negotiateTransfer(w, nt.id, { fee: 20000, installments: 1 });
+  const r3 = G.negotiateTransfer(w, nt.id, { fee: 20000, installments: 1 });
+  assert(r1.status === 'rejected' && r1.patience === 2 && r2.status === 'rejected' && r2.patience === 1, 'propostas baixas consomem paciência');
+  assert(r3.status === 'walkout' && r3.patience === 0, 'paciência 0 → walkout');
+  assert(G.negotiateTransfer(w, nt.id, { fee: G.askingPrice(w, nt) * 2, installments: 1 }).status === 'walkout', 'cooldown de 4 semanas');
+  const ntWeek = w.week;
+
+  // ---- negociação completa em 3 parcelas + contrato + promessa ----
+  const bt = others.find((p) => G.askingPrice(w, p) > 3e6 && ![li.id, li2.id, target.id, nt.id].includes(p.id)) as G.Player;
+  const ask = G.askingPrice(w, bt);
+  const c1 = G.negotiateTransfer(w, bt.id, { fee: Math.round(ask * 0.9), installments: 3 });
+  assert(c1.status === 'counter' && (c1.counterFee ?? 0) >= Math.round(ask * 1.05) - 10000, 'contraproposta exige +5% parcelado');
+  const acc = G.negotiateTransfer(w, bt.id, { fee: c1.counterFee as number, installments: 3 });
+  assert(acc.status === 'accepted', 'clube aceita');
+  const cask = G.contractAsk(w, bt.id);
+  const ch = [0.7, 0.85, 0.95, 1, 1.1, 1.3].map((f) => G.contractChance(w, bt.id, { ...cask, wage: Math.round(cask.wage * f) }));
+  assert(ch.every((c, i) => i === 0 || c >= ch[i - 1]) && ch[0] === 0 && ch[5] === 1, `contractChance monotônica no salário (${ch.map((c) => c.toFixed(2)).join(' ')})`);
+  if (cask.role === 'titular') assert(G.contractChance(w, bt.id, { ...cask, role: 'reserva', wage: cask.wage * 3 }) === 0, 'bom jogador recusa ser reserva');
+  const promised: G.Terms = { ...cask, wage: Math.round(cask.wage * 1.3), role: 'titular' };
+  assert(G.negotiateContract(w, bt.id, promised).status === 'accepted', 'negotiateContract aceito');
+  const money0 = u.money, fee = c1.counterFee as number;
+  assert(G.completeTransfer(w, bt.id, { ...promised, fee, installments: 3 }), 'completeTransfer');
+  const first = Math.round(fee / 3);
+  assert(u.money === money0 - first - promised.bonus && bt.clubId === u.id && bt.promise === 'titular' && w.payables.length === 2, '1ª parcela + luvas pagas; 2 parcelas pendentes');
+  assert(bt.releaseClause > 0 && bt.start.season === w.season, 'nova multa e start na chegada');
+  bt.inj = 30; bt.injType = 'Fratura'; // não vai jogar: a promessa será quebrada
+
+  // ---- multa rescisória e agente livre ----
+  const cl = others.find((p) => p.releaseClause > 0 && p.releaseClause < 60e6 && ![li.id, li2.id, target.id, nt.id, bt.id].includes(p.id)) as G.Player;
+  const pr = G.payReleaseClause(w, cl.id);
+  assert(pr.status === 'accepted', 'payReleaseClause');
+  const clTerms = { ...G.contractAsk(w, cl.id) };
+  clTerms.wage = Math.round(clTerms.wage * 1.3);
+  assert(G.negotiateContract(w, cl.id, clTerms).status === 'accepted' && G.completeTransfer(w, cl.id, { ...clTerms, fee: cl.releaseClause, installments: 1 }), 'contratação pela multa');
+  const fa = w.free.map((id) => w.players[id]).sort((a, b) => b.ovr - a.ovr)[0];
+  assert(G.negotiateTransfer(w, fa.id, { fee: 0, installments: 1 }).status === 'accepted', 'agente livre: sem clube');
+  const faTerms = { ...G.contractAsk(w, fa.id) };
+  faTerms.wage = Math.round(faTerms.wage * 1.3);
+  assert(G.negotiateContract(w, fa.id, faTerms).status === 'accepted' && G.completeTransfer(w, fa.id, { ...faTerms, fee: 0, installments: 1 }), 'agente livre contratado');
+  const kinds = G.transferHistory(w, { clubId: u.id }).map((t) => t.kind);
+  assert(['clause', 'free', 'transfer', 'loan'].every((k) => kinds.includes(k as G.TransferKind)), 'histórico registra clause/free/transfer/loan');
+  console.log(`negotiation ok: walkout em ${nt.name}; ${bt.name} por ${formatMoney(fee)} em 3×; multa de ${cl.name} (${formatMoney(cl.releaseClause)}); livre ${fa.name}`);
+
+  // ---- contrapropostas às ofertas da CPU ----
+  const sellers = clubPlayers(w, u).filter((p) => ![bt.id, cl.id, fa.id, li.id, li2.id].includes(p.id) && !p.loan).sort((a, b) => a.ovr - b.ovr);
+  const buyer = Object.values(w.clubs).filter((c) => c.id !== u.id).sort((a, b) => b.money - a.money)[0];
+  const mkOffer = (p: G.Player): G.Message => {
+    G.pushMessage(w, { kind: 'offer', pid: p.id, title: `Proposta por ${p.name}`, body: 'teste', offer: { pid: p.id, club: buyer.id, fee: G.valueOf(p), expires: w.week + 2, ceiling: G.offerCeiling(p, buyer.id, G.valueOf(p)) } });
+    return w.inbox[0];
+  };
+  const oA = mkOffer(sellers[0]), ceilA = oA.offer?.ceiling as number;
+  const wa = G.counterOffer(w, oA.id, ceilA * 3);
+  assert(wa.status === 'walkout' && oA.offer?.done && sellers[0].clubId === u.id, 'counterOffer muito alto → walkout');
+  const oB = mkOffer(sellers[1]), ceilB = oB.offer?.ceiling as number, feeB0 = oB.offer?.fee as number;
+  const im = G.counterOffer(w, oB.id, Math.round(ceilB * 1.1));
+  assert(im.status === 'improved' && (im.fee ?? 0) > feeB0 && (im.fee ?? 0) <= ceilB && !oB.offer?.done, 'counterOffer um pouco acima → improved');
+  const oC = mkOffer(sellers[2]), ceilC = oC.offer?.ceiling as number;
+  const ac = G.counterOffer(w, oC.id, ceilC);
+  assert(ac.status === 'accepted' && ac.fee === ceilC && sellers[2].clubId === buyer.id, 'counterOffer até o teto → vendido');
+  console.log(`counterOffer ok: walkout / improved ${formatMoney(im.fee ?? 0)} / accepted ${formatMoney(ceilC)}`);
+
+  // ---- lista de observação ----
+  const wp = others.find((p) => ![li.id, li2.id, target.id, nt.id, bt.id, cl.id].includes(p.id) && p.clubId !== buyer.id) as G.Player;
+  assert(G.toggleWatch(w, wp.id) && w.watchlist.includes(wp.id), 'toggleWatch liga');
+  const wp2 = others.find((p) => p.id !== wp.id && ![li.id, li2.id, target.id, nt.id, bt.id, cl.id].includes(p.id) && p.clubId !== buyer.id) as G.Player;
+  G.toggleWatch(w, wp2.id);
+  assert(!G.toggleWatch(w, wp2.id) && !w.watchlist.includes(wp2.id), 'toggleWatch desliga');
+  wp.listed = true;
+
+  // ---- avança: relatório, avisos, dia do fechamento ----
+  const idBefore = w.nextMsg;
+  advanceTo(w, readyWeek);
+  assert(w.scouting[target.id]?.level === 2 && G.potentialRange(w, target).exact && Array.isArray(G.knownTraits(w, target)), 'relatório entregue no endWeek');
+  const rep = lastMsg(w, (m) => m.title === `Relatório do olheiro: ${target.name}` && m.pid === target.id);
+  assert(rep && /Veredito: /.test(rep.body), 'mensagem do olheiro com veredito');
+  assert(w.inbox.some((m) => m.id >= idBefore && m.pid === wp.id && /lista de venda/.test(m.body)), 'aviso: entrou na lista de venda');
+  const dest = Object.values(w.clubs).find((c) => c.id !== u.id && c.id !== wp.clubId && c.squad.length < 30) as G.Club;
+  G.transfer(w, wp.id, dest.id, 0, true);
+  const id2 = w.nextMsg;
+  advance(w);
+  assert(w.inbox.some((m) => m.id >= id2 && m.pid === wp.id && /trocou de clube/.test(m.body)), 'aviso: trocou de clube');
+  advanceTo(w, 5);
+  assert(w.inbox.some((m) => m.title === 'Dia do fechamento da janela' && m.week === 4), 'notícia do dia do fechamento (semana 4)');
+  console.log(`scout/watch/deadline ok: "${rep.body.slice(0, 90)}…"`);
+
+  // ---- cooldown expira na janela do meio; parcelas pagas; promessa cobrada ----
+  advanceTo(w, 15);
+  const again = G.negotiateTransfer(w, nt.id, { fee: G.askingPrice(w, nt), installments: 1 });
+  assert(w.week - ntWeek >= 4 && again.status === 'accepted' && again.patience === 3, 'após o cooldown o clube volta a negociar');
+  delete w.negotiations[nt.id];
+  advanceTo(w, 21);
+  assert((w.payables.length as number) === 0, 'parcelas pagas no endWeek');
+  const paid = G.transferHistory(w, { clubId: u.id }).length > 0 && w.inbox.filter((m) => m.title === 'Parcela paga').length === 2;
+  assert(paid, 'duas parcelas pagas com mensagem');
+  assert(w.inbox.some((m) => m.title === `${bt.name} cobra a promessa`), 'promessa de titular cobrada');
+
+  // ---- renovação ----
+  const rp = clubPlayers(w, u).find((p) => !p.loan && p.id !== bt.id) as G.Player;
+  const ra = G.renewAsk(w, rp.id);
+  const rr = G.negotiateRenewal(w, rp.id, { ...ra, wage: Math.round(ra.wage * 1.3), years: ra.years });
+  assert(rr.status === 'accepted' && rp.contract === ra.years && rp.releaseClause === ra.releaseClause && rp.promise === ra.role, 'negotiateRenewal');
+
+  // ---- fim da temporada: empréstimos voltam ----
+  const season = w.season;
+  const spend = G.netSpend(w, u.id, season);
+  const manual = w.transfers.filter((t) => t.season === season && t.fee).reduce((s2, t) => s2 + (t.to === u.id ? t.fee : 0) - (t.from === u.id ? t.fee : 0), 0);
+  assert(spend === manual, 'netSpend');
+  const big = G.biggestDeals(w, season, 5);
+  assert(big.length === 5 && big.every((d, i) => i === 0 || d.fee <= big[i - 1].fee), 'biggestDeals ordenado');
+  const news = G.marketNews(w, 3);
+  assert(news.length <= 3 && news.every((t) => t.fee > 0), 'marketNews');
+  const retMsgs = w.nextMsg;
+  while (w.season === season) advance(w);
+  assert(!lo2.loan && lo2.clubId === u.id && u.squad.includes(lo2.id), `emprestado volta no newSeason (${lo2.clubId})`);
+  // (depois de voltar, o dono ainda pode liberá-lo por fim de contrato ou ele pode se aposentar)
+  assert(!li2.loan && !u.squad.includes(li2.id) && w.transfers.some((t) => t.pid === li2.id && t.kind === 'loan' && t.from === u.id && t.to === li2Owner), 'emprestado ao usuário volta ao dono');
+  if (yLoaned) assert(!lyouth.loan && (u.youth.includes(lyouth.id) || u.squad.includes(lyouth.id)), 'garoto volta à base/elenco');
+  const back = w.inbox.find((m) => m.id >= retMsgs && m.pid === lo2.id && /volta/.test(m.title));
+  assert(back && /jogo\(s\) e \d+ gol\(s\)/.test(back.body), 'mensagem de retorno com resumo');
+  assert(w.transfers.filter((t) => !t.user).length <= G.CPU_HISTORY_MAX && G.transferHistory(w, { season }).length > 0, 'histórico da CPU limitado a 400');
+  console.log(`season ok: netSpend ${formatMoney(spend)}; maior negócio ${big[0].name} ${formatMoney(big[0].fee)}; "${back.body}"`);
+
+  // ---- migrateWorld v3 → v4 ----
+  const v3 = JSON.parse(JSON.stringify(w)) as Record<string, unknown> & World;
+  v3.version = 3;
+  for (const k of ['scouting', 'scoutQueue', 'negotiations', 'payables', 'watchlist', 'watchState', 'transfers']) delete (v3 as Record<string, unknown>)[k];
+  for (const c of Object.values(v3.clubs) as unknown as Record<string, unknown>[]) { delete c.scouting; delete c.academyFocus; }
+  for (const p of Object.values(v3.players) as unknown as Record<string, unknown>[]) {
+    for (const k of ['start', 'loan', 'releaseClause', 'joined', 'promise', 'promiseChecked']) delete p[k];
+  }
+  assert(isCompatible(v3), 'v3 é compatível');
+  const m4 = migrateWorld(v3);
+  assert(m4.version === 4 && Array.isArray(m4.transfers) && Array.isArray(m4.scoutQueue) && m4.negotiations && m4.scouting, 'campos de World v4');
+  assert(Object.values(m4.clubs).every((c) => c.scouting >= 1 && c.scouting <= 5 && c.academyFocus === 'balanced'), 'clubes v4');
+  assert(Object.values(m4.players).every((p) => p.start && p.loan === null && typeof p.releaseClause === 'number'), 'jogadores v4');
+  const j4 = JSON.stringify(m4);
+  assert(JSON.stringify(migrateWorld(m4)) === j4, 'migrateWorld v4 idempotente');
+  advance(m4);
+  console.log(`v4 checks ok (${((performance.now() - t0) / 1000).toFixed(1)} s)`);
 }
 
 if (args.includes('--checks')) runChecks();

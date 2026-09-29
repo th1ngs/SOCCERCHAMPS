@@ -82,7 +82,16 @@ export function SquadTable({ rows, sort, onSort, onOpen }: { rows: SquadRow[]; s
                 <OvrBadge value={p.ovr} />
               </td>
               <td className="px-2 py-2">
-                <Stars value={potentialStars(p, true)} />
+                {(() => {
+                  const r = marks.get(p.id)?.range;
+                  return r && !r.exact ? (
+                    <span className="font-display font-bold tabular text-snow/85" title="Faixa estimada: fica exata após 10 semanas no clube">
+                      {Math.round(r.min)}–{Math.round(r.max)}
+                    </span>
+                  ) : (
+                    <Stars value={potentialStars(p, true)} />
+                  );
+                })()}
               </td>
               <td className="px-2 py-2">
                 <Meter value={p.fitness} label={`Condição ${Math.round(p.fitness)}%`} />

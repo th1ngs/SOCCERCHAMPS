@@ -10,8 +10,15 @@ export type KnockoutStatus = 'out' | 'alive' | 'eliminated' | 'champion';
 export const leagueClubsOf = (w: World, league: LeagueId): Club[] => Object.values(w.clubs).filter((c) => c.league === league);
 
 /** Corta para CONT_SIZE descartando os de menor reputação. */
+/**
+ * Corta a lista para CONT_SIZE clubes. `ids` vem em grupos de CONT_SPOTS por primeira divisão,
+ * com o campeão (ou o de maior reputação) primeiro: esses nunca são cortados; o corte recai
+ * sobre os demais de menor reputação.
+ */
 function cutByRep(w: World, ids: string[]): string[] {
-  return ids.slice().sort((a, b) => w.clubs[b].rep - w.clubs[a].rep).slice(0, CONT_SIZE);
+  const leaders = ids.filter((_, i) => i % CONT_SPOTS === 0);
+  const rest = ids.filter((_, i) => i % CONT_SPOTS !== 0).sort((a, b) => w.clubs[b].rep - w.clubs[a].rep);
+  return [...leaders, ...rest].slice(0, CONT_SIZE);
 }
 
 /** 1ª temporada: os CONT_SPOTS de maior reputação de cada primeira divisão (cortando para 16). */

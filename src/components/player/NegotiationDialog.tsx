@@ -11,7 +11,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Segmented } from "@/components/ui/Segmented";
 import { useToast } from "@/components/ui/Toast";
 import { Alert, KV, Meter } from "@/components/ui/primitives";
-import { PATIENCE_MAX, installmentPlan, negotiationInfo, type Installments } from "@/components/market/transferDerive";
+import { INSTALLMENT_WEEKS, PATIENCE_MAX, installmentPlan, negotiationInfo, type Installments } from "@/components/market/transferDerive";
 import { cn } from "@/lib/cn";
 import { feeFromMillions, toMillions, windowClosedReason, yearsText } from "./playerInfo";
 import { TermsPanel } from "./TermsPanel";
@@ -327,7 +327,7 @@ export function NegotiationDialog({ pid, mode, onBack, onDone }: { pid: string; 
                   </>
                 ) : (
                   <>
-                    <b className="text-snow">{formatMoney(bidPlan.now)}</b> agora e mais {bidPlan.rest}× {formatMoney(bidPlan.each)} nas próximas semanas. Parcelar exige cerca de 5% a mais.
+                    <b className="text-snow">{formatMoney(bidPlan.now)}</b> agora e mais {bidPlan.rest}× {formatMoney(bidPlan.each)} a cada {INSTALLMENT_WEEKS} semanas. Parcelar exige cerca de 5% a mais.
                   </>
                 )}
                 {bidPlan.now > u.money && <span className="text-danger-400"> Acima do seu caixa.</span>}
@@ -346,7 +346,17 @@ export function NegotiationDialog({ pid, mode, onBack, onDone }: { pid: string; 
 
     const accepted = clubReply?.status === "accepted";
     const counter = clubReply?.status === "counter" && clubReply.counterFee != null ? clubReply.counterFee : null;
-    const bidReason = !open ? windowClosedReason(world) : full ? `Elenco cheio (${u.squad.length}/${SQUAD_MAX})` : fee <= 0 ? "Digite um valor" : null;
+    const bidReason = !open
+      ? windowClosedReason(world)
+      : full
+        ? `Elenco cheio (${u.squad.length}/${SQUAD_MAX})`
+        : fee <= 0
+          ? "Digite um valor"
+          : Math.round(fee / installments) > u.money
+            ? installments > 1
+              ? "1ª parcela acima do seu caixa"
+              : "Acima do seu caixa: tente parcelar"
+            : null;
     footer = (
       <>
         <Button variant="ghost" icon={<ArrowLeft />} onClick={onBack} className="mr-auto">
@@ -428,7 +438,7 @@ function DealSummary({ deal, terms, cash }: { deal: Deal; terms: Terms; cash: nu
       <KV label="Taxa de transferência">{deal.fee ? formatMoney(deal.fee) : "Sem custo"}</KV>
       {deal.installments > 1 && (
         <KV label="Parcelas">
-          {formatMoney(plan.now)} agora + {plan.rest}× {formatMoney(plan.each)}
+          {formatMoney(plan.now)} agora + {plan.rest}× {formatMoney(plan.each)} (a cada {INSTALLMENT_WEEKS} sem.)
         </KV>
       )}
       <KV label="Luvas (na assinatura)">{formatMoney(terms.bonus)}</KV>
