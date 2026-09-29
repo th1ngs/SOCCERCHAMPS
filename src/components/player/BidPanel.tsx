@@ -2,6 +2,7 @@
 
 import { formatMoney } from "@/game";
 import type { Club, Player } from "@/game/types";
+import { Flag } from "@/components/ui/Flag";
 import { Alert, KV } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
 import type { BidOutcome } from "./useBidFlow";
@@ -35,7 +36,13 @@ export function BidPanel({
   return (
     <div className="space-y-4">
       <div className="rounded-xl bg-ink-900/60 px-4 py-1 ring-1 ring-inset ring-white/6">
-        {club && <KV label="Clube">{club.name}</KV>}
+        {club && (
+          <KV label="Clube">
+            <span className="inline-flex items-center gap-1.5">
+              {club.name} <Flag code={club.league} />
+            </span>
+          </KV>
+        )}
         <KV label="Valor de mercado">{formatMoney(value)}</KV>
         <KV label="Salário atual">{formatMoney(p.wage)}/sem</KV>
         <KV label="Seu caixa">

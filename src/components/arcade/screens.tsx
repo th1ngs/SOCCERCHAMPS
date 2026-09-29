@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { ArrowLeft, Bot, ChevronRight, CircleQuestionMark, House, LogOut, Play, RotateCcw, Shuffle, Trophy, Users, Volume2, VolumeX } from "lucide-react";
 import type { Level } from "@/arcade/ai";
-import { ROUND_NAMES, opponentOf, type ArcadeCup, type CupMatch } from "@/arcade/cup";
-import { ARCADE_TEAMS, teamById, teamStars, type ArcadeTeam } from "@/arcade/teams";
+import { ROUND_NAMES, opponentOf, type ArcadeCup, type CupMatch, type CupScope } from "@/arcade/cup";
+import { ARCADE_LEAGUES, LEAGUE_CODE, teamById, teamStars, teamsOfLeague, type ArcadeTeam } from "@/arcade/teams";
+import { LEAGUES, divisionName } from "@/game/leagues";
+import type { DivisionId, LeagueId } from "@/game/types";
 import { Button, IconButton, buttonClasses } from "@/components/ui/Button";
 import { Crest } from "@/components/ui/Crest";
-import { Segmented } from "@/components/ui/Segmented";
+import { Flag } from "@/components/ui/Flag";
+import { Segmented, type SegmentedOption } from "@/components/ui/Segmented";
 import { cn } from "@/lib/cn";
 import { Panel, PanelTitle } from "./Panel";
 import { DURATIONS, type ArcadeSettings } from "./settings";
@@ -86,6 +89,28 @@ const SELECT_TITLES: Record<SelectMode, [string, string]> = {
   cup: ["Escolha seu time para a Copa", "Escolha seu time para a Copa"],
 };
 
+const LEAGUE_OPTIONS: SegmentedOption<LeagueId>[] = ARCADE_LEAGUES.map((id) => ({
+  value: id,
+  label: (
+    <span className="inline-flex items-center gap-1.5" title={LEAGUES[id].name}>
+      <Flag code={id} decorative />
+      <span className="sm:hidden">{LEAGUE_CODE[id]}</span>
+      <span className="hidden sm:inline">{LEAGUES[id].name}</span>
+      <span className="sr-only sm:hidden">{LEAGUES[id].name}</span>
+    </span>
+  ),
+}));
+
+const CUP_SCOPE_OPTIONS: SegmentedOption<CupScope>[] = [
+  { value: "mixed", label: "Internacional" },
+  { value: "league", label: "Nacional" },
+];
+
+/** Times da liga agrupados por divisão (ordem de prestígio). */
+function groupByDivision(league: LeagueId): [DivisionId, ArcadeTeam[]][] {
+  return LEAGUES[league].divisions.map((d) => [d, teamsOfLeague(league).filter((t) => t.club.div === d)]);
+}
+
 function PickSlot({ team, placeholder, tone }: { team?: ArcadeTeam; placeholder: string; tone: "p0" | "p1" }) {
   return (
     <div className={cn("flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-1.5 ring-1 ring-inset", tone === "p0" ? "ring-snow/40" : "ring-gold-400/60")}>
@@ -93,6 +118,7 @@ function PickSlot({ team, placeholder, tone }: { team?: ArcadeTeam; placeholder:
         <>
           <Crest club={team.club} size={22} className="shrink-0" />
           <span className="truncate text-sm font-bold">{team.name}</span>
+          <Flag code={team.club.league} />
         </>
       ) : (
         <span className="text-sm text-mist">{placeholder}</span>
@@ -123,7 +149,9 @@ export function SelectScreen({
   const ready = mode === "cup" ? !!picks[0] : !!(picks[0] && picks[1]);
   const sub =
     mode === "cup"
-      ? "16 times, mata-mata até a final. A dificuldade aumenta a cada fase."
+      ? settings.cupScope === "mixed"
+        ? "16 times das primeiras divisões das seis ligas, mata-mata até a final."
+        : "Os 16 times da divisão do seu clube, mata-mata até a final."
       : mode === "pvp"
         ? "Os dois jogadores jogam no mesmo aparelho, alternando os turnos."
         : "Toque em um time. Toque de novo em outro para trocar o adversário.";
@@ -134,29 +162,45 @@ export function SelectScreen({
         <IconButton label="Voltar ao menu" icon={<ArrowLeft />} onClick={onBack} />
         <PanelTitle sub={sub}>{SELECT_TITLES[mode][Math.min(step, 1)]}</PanelTitle>
       </div>
-      <div className="grid max-h-[46dvh] min-h-32 grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-2 overflow-y-auto p-1">
-        {ARCADE_TEAMS.map((t) => {
-          const p0 = picks[0] === t.id, p1 = picks[1] === t.id;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onPick(t.id)}
-              aria-pressed={p0 || p1}
-              className={cn(
-                "flex min-h-24 flex-col items-center justify-center gap-1 rounded-xl border-2 px-1.5 py-2 text-center transition-[transform,background-color] hover:-translate-y-0.5 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-gold-400",
-                p0 ? "border-snow bg-snow/14" : p1 ? "border-gold-400 bg-gold-400/14" : "border-transparent bg-white/5",
-              )}
-            >
-              <Crest club={t.club} size={34} />
-              <span className="line-clamp-2 text-[13px] font-bold leading-tight">{t.name}</span>
-              <TeamStars n={teamStars(t)} />
-            </button>
-          );
-        })}
+      <div className="flex flex-wrap items-center gap-2">
+        <Segmented ariaLabel="Liga" options={LEAGUE_OPTIONS} value={settings.league} onChange={(league) => onSetting({ league })} className="max-w-full" />
+      </div>
+      <div className="max-h-[42dvh] min-h-52 space-y-3 overflow-y-auto p-1" role="group" aria-label={`Times da liga: ${LEAGUES[settings.league].name}`}>
+        {groupByDivision(settings.league).map(([div, teams]) => (
+          <section key={div}>
+            <h3 className="mb-1.5 font-display text-xs font-bold uppercase tracking-wider text-gold-400">{divisionName(div)}</h3>
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(88px,1fr))] gap-2 sm:grid-cols-[repeat(auto-fill,minmax(104px,1fr))]">
+              {teams.map((t) => {
+                const p0 = picks[0] === t.id, p1 = picks[1] === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => onPick(t.id)}
+                    aria-pressed={p0 || p1}
+                    className={cn(
+                      "flex min-h-24 flex-col items-center justify-center gap-1 rounded-xl border-2 px-1.5 py-2 text-center transition-[transform,background-color] hover:-translate-y-0.5 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-gold-400",
+                      p0 ? "border-snow bg-snow/14" : p1 ? "border-gold-400 bg-gold-400/14" : "border-transparent bg-white/5",
+                    )}
+                  >
+                    <Crest club={t.club} size={34} />
+                    <span className="line-clamp-2 text-[13px] font-bold leading-tight">{t.name}</span>
+                    <TeamStars n={teamStars(t)} />
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
       </div>
       <div className="flex flex-wrap items-end justify-between gap-4 border-t border-white/8 pt-4">
         <div className="flex flex-wrap gap-4">
+          {mode === "cup" && (
+            <div>
+              <span className="mb-1 block text-xs uppercase tracking-wider text-mist">Participantes</span>
+              <Segmented ariaLabel="Participantes da Copa" size="sm" value={settings.cupScope} onChange={(cupScope) => onSetting({ cupScope })} options={CUP_SCOPE_OPTIONS} />
+            </div>
+          )}
           {mode !== "pvp" && (
             <div>
               <span className="mb-1 block text-xs uppercase tracking-wider text-mist">Dificuldade</span>
@@ -184,6 +228,11 @@ export function SelectScreen({
             />
           </div>
         </div>
+        {mode === "cup" && (
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:max-w-60">
+            <PickSlot team={teamById(picks[0])} placeholder="Seu time" tone="p0" />
+          </div>
+        )}
         {mode !== "cup" && (
           <div className="flex min-w-0 flex-1 items-center gap-2 sm:max-w-sm">
             <PickSlot team={teamById(picks[0])} placeholder={mode === "pvp" ? "Jogador 1" : "Você"} tone="p0" />
@@ -203,13 +252,14 @@ export function SelectScreen({
 }
 
 // ---------- Copa ----------
-function BracketRow({ id, score, won, me }: { id: string | null; score: number | null; won: boolean; me: boolean }) {
+function BracketRow({ id, score, won, me, flag }: { id: string | null; score: number | null; won: boolean; me: boolean; flag: boolean }) {
   const t = teamById(id);
   if (!t) return <div className="flex h-7 items-center px-2.5 text-xs italic text-mist/60">A definir</div>;
   return (
     <div className={cn("flex h-7 items-center gap-2 px-2.5 text-[13px]", won ? "font-bold text-snow" : "text-mist")}>
       <Crest club={t.club} size={15} className="shrink-0" />
       <span className={cn("min-w-0 flex-1 truncate", me && "text-gold-400")}>{t.name}</span>
+      {flag && <Flag code={t.club.league} />}
       <b className="font-display text-sm text-snow tabular">{score ?? ""}</b>
     </div>
   );
@@ -218,10 +268,11 @@ function BracketRow({ id, score, won, me }: { id: string | null; score: number |
 function BracketMatch({ m, cup, round }: { m: CupMatch; cup: ArcadeCup; round: number }) {
   const mine = m.a === cup.player || m.b === cup.player;
   const next = mine && !m.w && round === cup.round && cup.status === "playing";
+  const flag = cup.scope === "mixed";
   return (
     <div className={cn("relative divide-y divide-white/8 overflow-hidden rounded-lg bg-white/5 ring-1 ring-inset", next ? "ring-2 ring-gold-400" : "ring-white/10")}>
-      <BracketRow id={m.a} score={m.sa} won={!!m.w && m.w === m.a} me={m.a === cup.player} />
-      <BracketRow id={m.b} score={m.sb} won={!!m.w && m.w === m.b} me={m.b === cup.player} />
+      <BracketRow id={m.a} score={m.sa} won={!!m.w && m.w === m.a} me={m.a === cup.player} flag={flag} />
+      <BracketRow id={m.b} score={m.sb} won={!!m.w && m.w === m.b} me={m.b === cup.player} flag={flag} />
       {m.ot && (
         <em className="absolute right-7 top-1/2 -translate-y-1/2 rounded bg-mist px-1 text-[9px] font-extrabold not-italic text-ink-950" title="Decidido na morte súbita">
           MS
@@ -245,7 +296,7 @@ export function CupScreen({ cup, onPlay, onNewCup, onBack }: { cup: ArcadeCup; o
     <Panel label="Chaveamento da Copa" width="2xl" className="gap-4">
       <div className="flex items-center gap-3">
         <IconButton label="Voltar ao menu" icon={<ArrowLeft />} onClick={onBack} />
-        <PanelTitle sub={sub}>Copa arcade</PanelTitle>
+        <PanelTitle sub={sub}>{cup.scope === "mixed" ? "Copa arcade internacional" : "Copa arcade"}</PanelTitle>
         {cup.status === "champion" && <Trophy className="ml-auto size-8 shrink-0 text-gold-400" aria-hidden />}
       </div>
       <div className="overflow-x-auto">

@@ -34,15 +34,19 @@ export function ButtonHud({
   hud,
   onTogglePause,
   turnLabel,
+  compLabel,
 }: {
   teams: [HudTeam, HudTeam];
   hud: ArcadeHud;
   onTogglePause: () => void;
   turnLabel?: string | null;
+  /** Competição e fase (partidas do Manager), ex.: "Copa dos Campeões • Final". */
+  compLabel?: string;
 }) {
   const low = hud.turnFrac < 0.3;
   return (
     <header className="relative border-b border-white/8 bg-linear-to-b from-black/45 to-black/15 px-2 pb-2.5 pt-2 sm:px-4">
+      {compLabel && <p className="mb-1 truncate text-center text-[11px] font-semibold uppercase tracking-wide text-mist">{compLabel}</p>}
       <div className="mx-auto flex max-w-5xl items-center gap-2">
         <div className="grid min-w-0 flex-1 grid-cols-[1fr_auto_1fr] items-center gap-1.5 sm:gap-3">
           <HudTeamBox team={teams[0]} on={hud.aiming && hud.turn === 0} />

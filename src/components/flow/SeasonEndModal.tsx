@@ -1,26 +1,59 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, Briefcase, ChevronRight, Goal, Star } from "lucide-react";
-import { jobOffers, user } from "@/game";
-import type { Club, Player } from "@/game/types";
+import { ArrowDown, ArrowUp, Briefcase, ChevronRight, Globe, Goal, Star } from "lucide-react";
+import { competitionName, cupId, divisionFullName, divisionName, DIVISIONS, jobOffers, LEAGUES } from "@/game";
+import type { Club, Competition, DivisionMove, Player } from "@/game/types";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Crest } from "@/components/ui/Crest";
+import { Flag } from "@/components/ui/Flag";
 import { Alert, SectionTitle } from "@/components/ui/primitives";
+import { cn } from "@/lib/cn";
 import { useWorld } from "@/components/game/GameProvider";
 import { ClubTag } from "@/components/comps/ClubTag";
+import { CompIcon, compShortName } from "@/components/comps/labels";
 import { JobOffers } from "./JobOffers";
 import { FiredModal } from "./FiredModal";
 import { useCareerMoves } from "./useCareerMoves";
 
-function Champion({ club, label }: { club: Club | undefined; label: string }) {
+function Champion({ club, comp, mine }: { club: Club | undefined; comp: Competition; mine: boolean }) {
   if (!club) return null;
   return (
-    <div className="flex flex-col items-center gap-1.5 rounded-2xl bg-linear-to-b from-gold-400/15 to-transparent px-2 py-4 text-center ring-1 ring-inset ring-gold-400/25">
+    <div
+      className={cn(
+        "flex min-w-0 flex-col items-center gap-1.5 rounded-2xl bg-linear-to-b from-gold-400/15 to-transparent px-2 py-4 text-center ring-1 ring-inset",
+        mine ? "ring-2 ring-gold-400" : "ring-gold-400/25",
+      )}
+    >
       <Crest club={club} size={52} />
-      <span className="font-display text-xs font-bold uppercase tracking-[0.14em] text-gold-400">{label}</span>
-      <span className="font-display text-base font-bold uppercase leading-tight">{club.name}</span>
+      <span className="flex max-w-full items-center gap-1.5 font-display text-xs font-bold uppercase tracking-[0.14em] text-gold-400">
+        <CompIcon comp={comp} />
+        <span className="truncate">{compShortName(comp)}</span>
+      </span>
+      <span className="flex max-w-full items-center gap-1.5 font-display text-base font-bold uppercase leading-tight">
+        {comp === "cont" && <Flag code={club.league} />}
+        <span className="min-w-0 break-words">{club.name}</span>
+      </span>
+    </div>
+  );
+}
+
+/** Lista de clubes que sobem ou caem entre duas divisões. */
+function MoveList({ title, moves, up, userClub }: { title: string; moves: DivisionMove[]; up: boolean; userClub: string }) {
+  if (!moves.length) return null;
+  const Icon = up ? ArrowUp : ArrowDown;
+  return (
+    <div className="min-w-0">
+      <SectionTitle className="mb-2">{title}</SectionTitle>
+      <ul className="flex flex-col gap-1.5">
+        {moves.map((mv) => (
+          <li key={mv.club} className={cn("flex min-w-0 items-center gap-2 rounded-lg text-sm", mv.club === userClub && "bg-gold-400/10 px-1.5 py-1")}>
+            <Icon className={cn("size-4 shrink-0", up ? "text-pitch-400" : "text-danger-400")} aria-label={up ? "Acesso" : "Rebaixamento"} />
+            <ClubTag id={mv.club} bold={mv.club === userClub} />
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -54,9 +87,28 @@ export function SeasonEndModal() {
 
   if (!ps) return w.fired ? <FiredModal /> : null;
 
-  const u = user(w);
   const e = ps.entry;
+  const u = w.clubs[e.user.club] ?? w.clubs[w.userClub];
+  const lg = e.user.league;
+  const divs = LEAGUES[lg].divisions;
   const offerClub = !w.fired && ps.offer ? w.clubs[ps.offer] : null;
+  const champs: { comp: Competition; id: string | null | undefined }[] = [
+    ...divs.map((d) => ({ comp: d as Competition, id: e.champions[d] })),
+    { comp: cupId(lg), id: e.cups[cupId(lg)] },
+    { comp: "cont", id: e.cups.cont },
+  ];
+  // Acesso/rebaixamento na liga do usuário, agrupados por divisão de destino.
+  const moves = ps.moves.filter((mv) => DIVISIONS[mv.from].league === lg);
+  const moveGroups = divs.flatMap((d) => {
+    const info = DIVISIONS[d];
+    const groups: { key: string; title: string; up: boolean; list: DivisionMove[] }[] = [];
+    if (info.up) groups.push({ key: `${d}-up`, title: `Sobem para a ${divisionName(info.up)}`, up: true, list: moves.filter((mv) => mv.from === d && mv.to === info.up) });
+    if (info.down) groups.push({ key: `${d}-down`, title: `Caem para a ${divisionName(info.down)}`, up: false, list: moves.filter((mv) => mv.from === d && mv.to === info.down) });
+    return groups;
+  });
+  const scorers = divs.map((d) => ({ div: d, p: ps.scorers[d] ?? null })).filter((x): x is { div: typeof x.div; p: Player } => !!x.p);
+  const contNext = ps.contNext.map((id) => w.clubs[id]).filter(Boolean).sort((a, b) => a.league.localeCompare(b.league) || b.rep - a.rep);
+  const qualified = ps.contNext.includes(u.id);
 
   return (
     <Modal
@@ -75,14 +127,23 @@ export function SeasonEndModal() {
       }
     >
       <div className="flex flex-col gap-5">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <Champion club={w.clubs[e.champA]} label="Série A" />
-          <Champion club={w.clubs[e.champB]} label="Série B" />
-          {e.cup && <Champion club={w.clubs[e.cup]} label="Copa" />}
+        <div>
+          <SectionTitle className="mb-2 flex items-center gap-1.5">
+            <Flag code={lg} /> Campeões
+          </SectionTitle>
+          <div className={cn("grid grid-cols-2 gap-2 sm:grid-cols-3", champs.length >= 5 ? "md:grid-cols-5" : "md:grid-cols-4")}>
+            {champs.map((c) => (
+              <Champion key={c.comp} club={c.id ? w.clubs[c.id] : undefined} comp={c.comp} mine={c.id === u.id} />
+            ))}
+          </div>
         </div>
 
         <p className="text-center text-lg">
-          {u.name} terminou em <b className="font-display text-2xl text-gold-400">{ps.userPos}º</b> na Série {e.user.div}.
+          {u.name} terminou em <b className="font-display text-2xl text-gold-400">{ps.userPos}º</b> na{" "}
+          <span className="inline-flex items-center gap-1.5 align-baseline">
+            <Flag code={lg} /> {divisionFullName(e.user.div)}
+          </span>
+          .
         </p>
 
         {w.fired ? (
@@ -95,41 +156,49 @@ export function SeasonEndModal() {
           </Alert>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <SectionTitle className="mb-2">Sobem para a Série A</SectionTitle>
-            <ul className="flex flex-col gap-1.5">
-              {ps.promoted.map((id) => (
-                <li key={id} className="flex items-center gap-2 text-sm">
-                  <ArrowUp className="size-4 shrink-0 text-pitch-400" aria-label="Acesso" /> <ClubTag id={id} />
-                </li>
-              ))}
-            </ul>
+        {moveGroups.some((g) => g.list.length) && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {moveGroups.map((g) => (
+              <MoveList key={g.key} title={g.title} moves={g.list} up={g.up} userClub={u.id} />
+            ))}
           </div>
-          <div>
-            <SectionTitle className="mb-2">Caem para a Série B</SectionTitle>
-            <ul className="flex flex-col gap-1.5">
-              {ps.relegated.map((id) => (
-                <li key={id} className="flex items-center gap-2 text-sm">
-                  <ArrowDown className="size-4 shrink-0 text-danger-400" aria-label="Rebaixamento" /> <ClubTag id={id} />
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
+        )}
 
-        {(ps.scA || ps.scB || ps.best) && (
+        {(scorers.length > 0 || ps.best) && (
           <div>
             <SectionTitle className="mb-2">Prêmios</SectionTitle>
-            <ul className="grid gap-2 sm:grid-cols-3">
-              {ps.scA && <Award icon={<Goal />} label="Artilheiro da Série A">{scorerLine(ps.scA, w.clubs)}</Award>}
-              {ps.scB && <Award icon={<Goal />} label="Artilheiro da Série B">{scorerLine(ps.scB, w.clubs)}</Award>}
+            <ul className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+              {scorers.map(({ div, p }) => (
+                <Award key={div} icon={<Goal />} label={`Artilheiro da ${divisionName(div)}`}>{scorerLine(p, w.clubs)}</Award>
+              ))}
               {ps.best && (
                 <Award icon={<Star />} label="Craque da temporada">
                   <b>{ps.best.name}</b> {ps.best.clubId && w.clubs[ps.best.clubId] ? `(${w.clubs[ps.best.clubId].name})` : ""} • nota{" "}
                   {(ps.best.s.rsum / Math.max(1, ps.best.s.apps)).toFixed(2)}
                 </Award>
               )}
+            </ul>
+          </div>
+        )}
+
+        {contNext.length > 0 && (
+          <div>
+            <SectionTitle className="mb-2 flex items-center gap-1.5">
+              <Globe className="size-4" aria-hidden /> {competitionName("cont")} {e.season + 1} • classificados
+            </SectionTitle>
+            {qualified && (
+              <Alert tone="good" className="mb-2">
+                <span><b>Classificado!</b> O {u.name} disputa a {competitionName("cont")} na próxima temporada.</span>
+              </Alert>
+            )}
+            <ul className="grid gap-1 sm:grid-cols-2">
+              {contNext.map((c) => (
+                <li key={c.id} className={cn("flex min-w-0 items-center gap-2 rounded-lg px-2 py-1 text-sm", c.id === u.id ? "bg-gold-400/10 ring-1 ring-inset ring-gold-400/30" : "bg-white/[0.03]")}>
+                  <Crest club={c} size={16} className="shrink-0" />
+                  <Flag code={c.league} />
+                  <span className={cn("min-w-0 truncate", c.id === u.id && "font-semibold")}>{c.name}</span>
+                </li>
+              ))}
             </ul>
           </div>
         )}
@@ -146,8 +215,8 @@ export function SeasonEndModal() {
             <Crest club={offerClub} size={32} />
             <span className="min-w-0 flex-1">
               <b>O {offerClub.name} quer contratar você!</b>
-              <span className="block text-xs text-mist">
-                Série {offerClub.div} • reputação {Math.round(offerClub.rep)}. Aceitar muda seu clube na próxima temporada.
+              <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-mist">
+                <Flag code={offerClub.league} /> {divisionFullName(offerClub.div)} • reputação {Math.round(offerClub.rep)}. Aceitar muda seu clube na próxima temporada.
               </span>
             </span>
             <Button variant="secondary" icon={<Briefcase />} onClick={() => takeJob(offerClub.id)}>

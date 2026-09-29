@@ -1,5 +1,5 @@
 // Copa arcade: mata-mata com 16 clubes (oitavas → final). Porta do antigo js/cup.js.
-import { ARCADE_TEAMS, teamById } from "./teams";
+import { ARCADE_LEAGUES, ARCADE_TEAMS, firstDivisionTeams, teamById } from "./teams";
 
 export const ROUND_NAMES = ["Oitavas de final", "Quartas de final", "Semifinal", "Final"];
 const STORE_KEY = "scm.arcade.cup";
@@ -16,8 +16,17 @@ export interface CupMatch {
 
 export type CupStatus = "playing" | "out" | "champion" | "runnerUp";
 
+/**
+ * Sorteio dos participantes:
+ * - "mixed": clubes das primeiras divisões das seis ligas, misturados;
+ * - "league": os 16 clubes da divisão do time escolhido.
+ */
+export type CupScope = "mixed" | "league";
+
 export interface ArcadeCup {
   player: string;
+  /** Ausente em saves antigos (tratado como "league"). */
+  scope?: CupScope;
   rounds: CupMatch[][];
   round: number;
   status: CupStatus;
@@ -32,12 +41,30 @@ function shuffle<T>(a: T[]): T[] {
   return a;
 }
 
-export function newCup(playerId: string): ArcadeCup {
-  const others = shuffle(ARCADE_TEAMS.filter((t) => t.id !== playerId).map((t) => t.id)).slice(0, 15);
-  const all = shuffle([playerId, ...others]);
+/** 15 adversários: misturando as primeiras divisões (rodízio entre ligas) ou da mesma divisão do jogador. */
+function drawOpponents(playerId: string, scope: CupScope): string[] {
+  const me = teamById(playerId);
+  if (scope === "league" && me) {
+    const sameDiv = shuffle(ARCADE_TEAMS.filter((t) => t.id !== playerId && t.club.div === me.club.div).map((t) => t.id));
+    const rest = shuffle(ARCADE_TEAMS.filter((t) => t.id !== playerId && t.club.league === me.club.league && t.club.div !== me.club.div).map((t) => t.id));
+    return [...sameDiv, ...rest].slice(0, 15);
+  }
+  // Rodízio entre ligas (em ordem sorteada) para a chave ficar bem misturada.
+  const pools = shuffle(ARCADE_LEAGUES.slice()).map((lg) => shuffle(firstDivisionTeams().filter((t) => t.club.league === lg && t.id !== playerId).map((t) => t.id)));
+  const out: string[] = [];
+  for (let i = 0; out.length < 15 && pools.some((p) => p.length); i++) {
+    const p = pools[i % pools.length];
+    const id = p.pop();
+    if (id) out.push(id);
+  }
+  return out;
+}
+
+export function newCup(playerId: string, scope: CupScope = "mixed"): ArcadeCup {
+  const all = shuffle([playerId, ...drawOpponents(playerId, scope)]);
   const first: CupMatch[] = [];
   for (let i = 0; i < 8; i++) first.push({ a: all[i * 2], b: all[i * 2 + 1], sa: null, sb: null, w: null, ot: false });
-  return { player: playerId, rounds: [first], round: 0, status: "playing" };
+  return { player: playerId, scope, rounds: [first], round: 0, status: "playing" };
 }
 
 export function playerMatch(cup: ArcadeCup): CupMatch | undefined {

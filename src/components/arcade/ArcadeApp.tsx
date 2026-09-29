@@ -178,7 +178,9 @@ function ArcadeGame() {
     if (step === 0) {
       let p1 = picks[1];
       if (selMode === "cpu" && !p1) {
-        const pool = ARCADE_TEAMS.filter((t) => t.id !== id);
+        // Adversário sorteado na mesma liga do time escolhido.
+        const lg = teamById(id)?.club.league;
+        const pool = ARCADE_TEAMS.filter((t) => t.id !== id && t.club.league === lg);
         p1 = pool[(Math.random() * pool.length) | 0].id;
       }
       if (p1 === id) p1 = null;
@@ -196,7 +198,7 @@ function ArcadeGame() {
     const [a, b] = picks;
     if (selMode === "cup") {
       if (!a) return;
-      const c = newCup(a);
+      const c = newCup(a, settings.cupScope);
       saveCup(c);
       setCup(c);
       setScreen("cup");
@@ -273,6 +275,7 @@ function ArcadeGame() {
             togglePause();
           }}
           turnLabel={turnLabel}
+          compLabel={playing.mode === "cup" && playing.cup ? `Copa arcade • ${ROUND_NAMES[playing.cup.round] ?? ""}` : undefined}
         />
       )}
       <ButtonStage runner={runner}>

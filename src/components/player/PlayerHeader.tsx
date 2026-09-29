@@ -1,6 +1,7 @@
-import { POS_NAME } from "@/game";
+import { LEAGUES, POS_NAME, divisionFullName } from "@/game";
 import type { Club, Player } from "@/game/types";
 import { Crest } from "@/components/ui/Crest";
+import { Flag } from "@/components/ui/Flag";
 import { Badge, OvrBadge, PosBadge, Stars } from "@/components/ui/primitives";
 import { TraitBadges } from "./TraitBadges";
 import { potentialStars } from "./playerInfo";
@@ -21,12 +22,17 @@ export function PlayerHeader({ player: p, club, own, captain, penTaker }: { play
           {p.num > 0 && <span className="text-mist">• camisa {p.num}</span>}
         </div>
         <div className="flex items-center gap-2 text-sm text-mist">
+          <Flag code={p.nat} decorative />
+          <span>{LEAGUES[p.nat].country}</span>
+        </div>
+        <div className="flex min-w-0 items-start gap-2 text-sm text-mist">
           {club ? (
             <>
-              <Crest club={club} size={16} />
-              <span className="truncate">
+              <Crest club={club} size={16} className="mt-0.5 shrink-0" />
+              <span className="min-w-0">
                 {club.name}
                 {p.youth && " (base)"}
+                <span className="text-mist/80"> • {divisionFullName(club.div)}</span>
               </span>
             </>
           ) : (

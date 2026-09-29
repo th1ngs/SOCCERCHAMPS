@@ -4,8 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight, Cloud, CloudAlert, CloudOff, LoaderCircle, Wallet } from "lucide-react";
 import type { ReactNode } from "react";
-import { formatMoney, user, weekLabel, windowOpen } from "@/game";
+import { divisionName, formatMoney, user, weekLabel, windowOpen } from "@/game";
 import { Crest } from "@/components/ui/Crest";
+import { Flag } from "@/components/ui/Flag";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
@@ -48,7 +49,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Crest club={u} size={30} />
             <span className="min-w-0">
               <span className="block truncate font-display text-lg font-bold uppercase leading-tight">{u.name}</span>
-              <span className="block text-xs text-mist">Série {u.div} • {w.season}</span>
+              <span className="flex items-center gap-1.5 text-xs text-mist">
+                <Flag code={u.league} /> <span className="truncate">{divisionName(u.div)} • {w.season}</span>
+              </span>
             </span>
           </Link>
           <div className="hidden flex-1 flex-wrap items-center gap-2 sm:flex">

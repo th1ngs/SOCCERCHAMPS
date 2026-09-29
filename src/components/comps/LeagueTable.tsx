@@ -1,19 +1,15 @@
 "use client";
 
 import { useMemo } from "react";
-import { table } from "@/game";
-import type { Division } from "@/game/types";
+import { Globe } from "lucide-react";
+import { divisionName, DIVISIONS, PROMOTION_SPOTS, projectedCont, table } from "@/game";
+import type { DivisionId } from "@/game/types";
 import { FormChips } from "@/components/ui/primitives";
 import { useWorld } from "@/components/game/GameProvider";
 import { cn } from "@/lib/cn";
 import { ClubTag } from "./ClubTag";
 import { ResultList } from "./Results";
-import { aproveitamento, lastLeagueRound } from "./derive";
-
-type Zone = "champ" | "down" | "up" | null;
-
-const zoneOf = (div: Division, i: number, n: number): Zone =>
-  div === "A" ? (i === 0 ? "champ" : i >= n - 3 ? "down" : null) : i < 3 ? "up" : null;
+import { aproveitamento, lastLeagueRound, zoneOf, type Zone } from "./derive";
 
 const zoneStripe: Record<Exclude<Zone, null>, string> = {
   champ: "before:bg-gold-400",
@@ -26,10 +22,11 @@ const COL_TITLE: Record<(typeof COLS)[number], string> = {
   P: "Pontos", J: "Jogos", V: "Vitórias", E: "Empates", D: "Derrotas", GP: "Gols pró", GC: "Gols contra", SG: "Saldo de gols", "%": "Aproveitamento",
 };
 
-function Legend({ div }: { div: Division }) {
-  const items = div === "A"
-    ? [["bg-gold-400", "Campeão"], ["bg-danger-500", "Rebaixamento (3 últimos)"]]
-    : [["bg-pitch-400", "Acesso à Série A (3 primeiros)"]];
+function Legend({ div }: { div: DivisionId }) {
+  const info = DIVISIONS[div];
+  const items: [string, string][] = [["bg-gold-400", info.up ? "Campeão (sobe)" : "Campeão"]];
+  if (info.up) items.push(["bg-pitch-400", `Acesso à ${divisionName(info.up)} (${PROMOTION_SPOTS} primeiros)`]);
+  if (info.down) items.push(["bg-danger-500", `Rebaixamento para a ${divisionName(info.down)} (${PROMOTION_SPOTS} últimos)`]);
   return (
     <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-mist">
       {items.map(([cls, label]) => (
@@ -37,16 +34,25 @@ function Legend({ div }: { div: Division }) {
           <span className={cn("h-3 w-1 rounded-full", cls)} aria-hidden /> {label}
         </span>
       ))}
+      {info.level === 1 && (
+        <span className="inline-flex items-center gap-1.5">
+          <Globe className="size-3.5 text-info-400" aria-hidden /> Vaga projetada na Copa dos Campeões
+        </span>
+      )}
     </p>
   );
 }
 
 /** Classificação completa de uma divisão, com zonas, legenda e a última rodada. */
-export function LeagueTable({ div }: { div: Division }) {
+export function LeagueTable({ div }: { div: DivisionId }) {
   const { world: w, version } = useWorld();
-  const { rows, last } = useMemo(() => {
+  const { rows, last, cont } = useMemo(() => {
     void version;
-    return { rows: table(w, div), last: lastLeagueRound(w, div) };
+    const rows = table(w, div);
+    const started = rows.some((r) => r.j > 0);
+    // Marca continental só nas primeiras divisões e depois da 1ª rodada (antes disso a ordem é alfabética).
+    const cont = DIVISIONS[div].level === 1 && started ? new Set(projectedCont(w)) : new Set<string>();
+    return { rows, last: lastLeagueRound(w, div), cont };
   }, [w, div, version]);
 
   return (
@@ -54,7 +60,7 @@ export function LeagueTable({ div }: { div: Division }) {
       <div>
         <div className="max-h-[75dvh] overflow-auto rounded-(--radius-card) bg-ink-800 shadow-card ring-1 ring-inset ring-white/8">
           <table className="w-full min-w-[640px] border-separate border-spacing-0 text-sm">
-            <caption className="sr-only">Classificação da Série {div}</caption>
+            <caption className="sr-only">Classificação da {divisionName(div)}</caption>
             <thead>
               <tr className="font-display text-xs font-bold uppercase tracking-wider text-mist">
                 <th scope="col" className="sticky left-0 top-0 z-20 bg-ink-850 py-2.5 pl-3 pr-2 text-left">
@@ -89,6 +95,7 @@ export function LeagueTable({ div }: { div: Division }) {
                       <span className="flex max-w-[180px] items-center gap-3 sm:max-w-[240px]">
                         <span className="w-6 shrink-0 text-right font-display text-base font-bold text-mist tabular">{i + 1}</span>
                         <ClubTag id={r.id} bold={me} />
+                        {cont.has(r.id) && <Globe className="size-3.5 shrink-0 text-info-400" aria-label="Vaga projetada na Copa dos Campeões" />}
                       </span>
                     </th>
                     <td className={cn(cell, "font-display text-base font-extrabold text-snow")}>{r.p}</td>

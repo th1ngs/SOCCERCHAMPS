@@ -29,9 +29,9 @@ export default function MercadoPage() {
   }, [world, version]);
 
   const results = useMemo(
-    () => searchMarket(world, world.userClub, { ...filter, q }),
+    () => searchMarket(world, { ...filter, q }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [world, version, filter.pos, filter.age, filter.ovr, filter.max, filter.free, q],
+    [world, version, filter.pos, filter.age, filter.ovr, filter.max, filter.league, filter.nat, q],
   );
 
   const open = (pid: string) => setOverlay({ kind: "player", pid });
@@ -39,7 +39,7 @@ export default function MercadoPage() {
 
   return (
     <>
-      <PageHeader title="Mercado" subtitle="Encontre reforços em outros clubes e entre os agentes livres. Toque em um jogador para ver a ficha e fazer uma proposta." />
+      <PageHeader title="Mercado" subtitle="Encontre reforços nas seis ligas e entre os agentes livres. Toque em um jogador para ver a ficha e fazer uma proposta." />
       <WindowAlert openUntil={status.openUntil} nextOpen={status.nextOpen} money={status.u.money} />
       <MarketFilters filter={filter} onChange={patch} onReset={() => setFilter(DEFAULT_FILTER)} canReset={!isDefaultFilter(filter)} />
 
@@ -49,7 +49,7 @@ export default function MercadoPage() {
       </p>
 
       {results.rows.length === 0 ? (
-        <EmptyState>Nenhum jogador com esses filtros. Tente ampliar a idade, o overall ou o valor máximo.</EmptyState>
+        <EmptyState>Nenhum jogador com esses filtros. Tente outra liga ou nacionalidade, ou amplie a idade, o overall ou o valor máximo.</EmptyState>
       ) : (
         <>
           <div className="hidden sm:block">

@@ -1,6 +1,7 @@
 "use client";
 
 import { formatMoney } from "@/game";
+import { Flag } from "@/components/ui/Flag";
 import { Meter, OvrBadge, PosBadge } from "@/components/ui/primitives";
 import { contractText } from "@/components/player/playerInfo";
 import { StatusTags } from "./StatusTags";
@@ -22,7 +23,10 @@ export function SquadCards({ rows, onOpen }: { rows: SquadRow[]; onOpen: (pid: s
               <span className="text-xs tabular text-mist">{p.num || "—"}</span>
             </div>
             <div className="min-w-0 flex-1 space-y-1">
-              <div className="truncate font-semibold">{p.name}</div>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <Flag code={p.nat} />
+                <span className="truncate font-semibold">{p.name}</span>
+              </div>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-mist">
                 <span>{p.age} anos</span>
                 <Meter value={p.fitness} label={`Condição ${Math.round(p.fitness)}%`} className="w-12" />

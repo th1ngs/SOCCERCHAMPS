@@ -1,14 +1,111 @@
 "use client";
 
+import { useMemo, type KeyboardEvent } from "react";
 import { Landmark, MapPin } from "lucide-react";
-import { CLUBS } from "@/game";
-import type { ClubStatic } from "@/game/types";
+import { CLUBS, DIVISION_SIZE, divisionName, LEAGUE_IDS, LEAGUES } from "@/game";
+import type { ClubStatic, DivisionId, LeagueId } from "@/game/types";
 import { Crest } from "@/components/ui/Crest";
-import { Badge, SectionTitle, Stars } from "@/components/ui/primitives";
-import { prestigeStars, tierOf } from "./clubTiers";
+import { Flag } from "@/components/ui/Flag";
+import { Badge, Stars } from "@/components/ui/primitives";
+import { cn } from "@/lib/cn";
+import { divisionHint, rankDivision, wealthLevel, type RankedClub } from "./clubTiers";
 
-function ClubCard({ club, index, onPick }: { club: ClubStatic; index: number; onPick: (id: string) => void }) {
-  const tier = tierOf(index);
+/** Setas movem a seleção num grupo de opções (padrão radiogroup/tablist). */
+function arrowNav<T>(e: KeyboardEvent, list: T[], current: T, set: (v: T) => void) {
+  const i = list.indexOf(current);
+  const d = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+  if (!d || i < 0) return;
+  e.preventDefault();
+  const next = list[(i + d + list.length) % list.length];
+  set(next);
+  const group = e.currentTarget.closest("[data-group]");
+  requestAnimationFrame(() => group?.querySelector<HTMLElement>(`[data-value="${String(next)}"]`)?.focus());
+}
+
+function WealthBars({ league }: { league: LeagueId }) {
+  const { bars, label } = wealthLevel(league);
+  return (
+    <span className="flex items-center gap-1.5 text-xs text-mist" title={`Poder financeiro: ${label}`}>
+      <span className="flex items-end gap-0.5" aria-hidden>
+        {Array.from({ length: 5 }, (_, i) => (
+          <span key={i} className={cn("w-1 rounded-sm", i < bars ? "bg-gold-400" : "bg-white/12")} style={{ height: 5 + i * 2 }} />
+        ))}
+      </span>
+      <span>{label}</span>
+    </span>
+  );
+}
+
+/** Seis ligas em cartões (radiogroup). */
+export function LeaguePicker({ value, onChange }: { value: LeagueId; onChange: (l: LeagueId) => void }) {
+  return (
+    <div role="radiogroup" aria-label="Liga" data-group className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+      {LEAGUE_IDS.map((id) => {
+        const lg = LEAGUES[id];
+        const on = id === value;
+        return (
+          <button
+            key={id}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            tabIndex={on ? 0 : -1}
+            data-value={id}
+            onClick={() => onChange(id)}
+            onKeyDown={(e) => arrowNav(e, LEAGUE_IDS, value, onChange)}
+            className={cn(
+              "flex min-h-[112px] flex-col items-start gap-2 rounded-2xl p-3.5 text-left ring-1 ring-inset transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-400",
+              on ? "bg-gold-400/12 ring-2 ring-gold-400" : "bg-ink-800 ring-white/8 hover:bg-ink-700 hover:ring-white/20",
+            )}
+          >
+            <Flag code={id} decorative className="h-7 rounded-[3px] shadow ring-1 ring-black/25" />
+            <span className="font-display text-lg font-bold uppercase leading-none">{lg.name}</span>
+            <span className="text-xs text-mist">
+              {lg.divisions.length} divisões • {lg.divisions.length * DIVISION_SIZE} clubes
+            </span>
+            <WealthBars league={id} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Abas das divisões de uma liga. */
+export function DivisionTabs({ league, value, onChange, panelId }: { league: LeagueId; value: DivisionId; onChange: (d: DivisionId) => void; panelId: string }) {
+  const divs = LEAGUES[league].divisions;
+  return (
+    <div role="tablist" aria-label={`Divisões — ${LEAGUES[league].name}`} data-group className="flex flex-wrap gap-1 rounded-xl bg-ink-950/60 p-1 ring-1 ring-inset ring-white/8">
+      {divs.map((d, i) => {
+        const on = d === value;
+        return (
+          <button
+            key={d}
+            type="button"
+            role="tab"
+            id={`tab-${d}`}
+            aria-selected={on}
+            aria-controls={panelId}
+            tabIndex={on ? 0 : -1}
+            data-value={d}
+            onClick={() => onChange(d)}
+            onKeyDown={(e) => arrowNav(e, divs, value, onChange)}
+            className={cn(
+              "flex h-10 items-center gap-2 rounded-lg px-3.5 font-display text-sm font-bold uppercase tracking-wide transition-colors focus-visible:outline-2 focus-visible:outline-gold-400",
+              on ? "bg-gold-400 text-ink-950 shadow-sm" : "text-mist hover:bg-white/6 hover:text-snow",
+            )}
+          >
+            <span className={cn("grid size-5 place-items-center rounded text-[11px]", on ? "bg-ink-950/15" : "bg-white/8")}>{i + 1}</span>
+            {divisionName(d)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ClubCard({ item, onPick }: { item: RankedClub; onPick: (id: string) => void }) {
+  const { club, stars, tier } = item;
   return (
     <li>
       <button
@@ -21,7 +118,7 @@ function ClubCard({ club, index, onPick }: { club: ClubStatic; index: number; on
         <span className="min-w-0 flex-1">
           <span className="flex items-start justify-between gap-2">
             <span className="min-w-0 truncate font-display text-lg font-bold uppercase leading-tight">{club.name}</span>
-            <Stars value={prestigeStars(club.rep)} className="mt-1 shrink-0" />
+            <Stars value={stars} className="mt-1 shrink-0" />
           </span>
           <span className="block truncate text-sm italic text-mist">“{club.nickname}”</span>
           <span className="mt-1.5 flex flex-col gap-0.5 text-xs text-mist">
@@ -37,28 +134,17 @@ function ClubCard({ club, index, onPick }: { club: ClubStatic; index: number; on
   );
 }
 
-function Division({ title, hint, from, to, onPick }: { title: string; hint: string; from: number; to: number; onPick: (id: string) => void }) {
+/** Grade de clubes de uma divisão, do mais forte ao mais fraco (estrelas relativas à divisão). */
+export function ClubGrid({ div, onPick, id }: { div: DivisionId; onPick: (id: string) => void; id: string }) {
+  const list = useMemo(() => rankDivision(CLUBS as ClubStatic[], div), [div]);
   return (
-    <section>
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <SectionTitle>{title}</SectionTitle>
-        <span className="text-xs text-mist">{hint}</span>
-      </div>
+    <section id={id} role="tabpanel" aria-labelledby={`tab-${div}`}>
+      <p className="mb-3 text-sm text-mist">{divisionHint(div)}</p>
       <ul className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {CLUBS.slice(from, to).map((c, i) => (
-          <ClubCard key={c.id} club={c} index={from + i} onPick={onPick} />
+        {list.map((item) => (
+          <ClubCard key={item.club.id} item={item} onPick={onPick} />
         ))}
       </ul>
     </section>
-  );
-}
-
-/** Escolha do clube, agrupada por divisão (16 primeiros de CLUBS = Série A). */
-export function ClubPicker({ onPick }: { onPick: (id: string) => void }) {
-  return (
-    <div className="flex flex-col gap-8">
-      <Division title="Série A" hint="Grandes cobram títulos; os menores lutam para não cair." from={0} to={16} onPick={onPick} />
-      <Division title="Série B" hint="Pouco dinheiro, metas modestas e o sonho do acesso." from={16} to={CLUBS.length} onPick={onPick} />
-    </div>
   );
 }

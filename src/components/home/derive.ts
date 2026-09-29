@@ -5,6 +5,8 @@ import type { Player, TableRow, World } from "@/game/types";
 export interface MiniTable {
   rows: { pos: number; row: TableRow }[];
   userPos: number;
+  /** Clubes na divisão. */
+  size: number;
 }
 
 /** Cinco linhas da classificação em volta do usuário. */
@@ -13,7 +15,7 @@ export function miniTable(w: World): MiniTable {
   const t = table(w, u.div);
   const pos = t.findIndex((r) => r.id === u.id);
   const start = Math.max(0, Math.min(pos - 2, t.length - 5));
-  return { rows: t.slice(start, start + 5).map((row, i) => ({ pos: start + i + 1, row })), userPos: pos + 1 };
+  return { rows: t.slice(start, start + 5).map((row, i) => ({ pos: start + i + 1, row })), userPos: pos + 1, size: t.length };
 }
 
 export interface SquadAlerts {

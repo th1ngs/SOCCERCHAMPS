@@ -1,6 +1,7 @@
 // Times do modo arcade: os clubes do Manager, com bandeiras dos discos geradas pelo padrão da camisa.
 import { CLUBS } from "@/game/clubs";
-import type { ClubStatic, KitPattern } from "@/game/types";
+import { LEAGUE_IDS, divisionLevel } from "@/game/leagues";
+import type { ClubStatic, KitPattern, LeagueId } from "@/game/types";
 import type { Flag, Team } from "./game";
 
 /** Bandeira do disco a partir das cores e do padrão do uniforme (legado: bridge.js flagOf). */
@@ -29,6 +30,18 @@ export const ARCADE_TEAMS: ArcadeTeam[] = CLUBS.map((club) => ({
   club,
   rating: Math.round(70 + ((club.rep - REP_MIN) / Math.max(1, REP_MAX - REP_MIN)) * 22),
 }));
+
+/** Times de uma liga, da primeira divisão para baixo e por prestígio (ordem de CLUBS). */
+export const teamsOfLeague = (league: LeagueId): ArcadeTeam[] => ARCADE_TEAMS.filter((t) => t.club.league === league);
+
+/** Times das primeiras divisões de todas as ligas. */
+export const firstDivisionTeams = (): ArcadeTeam[] => ARCADE_TEAMS.filter((t) => divisionLevel(t.club.div) === 1);
+
+/** Ligas na ordem de exibição. */
+export const ARCADE_LEAGUES: LeagueId[] = LEAGUE_IDS;
+
+/** Sigla curta do país (rótulos compactos no celular). */
+export const LEAGUE_CODE: Record<LeagueId, string> = { bra: "BRA", arg: "ARG", por: "POR", esp: "ESP", eng: "ING", ita: "ITA" };
 
 export const teamById = (id: string | null | undefined): ArcadeTeam | undefined => (id ? ARCADE_TEAMS.find((t) => t.id === id) : undefined);
 

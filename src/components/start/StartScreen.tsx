@@ -1,18 +1,35 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { autoLineup, CLUBS, newWorld, startSeason } from "@/game";
+import { autoLineup, CLUBS, divisionFullName, LEAGUES, newWorld, startSeason } from "@/game";
+import type { DivisionId, LeagueId } from "@/game/types";
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { Alert, SectionTitle } from "@/components/ui/primitives";
+import { Alert } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/Toast";
 import { useGame } from "@/components/game/GameProvider";
-import { ClubPicker } from "./ClubPicker";
+import { Flag } from "@/components/ui/Flag";
+import { ClubGrid, DivisionTabs, LeaguePicker } from "./ClubPicker";
 
 const DEFAULT_NAME = "Treinador";
+
+function Step({ n, title, aside, children }: { n: number; title: ReactNode; aside?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="mt-8">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2.5 font-display text-[13px] font-bold uppercase tracking-[0.14em] text-gold-400">
+          <span className="grid size-7 place-items-center rounded-full bg-gold-400 text-sm font-extrabold tracking-normal text-ink-950" aria-hidden>{n}</span>
+          {title}
+        </h2>
+        {aside}
+      </div>
+      {children}
+    </section>
+  );
+}
 
 /** Nova carreira: nome do treinador e escolha do clube. */
 export function StartScreen() {
@@ -25,6 +42,11 @@ export function StartScreen() {
   const [name, setName] = useState<string | null>(null);
   const shownName = name ?? saved?.manager.name ?? "";
   const [confirmClub, setConfirmClub] = useState<string | null>(null);
+  const [league, setLeague] = useState<LeagueId>("bra");
+  // Divisão escolhida em cada liga: voltar a uma liga reabre a mesma aba.
+  const [divs, setDivs] = useState<Partial<Record<LeagueId, DivisionId>>>({});
+  const div = divs[league] ?? LEAGUES[league].divisions[0];
+  const gridId = useId();
   const hasSave = () => !!g.world || g.hasLocalSave();
 
   const start = (clubId: string) => {
@@ -58,13 +80,10 @@ export function StartScreen() {
           Nova carreira
         </h1>
         <p className="mt-2 max-w-prose text-sm text-mist">
-          Escolha seu clube. Clubes menores começam com pouco dinheiro e metas modestas; os grandes cobram títulos.
+          Seis países, 208 clubes. Clubes menores começam com pouco dinheiro e metas modestas; os grandes cobram títulos.
         </p>
 
-        <div className="mt-5 max-w-md">
-          <label htmlFor={nameId} className="mb-1.5 block">
-            <SectionTitle>Seu nome de treinador</SectionTitle>
-          </label>
+        <Step n={1} title={<label htmlFor={nameId}>Seu nome de treinador</label>}>
           <input
             id={nameId}
             value={shownName}
@@ -72,13 +91,28 @@ export function StartScreen() {
             maxLength={28}
             placeholder="Ex.: Professor Carvalho"
             autoComplete="nickname"
-            className="h-11 w-full rounded-xl bg-ink-950/70 px-4 text-base text-snow ring-1 ring-inset ring-white/10 placeholder:text-mist/50 focus:outline-none focus:ring-2 focus:ring-gold-400"
+            className="h-11 w-full max-w-md rounded-xl bg-ink-950/70 px-4 text-base text-snow ring-1 ring-inset ring-white/10 placeholder:text-mist/50 focus:outline-none focus:ring-2 focus:ring-gold-400"
           />
-        </div>
+        </Step>
 
-        <div className="mt-8">
-          <ClubPicker onPick={pick} />
-        </div>
+        <Step n={2} title="Escolha a liga">
+          <LeaguePicker value={league} onChange={setLeague} />
+        </Step>
+
+        <Step
+          n={3}
+          title="Escolha a divisão e o clube"
+          aside={
+            <span className="inline-flex items-center gap-1.5 text-sm text-mist">
+              <Flag code={league} decorative /> {LEAGUES[league].name}
+            </span>
+          }
+        >
+          <DivisionTabs league={league} value={div} onChange={(d) => setDivs((m) => ({ ...m, [league]: d }))} panelId={gridId} />
+          <div className="mt-4">
+            <ClubGrid key={div} id={gridId} div={div} onPick={pick} />
+          </div>
+        </Step>
       </section>
 
       <Modal
@@ -96,7 +130,12 @@ export function StartScreen() {
           A carreira salva será substituída
           {savedClub && saved ? ` (${savedClub.name}, temporada ${saved.season})` : ""}. Isso não pode ser desfeito.
         </p>
-        {pickedClub && <p className="mt-3 text-sm">Novo clube: <b>{pickedClub.name}</b>.</p>}
+        {pickedClub && (
+          <p className="mt-3 flex flex-wrap items-center gap-1.5 text-sm">
+            Novo clube: <b>{pickedClub.name}</b> <span className="text-mist">•</span>
+            <Flag code={pickedClub.league} /> {divisionFullName(pickedClub.div)}
+          </p>
+        )}
         {g.cloudCode && (
           <Alert tone="info" className="mt-4">
             O código da nuvem {g.cloudCode} continua guardando a carreira antiga, mas deixa de ser atualizado neste aparelho.

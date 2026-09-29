@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronRight, CloudDownload, Plus } from "lucide-react";
 import { Button, buttonClasses } from "@/components/ui/Button";
+import { divisionName } from "@/game";
 import { Crest } from "@/components/ui/Crest";
+import { Flag } from "@/components/ui/Flag";
 import { Modal } from "@/components/ui/Modal";
 import { Alert } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/Toast";
@@ -53,11 +55,13 @@ export function HeroActions() {
       )}
 
       {save && club && (
-        <p className="flex items-center gap-2 text-sm text-mist">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-mist">
           <Crest club={club} size={18} />
-          <span>
-            <b className="font-semibold text-snow">{club.name}</b> • {save.manager.name} • temporada {save.season}
+          <b className="font-semibold text-snow">{club.name}</b>
+          <span className="inline-flex items-center gap-1.5">
+            <Flag code={club.league} /> {divisionName(club.div)}
           </span>
+          <span>• {save.manager.name} • temporada {save.season}</span>
         </p>
       )}
       {g.incompatibleSave && !save && (

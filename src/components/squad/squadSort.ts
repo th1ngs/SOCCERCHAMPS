@@ -1,8 +1,8 @@
 // Ordenação da lista do elenco (pura).
-import { POS, valueOf } from "@/game";
+import { LEAGUE_IDS, POS, valueOf } from "@/game";
 import type { Player } from "@/game/types";
 
-export type SortKey = "num" | "name" | "pos" | "age" | "ovr" | "pot" | "fit" | "morale" | "goals" | "value" | "contract";
+export type SortKey = "num" | "name" | "nat" | "pos" | "age" | "ovr" | "pot" | "fit" | "morale" | "goals" | "value" | "contract";
 export type SortDir = "asc" | "desc";
 export interface SortState {
   key: SortKey;
@@ -13,6 +13,7 @@ export interface SortState {
 const ASC: Record<SortKey, (a: Player, b: Player) => number> = {
   num: (a, b) => (a.num || 99) - (b.num || 99),
   name: (a, b) => a.name.localeCompare(b.name, "pt-BR"),
+  nat: (a, b) => LEAGUE_IDS.indexOf(a.nat) - LEAGUE_IDS.indexOf(b.nat) || b.ovr - a.ovr,
   pos: (a, b) => POS.indexOf(a.pos) - POS.indexOf(b.pos) || b.ovr - a.ovr,
   age: (a, b) => a.age - b.age,
   ovr: (a, b) => a.ovr - b.ovr,
@@ -28,6 +29,7 @@ const ASC: Record<SortKey, (a: Player, b: Player) => number> = {
 export const DEFAULT_DIR: Record<SortKey, SortDir> = {
   num: "asc",
   name: "asc",
+  nat: "asc",
   pos: "asc",
   age: "asc",
   ovr: "desc",
@@ -42,6 +44,7 @@ export const DEFAULT_DIR: Record<SortKey, SortDir> = {
 export const SORT_LABEL: Record<SortKey, string> = {
   num: "Número",
   name: "Nome",
+  nat: "Nacionalidade",
   pos: "Posição",
   age: "Idade",
   ovr: "Overall",

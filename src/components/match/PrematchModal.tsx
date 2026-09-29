@@ -2,16 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Flame, Gamepad2, MapPin, Play, SlidersHorizontal, Star, Ticket, TriangleAlert, Users, Zap } from "lucide-react";
-import { FORMATIONS, Sim, TACTICS, autoLineup, ensureLineup, expectedGate, formatMoney, isDerby, sectors } from "@/game";
+import { Flame, Gamepad2, MapPin, Play, SlidersHorizontal, Star, Ticket, Trophy, TriangleAlert, Users, Zap } from "lucide-react";
+import { FORMATIONS, LEAGUES, Sim, TACTICS, autoLineup, competitionName, ensureLineup, expectedGate, formatMoney, isDerby, isNationalCup, sectors } from "@/game";
 import type { Club, World } from "@/game/types";
 import { useWorld } from "@/components/game/GameProvider";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Crest } from "@/components/ui/Crest";
+import { Flag } from "@/components/ui/Flag";
 import { Alert, Badge, OvrBadge, PosBadge, SectionTitle } from "@/components/ui/primitives";
 import { StatBar } from "./StatBars";
-import { compName, findMatch, settleMatch, simOptions, venueName } from "./matchUtils";
+import { findMatch, roundLabel, settleMatch, simOptions, venueName } from "./matchUtils";
 
 function LineupList({ w, club }: { w: World; club: Club }) {
   const slots = FORMATIONS[club.formation];
@@ -34,6 +35,16 @@ function LineupList({ w, club }: { w: World; club: Club }) {
         );
       })}
     </ul>
+  );
+}
+
+/** Bandeira + país da liga do clube (jogos internacionais). */
+function ClubLeague({ club }: { club: Club }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-mist">
+      <Flag code={club.league} decorative />
+      {LEAGUES[club.league].name}
+    </span>
   );
 }
 
@@ -71,7 +82,8 @@ export function PrematchModal({ matchId }: { matchId: string }) {
       so: sectors(w, opp),
       derby: isDerby(w, m),
       gate: home && !m.neutral ? expectedGate(w, m) : null,
-      comp: compName(w, m),
+      comp: competitionName(m.comp),
+      round: roundLabel(w, m),
       venue: venueName(w, m),
     };
   }, [w, m, version]);
@@ -88,6 +100,9 @@ export function PrematchModal({ matchId }: { matchId: string }) {
 
   const { u, opp, su, so, derby, gate } = info;
   const hc = w.clubs[m.h], ac = w.clubs[m.a];
+  // Jogos entre ligas diferentes (Copa dos Campeões): mostra a bandeira de cada clube.
+  const intl = hc.league !== ac.league;
+  const cont = m.comp === "cont";
 
   const quick = () => {
     const sim = new Sim(w, m.h, m.a, simOptions(m)).runToEnd();
@@ -141,13 +156,23 @@ export function PrematchModal({ matchId }: { matchId: string }) {
       <div className="space-y-5">
         {/* Confronto */}
         <div className="relative overflow-hidden rounded-2xl bg-linear-to-b from-ink-700/80 to-ink-800 px-3 py-4 ring-1 ring-inset ring-white/8">
+          <div className="mb-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center">
+            {cont ? (
+              <Badge tone="gold" className="h-6 gap-1 px-2 text-xs">
+                <Trophy className="size-3.5" aria-hidden /> {info.comp}
+              </Badge>
+            ) : (
+              <small className={isNationalCup(m.comp) ? "text-xs font-bold text-gold-300" : "text-xs text-mist"}>{info.comp}</small>
+            )}
+            {info.round && <small className="text-xs text-mist">{info.round}</small>}
+          </div>
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
             <div className="flex min-w-0 flex-col items-center gap-2 text-center">
               <Crest club={hc} size={52} />
-              <b className="line-clamp-2 font-display text-lg font-bold uppercase leading-tight">{hc.name}</b>
+              <b className="line-clamp-2 break-words font-display text-base font-bold uppercase leading-tight sm:text-lg">{hc.name}</b>
+              {intl && <ClubLeague club={hc} />}
             </div>
             <div className="flex flex-col items-center gap-1 px-1 text-center">
-              <small className="text-xs text-mist">{info.comp}</small>
               <b className="font-display text-3xl font-extrabold italic text-gold-400">VS</b>
               {derby && (
                 <Badge tone="red" className="h-6 gap-1 px-2 text-xs">
@@ -157,11 +182,13 @@ export function PrematchModal({ matchId }: { matchId: string }) {
             </div>
             <div className="flex min-w-0 flex-col items-center gap-2 text-center">
               <Crest club={ac} size={52} />
-              <b className="line-clamp-2 font-display text-lg font-bold uppercase leading-tight">{ac.name}</b>
+              <b className="line-clamp-2 break-words font-display text-base font-bold uppercase leading-tight sm:text-lg">{ac.name}</b>
+              {intl && <ClubLeague club={ac} />}
             </div>
           </div>
           <p className="mt-3 flex items-center justify-center gap-1.5 text-sm text-mist">
             <MapPin className="size-4 shrink-0" aria-hidden /> {info.venue}
+            {m.neutral && <span className="text-xs">• sem mando de campo</span>}
           </p>
         </div>
 

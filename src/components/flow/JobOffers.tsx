@@ -1,7 +1,9 @@
 "use client";
 
 import { ChevronRight, MapPin } from "lucide-react";
+import { divisionFullName, divisionLevel } from "@/game";
 import { Crest } from "@/components/ui/Crest";
+import { Flag } from "@/components/ui/Flag";
 import { Badge, Stars } from "@/components/ui/primitives";
 import { useWorld } from "@/components/game/GameProvider";
 import { prestigeStars } from "@/components/start/clubTiers";
@@ -26,8 +28,12 @@ export function JobOffers({ ids, onPick }: { ids: string[]; onPick: (id: string)
               <span className="flex items-center gap-1 text-xs text-mist">
                 <MapPin className="size-3" aria-hidden /> {c.city}-{c.uf}
               </span>
+              <span className="flex max-w-full items-center gap-1.5 text-sm">
+                <Flag code={c.league} />
+                <span className="truncate">{divisionFullName(c.div)}</span>
+              </span>
               <span className="flex items-center gap-2">
-                <Badge tone={c.div === "A" ? "gold" : "blue"}>Série {c.div}</Badge>
+                <Badge tone={divisionLevel(c.div) === 1 ? "gold" : "blue"}>{divisionLevel(c.div)}ª divisão</Badge>
                 <Stars value={prestigeStars(c.rep)} />
               </span>
               <span className="mt-auto inline-flex items-center gap-1 pt-1 font-display text-sm font-bold uppercase tracking-wide text-gold-400">

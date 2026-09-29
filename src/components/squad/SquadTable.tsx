@@ -2,6 +2,7 @@
 
 import { formatMoney } from "@/game";
 import type { Player } from "@/game/types";
+import { Flag } from "@/components/ui/Flag";
 import { Meter, OvrBadge, PosBadge, Stars } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
 import { contractText, potentialStars } from "@/components/player/playerInfo";
@@ -21,11 +22,12 @@ export function SquadTable({ rows, sort, onSort, onOpen }: { rows: SquadRow[]; s
   const th = (k: SortKey, label: string, align?: "left" | "right" | "center") => <SortableTh k={k} label={label} sort={sort} onSort={onSort} align={align} />;
   return (
     <div className="overflow-x-auto rounded-(--radius-card) bg-ink-800 shadow-card ring-1 ring-inset ring-white/8">
-      <table className="w-full min-w-[980px] text-sm">
+      <table className="w-full min-w-[1020px] text-sm">
         <caption className="sr-only">Jogadores do elenco. Use os cabeçalhos para ordenar.</caption>
         <thead className="border-b border-white/8 bg-ink-900/40">
           <tr>
             {th("num", "#", "right")}
+            {th("nat", "Nac.", "center")}
             {th("name", "Nome")}
             {th("pos", "Pos")}
             {th("age", "Idade", "right")}
@@ -49,6 +51,9 @@ export function SquadTable({ rows, sort, onSort, onOpen }: { rows: SquadRow[]; s
               className={cn("cursor-pointer border-b border-white/5 transition-colors last:border-0 hover:bg-white/4 focus-within:bg-white/6", (p.inj > 0 || p.susp > 0) && "text-snow/70")}
             >
               <td className="px-2 py-2 text-right tabular text-mist">{p.num || "—"}</td>
+              <td className="px-2 py-2 text-center">
+                <Flag code={p.nat} />
+              </td>
               <td className="px-2 py-2">
                 <button
                   type="button"

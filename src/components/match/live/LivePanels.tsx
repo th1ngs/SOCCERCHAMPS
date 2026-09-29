@@ -52,7 +52,7 @@ export function Scoreboard({
           <span className={live ? "text-snow" : "text-gold-400"}>{minuteText}</span>
           {pens && <span className="text-gold-400">• pên. {pens[0]}-{pens[1]}</span>}
         </div>
-        <small className="hidden text-[11px] text-mist sm:block">{comp}</small>
+        <small className="max-w-[42vw] truncate text-center text-[10px] text-mist sm:max-w-none sm:text-[11px]">{comp}</small>
       </div>
       <ScoreTeam club={away} right />
     </div>

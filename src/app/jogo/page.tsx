@@ -6,6 +6,7 @@ import { useWorld } from "@/components/game/GameProvider";
 import { NextMatchCard } from "@/components/home/NextMatchCard";
 import { BoardCard } from "@/components/home/BoardCard";
 import { MiniTableCard } from "@/components/home/MiniTableCard";
+import { CompetitionsCard } from "@/components/home/CompetitionsCard";
 import { SquadCard } from "@/components/home/SquadCard";
 import { FinanceCard } from "@/components/home/FinanceCard";
 import { MessagesCard } from "@/components/home/MessagesCard";
@@ -20,6 +21,7 @@ export default function InicioPage() {
         <NextMatchCard />
         <BoardCard />
         <MiniTableCard />
+        <CompetitionsCard />
         <SquadCard />
         <FinanceCard />
         <MessagesCard />

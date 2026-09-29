@@ -7,6 +7,7 @@ import { Modal } from "@/components/ui/Modal";
 import { OvrBadge, PosBadge, Stars } from "@/components/ui/primitives";
 import { TraitBadges } from "@/components/player/TraitBadges";
 import { potentialStars } from "@/components/player/playerInfo";
+import { Flag } from "@/components/ui/Flag";
 
 /** Resultado da peneira: garotos aprovados pelos olheiros. */
 export function TrialResultModal({ players, onClose }: { players: Player[] | null; onClose: () => void }) {
@@ -30,7 +31,9 @@ export function TrialResultModal({ players, onClose }: { players: Player[] | nul
             <PosBadge pos={p.pos} />
             <span className="min-w-0 flex-1">
               <span className="block truncate font-semibold">{p.name}</span>
-              <span className="text-xs text-mist">{p.age} anos</span>
+              <span className="flex items-center gap-1.5 text-xs text-mist">
+                <Flag code={p.nat} /> {p.age} anos
+              </span>
             </span>
             <TraitBadges player={p} short />
             <OvrBadge value={p.ovr} />

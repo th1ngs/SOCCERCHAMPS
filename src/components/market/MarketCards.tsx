@@ -1,6 +1,7 @@
 "use client";
 
 import { formatMoney } from "@/game";
+import { Flag } from "@/components/ui/Flag";
 import { OvrBadge, PosBadge, Stars } from "@/components/ui/primitives";
 import { potentialStars } from "@/components/player/playerInfo";
 import { ClubCell, StarMark } from "./MarketTable";
@@ -20,6 +21,7 @@ export function MarketCards({ rows, onOpen }: { rows: MarketRow[]; onOpen: (pid:
             <PosBadge pos={r.p.pos} />
             <span className="min-w-0 flex-1 space-y-1">
               <span className="flex items-center gap-1.5">
+                <Flag code={r.p.nat} />
                 <span className="truncate font-semibold">{r.p.name}</span>
                 {r.p.star && <StarMark />}
               </span>

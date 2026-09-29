@@ -69,7 +69,7 @@ function ButtonMatchScreen({ w, m }: { w: World; m: Match }) {
       aria-modal="true"
       aria-label={`${u.name} x ${opp.name} no botão`}
     >
-      <ButtonHud teams={[u, opp]} hud={hud} onTogglePause={() => runner.setPaused(!hud.paused)} turnLabel={turnLabel} />
+      <ButtonHud teams={[u, opp]} hud={hud} onTogglePause={() => runner.setPaused(!hud.paused)} turnLabel={turnLabel} compLabel={compName(w, m)} />
       <ButtonStage runner={runner}>
         {hud.paused && (
           <div className="absolute inset-0 z-10 grid place-items-center bg-ink-950/60 p-4 backdrop-blur-[3px]">

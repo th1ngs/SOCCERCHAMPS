@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { CheckCheck, HandCoins } from "lucide-react";
-import { acceptOffer, ensureLineup, formatMoney, user } from "@/game";
+import { acceptOffer, divisionFullName, ensureLineup, formatMoney, user } from "@/game";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { Flag } from "@/components/ui/Flag";
 import { EmptyState, PageHeader } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/Toast";
 import { useWorld } from "@/components/game/GameProvider";
@@ -107,7 +108,17 @@ export function InboxScreen() {
         }
       >
         <p className="text-sm text-mist">
-          {buyer?.name ?? "O clube interessado"} paga <b className="text-snow">{formatMoney(sellMsg?.offer?.fee ?? 0)}</b>.{" "}
+          {buyer ? (
+            <>
+              <b className="text-snow">{buyer.name}</b>{" "}
+              <span className="inline-flex items-center gap-1 align-baseline">
+                (<Flag code={buyer.league} /> {divisionFullName(buyer.div)})
+              </span>
+            </>
+          ) : (
+            "O clube interessado"
+          )}{" "}
+          paga <b className="text-snow">{formatMoney(sellMsg?.offer?.fee ?? 0)}</b>.{" "}
           {sellPlayer?.name} deixa o elenco imediatamente e a escalação é ajustada automaticamente. A venda não pode ser desfeita.
         </p>
       </Modal>

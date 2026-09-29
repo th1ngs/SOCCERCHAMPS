@@ -1,7 +1,8 @@
 "use client";
 
-import { user } from "@/game";
+import { divisionFullName, LEAGUES, user } from "@/game";
 import { Crest } from "@/components/ui/Crest";
+import { Flag } from "@/components/ui/Flag";
 import { useWorld } from "@/components/game/GameProvider";
 import { SeasonFinancesCard } from "./SeasonFinancesCard";
 import { StructureCard } from "./StructureCard";
@@ -20,8 +21,17 @@ export function ClubScreen() {
         <Crest club={u} size={56} className="shrink-0" />
         <div className="min-w-0">
           <h1 className="truncate font-display text-3xl font-extrabold uppercase italic leading-none tracking-tight sm:text-4xl">{u.name}</h1>
-          <p className="mt-1 text-sm text-mist">
-            “{u.nickname}” • {u.city}-{u.uf} • {u.stadium} • reputação {Math.round(u.rep)}
+          <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-sm text-mist">
+            <span>“{u.nickname}”</span>
+            <span aria-hidden>•</span>
+            <span className="inline-flex items-center gap-1.5">
+              <Flag code={u.league} decorative /> {u.city}-{u.uf}, {LEAGUES[u.league].name}
+            </span>
+            <span aria-hidden>•</span>
+            <span>{divisionFullName(u.div)}</span>
+          </p>
+          <p className="mt-0.5 text-sm text-mist">
+            {u.stadium} • reputação {Math.round(u.rep)}
           </p>
         </div>
       </div>

@@ -3,6 +3,8 @@
 import { ArrowUpFromLine, UserMinus } from "lucide-react";
 import type { Player } from "@/game/types";
 import { Button } from "@/components/ui/Button";
+import { LEAGUES } from "@/game";
+import { Flag } from "@/components/ui/Flag";
 import { OvrBadge, PosBadge, Stars } from "@/components/ui/primitives";
 import { TraitBadges } from "@/components/player/TraitBadges";
 import { potentialStars } from "@/components/player/playerInfo";
@@ -30,7 +32,10 @@ export function YouthCard({
           <button type="button" onClick={onOpen} className="max-w-full truncate rounded text-left font-semibold hover:text-gold-300 focus-visible:outline-2 focus-visible:outline-gold-400">
             {p.name}
           </button>
-          <p className="text-xs text-mist">{p.age} anos</p>
+          <p className="flex items-center gap-1.5 text-xs text-mist">
+            <Flag code={p.nat} decorative />
+            {LEAGUES[p.nat].country} • {p.age} anos
+          </p>
         </div>
       </header>
       <div className="grid grid-cols-2 gap-2 rounded-xl bg-ink-900/60 p-3 ring-1 ring-inset ring-white/6">
