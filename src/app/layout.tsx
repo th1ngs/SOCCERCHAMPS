@@ -29,7 +29,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="pt-BR" className={`${body.variable} ${head.variable} h-full antialiased`}>
-      <body className="min-h-full font-sans text-[15px] leading-relaxed">
+      <body className="min-h-full font-sans text-base leading-relaxed">
         <Providers>{children}</Providers>
       </body>
     </html>

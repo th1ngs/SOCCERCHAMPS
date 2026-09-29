@@ -12,7 +12,7 @@ export function SortableTh({ k, label, sort, onSort, align = "left" }: { k: Sort
         type="button"
         onClick={() => onSort(k)}
         className={cn(
-          "inline-flex h-9 items-center gap-1 rounded-md px-1.5 font-display text-[12px] font-bold uppercase tracking-wider transition-colors focus-visible:outline-2 focus-visible:outline-gold-400",
+          "inline-flex h-9 items-center gap-1 rounded-md px-1.5 font-display text-xs font-bold uppercase tracking-wider transition-colors focus-visible:outline-2 focus-visible:outline-gold-400",
           on ? "text-gold-400" : "text-mist hover:text-snow",
         )}
       >

@@ -90,7 +90,7 @@ function LoanOutBody({ player: p, offers, onConfirm, onClose }: { player: Player
                 </span>
                 <span className="flex shrink-0 flex-col items-end gap-1">
                   <Badge tone={o.role === "titular" ? "green" : "neutral"}>{o.role === "titular" ? "Titular" : "Rotação"}</Badge>
-                  <span className="text-[11px] text-mist tabular" title={`Salário semanal pago pelo ${o.club.short}: ${formatMoney(wage)}`}>
+                  <span className="text-xs text-mist tabular" title={`Salário semanal pago pelo ${o.club.short}: ${formatMoney(wage)}`}>
                     Paga {pct(o.wageShare)} do salário
                   </span>
                 </span>

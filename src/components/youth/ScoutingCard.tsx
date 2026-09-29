@@ -85,7 +85,7 @@ export function ScoutingCard({
               key={l}
               className={cn("rounded-md px-1 py-1.5 ring-1 ring-inset", l === s.level ? "bg-info-500/20 ring-info-400/60" : "ring-white/6")}
             >
-              <div className="text-[10px] uppercase tracking-wide text-mist">Nív. {l}</div>
+              <div className="text-xs uppercase tracking-wide text-mist">Nív. {l}</div>
               <div className="font-display text-base font-extrabold tabular">±{Math.round(initialRangeWidth(academy, l) / 2)}</div>
             </div>
           ))}

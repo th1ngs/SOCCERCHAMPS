@@ -97,7 +97,7 @@ function BracketMatch({ m }: { m: Match }) {
         <Crest club={c} size={16} className="shrink-0" />
         <Flag code={c.league} />
         <span className={cn("min-w-0 flex-1 truncate text-sm", win === i && "font-bold text-snow")}>{c.name}</span>
-        {m.pens && <span className="text-[11px] text-mist tabular">({m.pens[i]})</span>}
+        {m.pens && <span className="text-xs text-mist tabular">({m.pens[i]})</span>}
         <span className="w-5 text-right font-display font-extrabold tabular">{m.played ? score : ""}</span>
       </div>
     );

@@ -25,10 +25,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {items.map((t) => {
           const I = Icon[t.tone];
           return (
-            <div key={t.id} className={cn("flex max-w-md items-center gap-2 rounded-xl bg-snow px-4 py-2.5 text-sm font-semibold text-ink-950 shadow-xl animate-pop")}>
-              <I className={cn("size-4 shrink-0", t.tone === "good" ? "text-pitch-500" : t.tone === "bad" ? "text-danger-500" : "text-info-500")} aria-hidden />
+            <button
+              key={t.id}
+              type="button"
+              title="Toque para fechar"
+              onClick={() => setItems((xs) => xs.filter((x) => x.id !== t.id))}
+              className={cn("pointer-events-auto flex max-w-md items-center gap-2 rounded-xl bg-snow px-4 py-3 text-left text-[15px] font-semibold text-ink-950 shadow-xl animate-pop")}
+            >
+              <I className={cn("size-5 shrink-0", t.tone === "good" ? "text-pitch-500" : t.tone === "bad" ? "text-danger-500" : "text-info-500")} aria-hidden />
               {t.text}
-            </div>
+            </button>
           );
         })}
       </div>

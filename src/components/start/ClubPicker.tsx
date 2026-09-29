@@ -95,7 +95,7 @@ export function DivisionTabs({ league, value, onChange, panelId }: { league: Lea
               on ? "bg-gold-400 text-ink-950 shadow-sm" : "text-mist hover:bg-white/6 hover:text-snow",
             )}
           >
-            <span className={cn("grid size-5 place-items-center rounded text-[11px]", on ? "bg-ink-950/15" : "bg-white/8")}>{i + 1}</span>
+            <span className={cn("grid size-5 place-items-center rounded text-xs", on ? "bg-ink-950/15" : "bg-white/8")}>{i + 1}</span>
             {divisionName(d)}
           </button>
         );

@@ -97,7 +97,7 @@ function Reveal({ views, onClose }: { views: YouthView[]; onClose: () => void })
                 </div>
               ) : (
                 <div className="flex items-center gap-2.5 text-mist" aria-hidden>
-                  <span className="grid h-5 w-9 place-items-center rounded-md bg-white/8 font-display text-[11px] font-bold">?</span>
+                  <span className="grid h-5 w-9 place-items-center rounded-md bg-white/8 font-display text-xs font-bold">?</span>
                   <span className="h-3 w-32 rounded bg-white/8" />
                   <span className="ml-auto h-6 w-8 rounded-lg bg-white/8" />
                 </div>

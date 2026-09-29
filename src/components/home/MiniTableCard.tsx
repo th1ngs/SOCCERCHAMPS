@@ -36,7 +36,7 @@ export function MiniTableCard() {
     >
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-[11px] font-bold uppercase tracking-wider text-mist">
+          <tr className="text-xs font-bold uppercase tracking-wider text-mist">
             <th scope="col" className="w-7 pb-1 text-right font-bold">#</th>
             <th scope="col" className="pb-1 pl-3 text-left font-bold">Clube</th>
             <th scope="col" className="w-8 pb-1 text-right font-bold" title="Jogos">J</th>

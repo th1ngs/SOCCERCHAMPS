@@ -15,10 +15,10 @@ export function PotentialBar({ range, ovr, className }: { range: PotRange; ovr?:
   return (
     <div className={cn("min-w-0", className)}>
       <div className="mb-1 flex items-baseline justify-between gap-2">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-mist">Potencial</span>
+        <span className="text-xs font-bold uppercase tracking-wider text-mist">Potencial</span>
         <span className="flex items-baseline gap-1.5">
           <span className={cn("font-display text-lg font-extrabold leading-none tabular", high ? "text-gold-300" : "text-snow")}>{rangeLabel(range)}</span>
-          <span className={cn("text-[10px] font-bold uppercase tracking-wide", exact ? "text-pitch-400" : "text-mist")}>{exact ? "exato" : "faixa"}</span>
+          <span className={cn("text-xs font-bold uppercase tracking-wide", exact ? "text-pitch-400" : "text-mist")}>{exact ? "exato" : "faixa"}</span>
         </span>
       </div>
       <div
@@ -47,7 +47,7 @@ export function PotentialBar({ range, ovr, className }: { range: PotRange; ovr?:
           />
         )}
       </div>
-      <div aria-hidden className="mt-0.5 flex justify-between text-[10px] text-mist/70 tabular">
+      <div aria-hidden className="mt-0.5 flex justify-between text-xs text-mist/70 tabular">
         <span>{POT_SCALE_MIN}</span>
         <span>{POT_SCALE_MAX}</span>
       </div>

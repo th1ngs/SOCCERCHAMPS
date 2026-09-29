@@ -16,6 +16,7 @@ export function Segmented<T extends string>({
   onChange,
   size = "md",
   className,
+  itemClassName,
   ariaLabel,
 }: {
   options: SegmentedOption<T>[];
@@ -23,6 +24,8 @@ export function Segmented<T extends string>({
   onChange: (v: T) => void;
   size?: "sm" | "md";
   className?: string;
+  /** Classes extras de cada opção (ex.: altura maior em grade no celular). */
+  itemClassName?: string;
   ariaLabel?: string;
 }) {
   return (
@@ -38,9 +41,10 @@ export function Segmented<T extends string>({
             disabled={o.disabled}
             onClick={() => onChange(o.value)}
             className={cn(
-              "rounded-lg font-display font-bold uppercase tracking-wide transition-colors focus-visible:outline-2 focus-visible:outline-gold-400 disabled:opacity-40",
-              size === "sm" ? "h-7 px-2.5 text-xs" : "h-9 px-3.5 text-sm",
+              "flex-1 whitespace-nowrap rounded-lg font-display font-bold uppercase tracking-wide transition-colors focus-visible:outline-2 focus-visible:outline-gold-400 disabled:opacity-40",
+              size === "sm" ? "h-9 px-3 text-xs" : "h-10 px-3.5 text-sm",
               on ? "bg-gold-400 text-ink-950 shadow-sm" : "text-mist hover:bg-white/6 hover:text-snow",
+              itemClassName,
             )}
           >
             {o.label}

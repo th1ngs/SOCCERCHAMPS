@@ -12,7 +12,7 @@
   --color-ink-700: #13273f;
   --color-ink-600: #1b3350;
   --color-ink-500: #2a4668;
-  --color-mist: #93a8c4;
+  --color-mist: #a6b8d1;
   --color-snow: #eef3fa;
 
   --color-gold-300: #ffe27a;
@@ -30,6 +30,12 @@
   --color-warn-400: #ffb454;
   --color-info-400: #5cb4ff;
   --color-info-500: #2f8cf0;
+
+  /* Escala de texto um pouco maior que a padrão: leitura fácil no celular. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.15rem;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.35rem;
 
   --radius-card: 16px;
   --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 12px 30px -12px rgb(0 0 0 / 0.6);

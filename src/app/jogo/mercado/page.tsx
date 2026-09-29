@@ -31,10 +31,10 @@ function hashTab(): Tab {
 
 function TabLabel({ icon, text, count }: { icon: ReactNode; text: string; count?: number }) {
   return (
-    <span className="inline-flex items-center gap-1.5 [&_svg]:size-4">
+    <span className="inline-flex items-center gap-1.5 max-sm:flex-col max-sm:gap-0.5 max-sm:text-xs [&_svg]:size-4 max-sm:[&_svg]:size-5">
       {icon}
       {text}
-      {count ? <span className="rounded-md bg-ink-950/40 px-1.5 text-[11px] tabular">{count}</span> : null}
+      {count ? <span className="rounded-md bg-ink-950/40 px-1.5 text-xs tabular max-sm:absolute max-sm:right-1 max-sm:top-1">{count}</span> : null}
     </span>
   );
 }
@@ -106,7 +106,14 @@ export default function MercadoPage() {
       )}
 
       <nav aria-label="Seções da Central de transferências" className="mb-4">
-        <Segmented ariaLabel="Seção" options={options} value={tab} onChange={setTab} className="max-w-full" />
+        <Segmented
+          ariaLabel="Seção"
+          options={options}
+          value={tab}
+          onChange={setTab}
+          className="max-w-full max-sm:grid max-sm:w-full max-sm:grid-cols-3"
+          itemClassName="relative max-sm:h-16"
+        />
       </nav>
 
       {tab === "buscar" && (

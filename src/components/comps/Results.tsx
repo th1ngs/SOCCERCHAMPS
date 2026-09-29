@@ -35,12 +35,12 @@ export function ResultRow({ m, highlight, flags }: { m: Match; highlight?: strin
         <Crest club={h} size={18} className="shrink-0" />
       </span>
       <span className="flex min-w-14 flex-col items-center leading-none">
-        {derby && <span className="mb-1 font-display text-[10px] font-bold uppercase tracking-wider text-warn-400">Clássico</span>}
+        {derby && <span className="mb-1 font-display text-xs font-bold uppercase tracking-wider text-warn-400">Clássico</span>}
         <span className="rounded-md bg-ink-950/70 px-2 py-1 font-display text-base font-extrabold tabular ring-1 ring-inset ring-white/8">
           {m.played ? `${m.hs} – ${m.as}` : "x"}
         </span>
-        {m.pens && <span className="mt-1 text-[11px] text-mist tabular">pên. {m.pens[0]}–{m.pens[1]}</span>}
-        {!m.played && m.neutral && <span className="mt-1 text-[10px] uppercase tracking-wider text-mist">neutro</span>}
+        {m.pens && <span className="mt-1 text-xs text-mist tabular">pên. {m.pens[0]}–{m.pens[1]}</span>}
+        {!m.played && m.neutral && <span className="mt-1 text-xs uppercase tracking-wider text-mist">neutro</span>}
       </span>
       <span className={cn("flex min-w-0 items-center gap-2", win === 1 ? "font-bold text-snow" : "text-snow/85")}>
         <Crest club={a} size={18} className="shrink-0" />

@@ -21,15 +21,15 @@ export function PitchSlot({
 }) {
   const style = { left: `${slot.y}%`, top: `${100 - slot.x - 2}%` };
   const base =
-    "absolute flex w-[60px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5 rounded-xl p-1 text-center transition-transform focus-visible:outline-2 focus-visible:outline-gold-400 hover:scale-105 sm:w-[76px]";
+    "absolute flex w-[68px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5 rounded-xl p-1 text-center transition-transform focus-visible:outline-2 focus-visible:outline-gold-400 hover:scale-105 sm:w-[84px]";
 
   if (!p) {
     return (
       <button type="button" onClick={onPick} style={style} className={base} aria-label={`Vaga aberta (${slot.pos}): escolher jogador`}>
-        <span className="grid size-9 place-items-center rounded-full border-2 border-dashed border-white/70 bg-black/20 sm:size-10">
+        <span className="grid size-9 place-items-center rounded-full border-2 border-dashed border-white/70 bg-black/20 sm:size-11">
           <Plus className="size-4" aria-hidden />
         </span>
-        <span className="rounded bg-black/45 px-1 text-[10px] font-bold uppercase sm:text-[11px]">{slot.pos} • vaga</span>
+        <span className="rounded bg-black/45 px-1 text-[11px] font-bold uppercase sm:text-xs">{slot.pos} • vaga</span>
       </button>
     );
   }
@@ -42,13 +42,13 @@ export function PitchSlot({
     <button type="button" onClick={onPick} style={style} className={base} aria-label={label} title={label}>
       <span className="relative">
         <span
-          className="grid size-9 place-items-center rounded-full border-2 font-display text-base font-extrabold shadow-[0_3px_8px_rgb(0_0_0/.45)] sm:size-10 sm:text-lg"
+          className="grid size-10 place-items-center rounded-full border-2 font-display text-lg font-extrabold shadow-[0_3px_8px_rgb(0_0_0/.45)] sm:size-11 sm:text-xl"
           style={{ background: colors[0], borderColor: colors[1], color: colors[1], textShadow: "0 1px 2px rgb(0 0 0 / .45)" }}
         >
           {p.num || "–"}
         </span>
         {captain && (
-          <span className="absolute -right-1.5 -top-1 grid size-4 place-items-center rounded-full bg-gold-400 font-display text-[10px] font-extrabold text-ink-950 ring-2 ring-ink-900" aria-hidden>
+          <span className="absolute -right-1.5 -top-1 grid size-[18px] place-items-center rounded-full bg-gold-400 font-display text-[11px] font-extrabold text-ink-950 ring-2 ring-ink-900" aria-hidden>
             C
           </span>
         )}
@@ -61,11 +61,11 @@ export function PitchSlot({
           </span>
         )}
       </span>
-      <span className="w-full truncate rounded bg-black/55 px-1 text-[10px] font-semibold leading-4 sm:text-xs">{surname(p.name)}</span>
-      <span className={cn("text-[10px] font-bold leading-3 tabular drop-shadow sm:text-[11px]", tone === "bad" ? "text-danger-400" : tone === "warn" ? "text-warn-400" : "text-snow")}>
+      <span className="w-full truncate rounded bg-black/55 px-1 text-xs font-semibold leading-4 sm:text-[13px]">{surname(p.name)}</span>
+      <span className={cn("text-xs font-bold leading-3.5 tabular drop-shadow sm:text-[13px]", tone === "bad" ? "text-danger-400" : tone === "warn" ? "text-warn-400" : "text-snow")}>
         {slot.pos} • {Math.round(p.ovr)}
       </span>
-      <span className="h-1 w-9 overflow-hidden rounded-full bg-black/40" aria-hidden>
+      <span className="h-1.5 w-10 overflow-hidden rounded-full bg-black/40" aria-hidden>
         <span className={cn("block h-full rounded-full", p.fitness < 55 ? "bg-danger-500" : p.fitness < 75 ? "bg-warn-400" : "bg-pitch-400")} style={{ width: `${Math.max(0, Math.min(100, p.fitness))}%` }} />
       </span>
     </button>

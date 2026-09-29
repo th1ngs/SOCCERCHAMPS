@@ -14,7 +14,7 @@ export function PotentialBar({ range, ovr, className }: { range: PotentialRange;
   return (
     <div className={cn("w-full min-w-0", className)}>
       <div className="mb-1 flex items-baseline justify-between gap-2">
-        <span className="font-display text-[11px] font-bold uppercase tracking-widest text-mist">Potencial</span>
+        <span className="font-display text-xs font-bold uppercase tracking-widest text-mist">Potencial</span>
         <span className="font-display text-lg font-extrabold tabular text-gold-300">{exact ? hi : `${lo}–${hi}`}</span>
       </div>
       <div role="img" aria-label={`${label}; overall atual ${Math.round(ovr)}`} className="relative h-2.5 rounded-full bg-white/8">
@@ -29,7 +29,7 @@ export function PotentialBar({ range, ovr, className }: { range: PotentialRange;
           />
         )}
       </div>
-      <p className="mt-1 text-[11px] text-mist">{exact ? "Potencial conhecido." : "Estimativa dos olheiros: um relatório completo revela o número exato."}</p>
+      <p className="mt-1 text-xs text-mist">{exact ? "Potencial conhecido." : "Estimativa dos olheiros: um relatório completo revela o número exato."}</p>
     </div>
   );
 }

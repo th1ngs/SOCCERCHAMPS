@@ -17,7 +17,7 @@ function Pips({ value, max, tone = "bg-pitch-400" }: { value: number; max: numbe
 function Tile({ icon: Icon, label, children, sub, className }: { icon: LucideIcon; label: string; children: ReactNode; sub?: ReactNode; className?: string }) {
   return (
     <div className={cn("min-w-0 rounded-xl bg-ink-900/55 p-3 ring-1 ring-inset ring-white/6", className)}>
-      <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-mist">
+      <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-mist">
         <Icon className="size-3.5 shrink-0" aria-hidden />
         <span className="truncate">{label}</span>
       </p>

@@ -60,7 +60,7 @@ export function TrialCard({ homeLeague, region, onRegion, pos, onPos, cost, bloc
                 <Flag code={r} decorative className="h-4 rounded-[2px] ring-1 ring-black/25" />
                 <span className="min-w-0 flex-1 leading-tight">
                   <span className="block truncate font-semibold">{home ? "Nacional" : countryName(r)}</span>
-                  <span className="block text-[10px] uppercase tracking-wide opacity-80">{home ? countryName(r) : "custo ×1,8"}</span>
+                  <span className="block text-xs uppercase tracking-wide opacity-80">{home ? countryName(r) : "custo ×1,8"}</span>
                 </span>
               </button>
             );

@@ -31,7 +31,7 @@ export function PlayerHeader({
       <div className="flex items-start gap-4">
         <div className="flex flex-col items-center gap-1">
           <OvrBadge value={p.ovr} size="lg" />
-          <span className="font-display text-[11px] font-bold uppercase tracking-widest text-mist">OVR</span>
+          <span className="font-display text-xs font-bold uppercase tracking-widest text-mist">OVR</span>
         </div>
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">

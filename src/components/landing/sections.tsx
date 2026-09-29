@@ -90,7 +90,7 @@ export function FeatureBento() {
           {[["62%", "posse"], ["14", "finalizações"], ["2.31", "xG"]].map(([v, l]) => (
             <div key={l} className="rounded-xl bg-ink-950/50 px-2 py-3 ring-1 ring-inset ring-white/6">
               <div className="font-display text-3xl font-extrabold text-snow tabular">{v}</div>
-              <div className="text-[11px] uppercase tracking-[0.14em] text-mist">{l}</div>
+              <div className="text-xs uppercase tracking-[0.14em] text-mist">{l}</div>
             </div>
           ))}
         </div>
@@ -122,7 +122,7 @@ export function LeaguesShowcase() {
           <ol className="mt-4 flex flex-col gap-1.5">
             {l.divisions.map((d, i) => (
               <li key={d} className="flex items-center gap-2 text-sm">
-                <span className={cn("grid size-5 place-items-center rounded font-display text-[11px] font-bold", i === 0 ? "bg-gold-400 text-ink-950" : "bg-white/8 text-mist")}>{i + 1}</span>
+                <span className={cn("grid size-5 place-items-center rounded font-display text-xs font-bold", i === 0 ? "bg-gold-400 text-ink-950" : "bg-white/8 text-mist")}>{i + 1}</span>
                 <span className={i === 0 ? "font-semibold text-snow" : "text-mist"}>{d}</span>
                 <span className="ml-auto text-xs text-mist/70">16 clubes</span>
               </li>

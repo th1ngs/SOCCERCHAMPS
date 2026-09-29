@@ -10,7 +10,7 @@ import { cn } from "@/lib/cn";
 import { ClubLabel } from "./ClubLabel";
 import { KIND_LABEL, historyData } from "./transferDerive";
 
-const TH = "px-2 py-2.5 font-display text-[12px] font-bold uppercase tracking-wider text-mist";
+const TH = "px-2 py-2.5 font-display text-xs font-bold uppercase tracking-wider text-mist";
 
 /** Histórico de transferências do clube do usuário por temporada, com o saldo no mercado. */
 export function HistoryTab({ onOpen }: { onOpen: (pid: string) => void }) {
@@ -33,15 +33,15 @@ export function HistoryTab({ onOpen }: { onOpen: (pid: string) => void }) {
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <div className="rounded-xl bg-ink-800 px-4 py-3 shadow-card ring-1 ring-inset ring-white/8">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-mist">Gastos em compras</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-mist">Gastos em compras</p>
           <p className="font-display text-xl font-extrabold tabular text-danger-400">{formatMoney(data.spent)}</p>
         </div>
         <div className="rounded-xl bg-ink-800 px-4 py-3 shadow-card ring-1 ring-inset ring-white/8">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-mist">Receitas com vendas</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-mist">Receitas com vendas</p>
           <p className="font-display text-xl font-extrabold tabular text-pitch-400">{formatMoney(data.received)}</p>
         </div>
         <div className={cn("rounded-xl px-4 py-3 shadow-card ring-1 ring-inset", net > 0 ? "bg-danger-500/10 ring-danger-500/30" : "bg-pitch-500/10 ring-pitch-500/30")}>
-          <p className="text-[11px] font-bold uppercase tracking-wider text-mist">Gasto líquido</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-mist">Gasto líquido</p>
           <p className="font-display text-xl font-extrabold tabular">{net > 0 ? formatMoney(net) : net < 0 ? `Lucro de ${formatMoney(-net)}` : "Zerado"}</p>
           <p className="text-xs text-mist">{net > 0 ? "Comprou mais do que vendeu." : net < 0 ? "Vendeu mais do que comprou." : "Compras e vendas se equilibram."}</p>
         </div>

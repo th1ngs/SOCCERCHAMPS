@@ -72,7 +72,11 @@ export function Modal({ open, onClose, title, dismissible = true, size = "md", f
           </div>
         )}
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">{children}</div>
-        {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-white/8 bg-ink-900/60 px-5 py-3 sm:px-6">{footer}</div>}
+        {footer && (
+          <div className="flex flex-wrap justify-end gap-2 border-t border-white/8 bg-ink-900/60 px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-6 sm:pb-3 max-sm:[&>*]:flex-1">
+            {footer}
+          </div>
+        )}
       </div>
     </div>,
     document.body,

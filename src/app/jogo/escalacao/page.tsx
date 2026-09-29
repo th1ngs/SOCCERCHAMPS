@@ -107,7 +107,7 @@ export default function EscalacaoPage() {
           <Pitch world={world} club={u} onPick={(index) => setPicking({ kind: "slot", index })} />
           <ul className="mx-auto mt-3 flex max-w-[520px] flex-wrap gap-x-4 gap-y-1 text-xs text-mist" aria-label="Legenda">
             <li className="flex items-center gap-1.5">
-              <span className="grid size-4 place-items-center rounded-full bg-gold-400 font-display text-[10px] font-extrabold text-ink-950">C</span> Capitão
+              <span className="grid size-4 place-items-center rounded-full bg-gold-400 font-display text-xs font-extrabold text-ink-950">C</span> Capitão
             </li>
             <li className="flex items-center gap-1.5">
               <span className="size-3 rounded-full bg-warn-400" /> Fora de posição

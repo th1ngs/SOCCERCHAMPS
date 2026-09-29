@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { endWeek, simulateWeek, userMatch } from "@/game";
+import { competitionName, endWeek, simulateWeek, userMatch, weekLabel } from "@/game";
 import { useToast } from "@/components/ui/Toast";
 import { useWorld } from "./GameProvider";
 
@@ -20,6 +20,18 @@ export function useFlow() {
         : userMatch(w)
           ? "Ir para o jogo"
           : "Avançar semana";
+
+  // Contexto curto do próximo passo, mostrado junto do botão principal.
+  const next = userMatch(w);
+  const hint = w.fired
+    ? "Você foi demitido"
+    : w.pendingSeason
+      ? "Fim da temporada"
+      : w.week === 0
+        ? `Pré-temporada ${w.season}`
+        : next
+          ? `${next.h === w.userClub ? "Casa" : "Fora"} • ${w.clubs[next.h === w.userClub ? next.a : next.h].name} • ${competitionName(next.comp)}`
+          : `${weekLabel(w)} • sem jogo do seu time`;
 
   const finishWeek = useCallback(() => {
     const before = w.inbox.length ? w.inbox[0].id : 0;
@@ -50,5 +62,5 @@ export function useFlow() {
     setOverlay({ kind: "weekResults" });
   }, [w, commit, setOverlay, toast]);
 
-  return { label, advance, finishWeek };
+  return { label, hint, advance, finishWeek };
 }

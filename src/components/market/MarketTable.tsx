@@ -9,7 +9,7 @@ import type { MarketRow } from "./marketFilter";
 import { rangeText } from "./transferDerive";
 import { WatchButton } from "./WatchButton";
 
-const TH = "px-2 py-2.5 font-display text-[12px] font-bold uppercase tracking-wider text-mist";
+const TH = "px-2 py-2.5 font-display text-xs font-bold uppercase tracking-wider text-mist";
 
 export function StarMark() {
   return (

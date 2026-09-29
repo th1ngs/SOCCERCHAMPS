@@ -12,7 +12,7 @@ function Tile({ icon, label, value, hint, tone }: { icon: ReactNode; label: stri
         tone === "good" ? "ring-pitch-500/35" : tone === "warn" ? "ring-warn-400/35" : tone === "bad" ? "ring-danger-500/40" : tone === "gold" ? "ring-gold-400/50" : "ring-white/8",
       )}
     >
-      <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-mist">
+      <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-mist">
         <span className="[&_svg]:size-3.5" aria-hidden>
           {icon}
         </span>

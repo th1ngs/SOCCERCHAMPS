@@ -111,7 +111,7 @@ export function LiveTicker() {
 
         {/* Posse e narração */}
         <div className="px-4 pb-4 pt-3 sm:px-5">
-          <div className="mb-3 flex items-center gap-2 text-[11px] font-bold text-mist tabular">
+          <div className="mb-3 flex items-center gap-2 text-xs font-bold text-mist tabular">
             <span>{possession}%</span>
             <span className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-danger-500/70">
               <span className="absolute inset-y-0 left-0 rounded-full bg-info-400 transition-[width] duration-700" style={{ width: `${possession}%` }} />

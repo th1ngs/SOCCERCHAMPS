@@ -10,6 +10,7 @@ import { CompetitionsCard } from "@/components/home/CompetitionsCard";
 import { SquadCard } from "@/components/home/SquadCard";
 import { FinanceCard } from "@/components/home/FinanceCard";
 import { MessagesCard } from "@/components/home/MessagesCard";
+import { ChecklistCard } from "@/components/home/ChecklistCard";
 
 /** Início: painel da semana. */
 export default function InicioPage() {
@@ -19,6 +20,7 @@ export default function InicioPage() {
       <PageHeader title="Início" subtitle={`Temporada ${w.season} • ${weekLabel(w)} • ${w.manager.name}`} />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <NextMatchCard />
+        <ChecklistCard />
         <BoardCard />
         <MiniTableCard />
         <CompetitionsCard />

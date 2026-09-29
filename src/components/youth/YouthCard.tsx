@@ -61,7 +61,7 @@ export function YouthCard({ view: v, offerClub, scoutCost, promoteBlock, loanBlo
         </div>
         <div className="flex flex-col items-center gap-0.5">
           <OvrBadge value={p.ovr} />
-          <span className="text-[10px] uppercase tracking-wider text-mist">atual</span>
+          <span className="text-xs uppercase tracking-wider text-mist">atual</span>
         </div>
       </header>
 
@@ -152,7 +152,7 @@ export function YouthCard({ view: v, offerClub, scoutCost, promoteBlock, loanBlo
         </Button>
       </div>
       {notes.length > 0 && (
-        <ul className="-mt-1 space-y-0.5 text-[11px] text-mist">
+        <ul className="-mt-1 space-y-0.5 text-xs text-mist">
           {notes.map((n) => (
             <li key={n}>{n}</li>
           ))}

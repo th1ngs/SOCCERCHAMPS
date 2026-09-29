@@ -31,7 +31,7 @@ export function Card({
 }
 
 export function SectionTitle({ children, className }: { children: ReactNode; className?: string }) {
-  return <h3 className={cn("font-display text-[13px] font-bold uppercase tracking-[0.14em] text-gold-400", className)}>{children}</h3>;
+  return <h3 className={cn("font-display text-sm font-bold uppercase tracking-[0.12em] text-gold-400", className)}>{children}</h3>;
 }
 
 export function PageHeader({ title, subtitle, actions }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) {
@@ -39,7 +39,7 @@ export function PageHeader({ title, subtitle, actions }: { title: ReactNode; sub
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div className="min-w-0">
         <h1 className="font-display text-3xl font-extrabold uppercase italic leading-none tracking-tight text-balance sm:text-4xl">{title}</h1>
-        {subtitle && <p className="mt-1.5 max-w-prose text-sm text-mist">{subtitle}</p>}
+        {subtitle && <p className="mt-2 max-w-prose text-[15px] text-mist sm:text-base">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>
@@ -59,7 +59,7 @@ export type BadgeTone = keyof typeof badgeTones;
 
 export function Badge({ tone = "neutral", className, children, title }: { tone?: BadgeTone; className?: string; children: ReactNode; title?: string }) {
   return (
-    <span title={title} className={cn("inline-flex h-5 items-center gap-1 rounded-md px-1.5 text-[11px] font-bold uppercase tracking-wide", badgeTones[tone], className)}>
+    <span title={title} className={cn("inline-flex h-6 items-center gap-1 rounded-md px-2 text-xs font-bold uppercase tracking-wide", badgeTones[tone], className)}>
       {children}
     </span>
   );
@@ -75,7 +75,7 @@ const posTone: Record<string, string> = {
 };
 export function PosBadge({ pos, className }: { pos: string; className?: string }) {
   return (
-    <span className={cn("inline-flex h-5 w-9 shrink-0 items-center justify-center rounded-md font-display text-[11px] font-bold tracking-wide", posTone[pos], className)}>
+    <span className={cn("inline-flex h-6 w-10 shrink-0 items-center justify-center rounded-md font-display text-xs font-bold tracking-wide", posTone[pos], className)}>
       {pos}
     </span>
   );
@@ -85,7 +85,7 @@ export function OvrBadge({ value, size = "md", className }: { value: number; siz
   const v = Math.round(value);
   const tone =
     v >= 80 ? "bg-gold-400 text-ink-950" : v >= 72 ? "bg-info-400 text-ink-950" : v >= 64 ? "bg-pitch-400 text-ink-950" : v >= 56 ? "bg-[#cfd8a0] text-ink-950" : "bg-mist text-ink-950";
-  const sz = size === "lg" ? "h-12 min-w-14 text-2xl rounded-xl" : size === "sm" ? "h-5 min-w-7 text-[11px] rounded-md" : "h-6 min-w-8 text-[13px] rounded-lg";
+  const sz = size === "lg" ? "h-12 min-w-14 text-2xl rounded-xl" : size === "sm" ? "h-6 min-w-8 text-xs rounded-md" : "h-7 min-w-9 text-[15px] rounded-lg";
   return <span className={cn("inline-flex shrink-0 items-center justify-center px-1 font-display font-extrabold tabular", tone, sz, className)}>{v}</span>;
 }
 
@@ -106,7 +106,7 @@ export function Meter({ value, className, label }: { value: number; className?: 
   const v = Math.max(0, Math.min(100, value));
   const color = v < 55 ? "bg-danger-500" : v < 75 ? "bg-warn-400" : "bg-pitch-400";
   return (
-    <span role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(v)} aria-label={label} className={cn("inline-block h-1.5 w-16 overflow-hidden rounded-full bg-white/10 align-middle", className)}>
+    <span role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(v)} aria-label={label} className={cn("inline-block h-2 w-16 overflow-hidden rounded-full bg-white/10 align-middle", className)}>
       <span className={cn("block h-full rounded-full", color)} style={{ width: `${v}%` }} />
     </span>
   );
@@ -118,7 +118,7 @@ export function FormChips({ form }: { form: string[] }) {
   return (
     <span className="inline-flex gap-1">
       {form.map((r, i) => (
-        <span key={i} className={cn("grid size-5 place-items-center rounded font-display text-[11px] font-bold text-white", tone[r])}>{r}</span>
+        <span key={i} className={cn("grid size-6 place-items-center rounded font-display text-xs font-bold text-white", tone[r])}>{r}</span>
       ))}
     </span>
   );

@@ -41,12 +41,12 @@ export function SquadTable({ rows, sort, onSort, onOpen }: { rows: SquadRow[]; s
             {th("goals", "J / G / A", "right")}
             {th("value", "Valor", "right")}
             {th("contract", "Contrato", "right")}
-            <th scope="col" className="px-2 text-left font-display text-[12px] font-bold uppercase tracking-wider text-mist">
+            <th scope="col" className="px-2 text-left font-display text-xs font-bold uppercase tracking-wider text-mist">
               <abbr title="Papel prometido na contratação ou renovação" className="no-underline">
                 Papel
               </abbr>
             </th>
-            <th scope="col" className="px-2 text-left font-display text-[12px] font-bold uppercase tracking-wider text-mist">
+            <th scope="col" className="px-2 text-left font-display text-xs font-bold uppercase tracking-wider text-mist">
               Situação
             </th>
           </tr>

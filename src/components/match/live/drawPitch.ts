@@ -83,8 +83,9 @@ export function drawLivePitch(c: CanvasRenderingContext2D, sc: PitchScale, sim: 
     }
   });
 
-  const r = Math.max(6, W / 70);
-  c.font = `700 ${Math.round(r * 1.05)}px ${displayFont()}`;
+  // Raio mínimo generoso: no celular o campo é estreito e os números precisam ser legíveis.
+  const r = Math.max(9.5, Math.min(W / 58, 16));
+  c.font = `700 ${Math.round(r * 1.1)}px ${displayFont()}`;
   c.textAlign = "center";
   c.textBaseline = "middle";
   for (const p of placed) {
