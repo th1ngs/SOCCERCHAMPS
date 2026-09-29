@@ -13,7 +13,7 @@ import {
 import type { ReactNode } from "react";
 import { buttonClasses } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
-import { Flag } from "./Flag";
+import { Flag } from "@/components/ui/Flag";
 import { LEAGUE_SHOWCASE, STATS, STEPS } from "./content";
 
 /* ---------- Estrutura comum ---------- */

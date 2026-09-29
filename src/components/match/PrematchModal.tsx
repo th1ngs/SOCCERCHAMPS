@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Crest } from "@/components/ui/Crest";
 import { Alert, Badge, OvrBadge, PosBadge, SectionTitle } from "@/components/ui/primitives";
 import { StatBar } from "./StatBars";
-import { compName, findMatch, settleMatch, venueName } from "./matchUtils";
+import { compName, findMatch, settleMatch, simOptions, venueName } from "./matchUtils";
 
 function LineupList({ w, club }: { w: World; club: Club }) {
   const slots = FORMATIONS[club.formation];
@@ -90,7 +90,7 @@ export function PrematchModal({ matchId }: { matchId: string }) {
   const hc = w.clubs[m.h], ac = w.clubs[m.a];
 
   const quick = () => {
-    const sim = new Sim(w, m.h, m.a, { knockout: m.comp === "CUP", neutral: !!m.neutral }).runToEnd();
+    const sim = new Sim(w, m.h, m.a, simOptions(m)).runToEnd();
     settleMatch(w, m, sim.result(), scratch);
     commit();
     setOverlay({ kind: "summary", matchId });

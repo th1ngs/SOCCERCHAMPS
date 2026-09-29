@@ -1,5 +1,5 @@
 // Funções puras compartilhadas pelas telas de partida (pré-jogo, ao vivo, botão e resumo).
-import { CUP_ROUNDS, applyResult, currentWeek, simulateWeek } from "@/game";
+import { applyResult, competitionName, cupRoundName, currentWeek, isKnockout, simulateWeek } from "@/game";
 import type { Club, Match, MatchResult, MatchStats, World } from "@/game/types";
 
 /** O que fica em `scratch[resultKey(id)]` até o resumo ser fechado. */
@@ -22,12 +22,21 @@ export function findMatch(w: World, id: string): Match | null {
   return null;
 }
 
-/** "Série A • Rodada 12" ou "Copa • Quartas de final". */
-export function compName(w: World, m: Match): string {
+/** Fase da partida: "Rodada 12" (liga) ou "Quartas de final" (mata-mata). */
+export function roundLabel(w: World, m: Match): string {
   const wk = w.weeks.find((x) => x?.matches.some((y) => y.id === m.id)) ?? currentWeek(w);
   const round = wk?.round ?? 0;
-  return m.comp === "CUP" ? `Copa • ${CUP_ROUNDS[round] ?? ""}` : `Série ${m.comp} • Rodada ${round}`;
+  return isKnockout(m.comp) ? cupRoundName(m.comp, round) : `Rodada ${round}`;
 }
+
+/** "Série A • Rodada 12", "Copa Nacional (Brasil) • Quartas de final" ou "Copa dos Campeões • Final". */
+export function compName(w: World, m: Match): string {
+  const r = roundLabel(w, m);
+  return r ? `${competitionName(m.comp)} • ${r}` : competitionName(m.comp);
+}
+
+/** Opções do Sim para a partida (mata-mata e campo neutro). */
+export const simOptions = (m: Match): { knockout: boolean; neutral: boolean } => ({ knockout: isKnockout(m.comp), neutral: !!m.neutral });
 
 export function venueName(w: World, m: Match): string {
   if (m.neutral) return "Campo neutro";

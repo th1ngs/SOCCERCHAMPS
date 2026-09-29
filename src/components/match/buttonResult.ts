@@ -1,5 +1,5 @@
 // Partida do Manager decidida no futebol de botão (porta do antigo js/manager/bridge.js).
-import { FORMATIONS, autoLineup, clamp, ensureLineup, gauss, randi, shuffle, teamRating, weighted } from "@/game";
+import { FORMATIONS, autoLineup, clamp, ensureLineup, gauss, isKnockout, randi, shuffle, teamRating, weighted } from "@/game";
 import type { Club, Match as MgrMatch, MatchResult, Position, SimGoal, World } from "@/game/types";
 import { Audio } from "@/arcade/audio";
 import { Match, type MatchEnd } from "@/arcade/game";
@@ -76,7 +76,7 @@ export class ButtonSession {
       controllers: ["human", "cpu"],
       difficulty: [this.level, this.level],
       duration: 180,
-      goldenGoal: m.comp === "CUP",
+      goldenGoal: isKnockout(m.comp),
       onEnd: (r) => {
         this.ended = r;
         this.endFn?.(r);

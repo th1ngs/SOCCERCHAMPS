@@ -1,5 +1,5 @@
 // Textos e dados de apresentação da página inicial.
-import type { FlagCode } from "./Flag";
+import type { FlagCode } from "@/components/ui/Flag";
 
 export interface LeagueShowcase {
   code: FlagCode;

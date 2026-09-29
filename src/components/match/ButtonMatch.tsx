@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { ButtonHud } from "@/components/arcade/ButtonHud";
 import { ButtonStage } from "@/components/arcade/ButtonStage";
 import { ButtonSession, LEVEL_LABEL, buttonMatchResult } from "./buttonResult";
+import { isKnockout } from "@/game";
 import { compName, findMatch, settleMatch } from "./matchUtils";
 
 /** Partida do Manager decidida no futebol de botão (o placar vale para a temporada). */
@@ -86,7 +87,7 @@ function ButtonMatchScreen({ w, m }: { w: World; m: Match }) {
       </ButtonStage>
       <p className="px-4 pb-2 text-center text-xs text-mist">
         Arraste para trás a partir de um jogador seu (piscando) e solte para chutar. CPU no nível {LEVEL_LABEL[level]}.
-        {m.comp === "CUP" && " Empate vai para a morte súbita."}
+        {isKnockout(m.comp) && " Empate vai para a morte súbita."}
       </p>
     </div>
   );

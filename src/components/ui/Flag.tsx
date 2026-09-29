@@ -1,9 +1,24 @@
-/** Bandeiras simplificadas (SVG) das ligas do jogo. */
+import { cn } from "@/lib/cn";
+
+/** Bandeiras simplificadas (SVG) das ligas do jogo (códigos = LeagueId). */
 export type FlagCode = "bra" | "arg" | "por" | "esp" | "eng" | "ita";
 
-export function Flag({ code, className }: { code: FlagCode; className?: string }) {
+/**
+ * Bandeira de uma liga. Sem `className`, ocupa ~1em de altura ao lado do texto;
+ * com `className`, a altura/borda ficam por conta de quem chama.
+ * `decorative` esconde do leitor de tela quando o nome do país já aparece ao lado.
+ */
+export function Flag({ code, className, decorative = false }: { code: FlagCode; className?: string; decorative?: boolean }) {
   return (
-    <svg viewBox="0 0 30 20" className={className} role="img" aria-label={FLAG_NAMES[code]}>
+    <svg
+      viewBox="0 0 30 20"
+      className={cn("inline-block w-auto shrink-0", className ?? "h-[0.85em] rounded-[2px] ring-1 ring-black/25")}
+      role={decorative ? undefined : "img"}
+      aria-label={decorative ? undefined : FLAG_NAMES[code]}
+      aria-hidden={decorative || undefined}
+      focusable="false"
+    >
+      {!decorative && <title>{FLAG_NAMES[code]}</title>}
       {FLAGS[code]}
     </svg>
   );

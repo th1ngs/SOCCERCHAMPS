@@ -3,7 +3,7 @@
 import { Sim } from "@/game";
 import type { FormationKey, Match, MatchResult, MatchStats, SimEvent, TacticKey, World } from "@/game/types";
 import { Audio } from "@/arcade/audio";
-import { kits, pct, type Kit } from "../matchUtils";
+import { kits, pct, simOptions, type Kit } from "../matchUtils";
 import { PITCH_RATIO, drawLivePitch, type PitchAnim, type PitchScale } from "./drawPitch";
 
 /** Segundos reais por minuto de jogo (1x, 2x, 4x). */
@@ -67,7 +67,7 @@ export class LiveController {
   constructor(w: World, m: Match) {
     this.w = w;
     this.m = m;
-    this.sim = new Sim(w, m.h, m.a, { knockout: m.comp === "CUP", neutral: !!m.neutral, interactive: true });
+    this.sim = new Sim(w, m.h, m.a, { ...simOptions(m), interactive: true });
     this.kits = kits(w.clubs[m.h], w.clubs[m.a]);
     this.snap = this.build();
   }
