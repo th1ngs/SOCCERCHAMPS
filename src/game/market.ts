@@ -1,7 +1,7 @@
 // Mercado: transferências, propostas, renovações, base e estrutura do clube.
 import { LOAN_INTEREST, LOAN_OPTIONS, LOAN_WEEKS, POS } from './data';
 import { assignNumbers, makeYouth, valueOf, wageFor } from './gen';
-import type { BidResult, Club, Message, Player, UpgradeKey, Upgrade, World } from './types';
+import type { BidResult, Club, LeagueId, Message, Player, Position, UpgradeKey, Upgrade, World } from './types';
 import { avg, chance, clamp, formatMoney, pick, rand, randi, shuffle } from './util';
 import { addMoney, clubPlayers, detach, neededPos, pushMessage, removePlayer, toFree, user, windowOpen } from './world';
 
@@ -30,6 +30,33 @@ export function transfer(w: World, pid: string, toId: string, fee: number, silen
   // `silent`: mensagens de transferência são tratadas pela UI (mantido por compatibilidade).
   void silent;
   return p;
+}
+
+/** Filtros do mercado (todas as ligas). `league: 'free'` = só agentes livres. */
+export interface MarketFilter {
+  league?: LeagueId | 'free';
+  nat?: LeagueId;
+  pos?: Position;
+  minOvr?: number;
+  maxAge?: number;
+  /** Máximo de resultados (padrão 200), ordenados por overall. */
+  limit?: number;
+}
+
+/** Jogadores negociáveis (fora do clube do usuário, sem garotos da base), filtrados e ordenados por overall. */
+export function marketPlayers(w: World, f: MarketFilter = {}): Player[] {
+  const out: Player[] = [];
+  for (const p of Object.values(w.players)) {
+    if (p.youth || p.clubId === w.userClub) continue;
+    const club = p.clubId ? w.clubs[p.clubId] : null;
+    if (f.league === 'free' ? !!club : f.league && (!club || club.league !== f.league)) continue;
+    if (f.nat && p.nat !== f.nat) continue;
+    if (f.pos && p.pos !== f.pos) continue;
+    if (f.minOvr != null && p.ovr < f.minOvr) continue;
+    if (f.maxAge != null && p.age > f.maxAge) continue;
+    out.push(p);
+  }
+  return out.sort((a, b) => b.ovr - a.ovr).slice(0, f.limit ?? 200);
 }
 
 /** Peso do jogador no elenco: 1 titular, 0.5 rotação, 0.1 reserva. */
@@ -210,7 +237,9 @@ export function aiTransfers(w: World): void {
     const cands = all.filter((p) => {
       const from = w.clubs[p.clubId as string];
       return p.pos === pos && from.id !== buyer.id && p.ovr > bar && (intl || from.league === buyer.league) &&
-        from.rep <= buyer.rep + 8 && from.squad.length > 20;
+        from.rep <= buyer.rep + 8 && from.squad.length > 20 &&
+        // No mercado internacional o olheiro já descarta quem o clube não pode pagar.
+        (!intl || valueOf(p) <= buyer.money * 0.6);
     });
     if (!cands.length) continue;
     const t = pick(cands.sort((a, b) => b.ovr - a.ovr).slice(0, 5));

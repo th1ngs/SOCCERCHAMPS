@@ -6,7 +6,7 @@ import { FREE_MAX, FREE_MIN, assignNumbers, makeFreeAgent, makeYouth, newPlayer,
 import {
   CONT_PRIZE, CONT_WEEKS, CUP_PRIZE, CUP_WEEKS, DIVISIONS, DIVISION_IDS, LEAGUES, LEAGUE_IDS, LEAGUE_PRIZE_BASE,
   LEAGUE_ROUNDS, PROMOTION_SPOTS, TOTAL_WEEKS, TV_BASE, competitionName, compLeague, cupId, cupRoundName,
-  divisionFullName, firstDivisions, isDivision, isKnockout,
+  divisionFullName, firstDivisions, isKnockout,
 } from './leagues';
 import { aiOffersToUser, aiTransfers, promoteYouth, transfer } from './market';
 import { autoLineup, ensureLineup, teamRating } from './squad';
@@ -15,7 +15,7 @@ import type {
   KnockoutId, Match, MatchResult, MessageInput, Player, Position, ScorerEntry, SeasonSummary, SimOptions, TableRow,
   TicketPrice, Week, WeekReport, World,
 } from './types';
-import { chance, clamp, gauss, pick, rand, randi, shuffle, sum } from './util';
+import { chance, clamp, gauss, pick, rand, randi, shuffle } from './util';
 
 // Arredondamentos para manter o JSON do World enxuto.
 const round2 = (v: number): number => Math.round(v * 100) / 100;

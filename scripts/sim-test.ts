@@ -9,9 +9,9 @@ import {
   CLUBS, DIVISIONS, DIVISION_IDS, DIVISION_SIZE, IncompatibleSaveError, LEAGUES, LEAGUE_IDS, LOAN_OPTIONS, Sim, TRAITS,
   UPGRADES, WORLD_VERSION, autoLineup, applyResult, clubPlayers, completeBuy, competitionName, contEntrants,
   currentWeek, cupId, divisionFullName, endWeek, ensureLineup, evaluateBid, expectedGate, firstDivisions, formatMoney,
-  injuryLabel, injuryWeeks, isCompatible, isDerby, isDivision, jobOffers, loanBalance, migrateWorld, newSeason,
+  injuryLabel, injuryWeeks, isCompatible, marketPlayers, isDerby, isDivision, jobOffers, loanBalance, migrateWorld, newSeason,
   newWorld, promoteYouth, release, renew, repayLoan, runTrial, setCaptain, setPenTaker, setTicketPrice, simMatch,
-  simulateWeek, startSeason, switchClub, table, takeLoan, topScorers, upgrade, user, userCompetitions, userMatch,
+  simulateWeek, startSeason, switchClub, table, takeLoan, upgrade, user, userCompetitions, userMatch,
 } from '../src/game';
 import type { DivisionId, LeagueId, Match, SeasonSummary, World } from '../src/game';
 
@@ -337,6 +337,10 @@ function runLeagueChecks(w: World): void {
   assert(Object.keys(h.scorers).sort().join() === firstDivisions().slice().sort().join(), 'scorers das primeiras divisões');
   assert(Object.keys(h.user).sort().join() === 'club,div,league,objective,pos,success', 'chaves de user');
   assert(!h.best || (typeof h.best.name === 'string' && typeof h.best.club === 'string' && typeof h.best.avg === 'number'), 'best');
+  // Mercado com filtros por liga e nacionalidade
+  const mk = marketPlayers(w, { league: 'ita', nat: 'arg', limit: 10 });
+  assert(mk.every((p) => p.nat === 'arg' && !!p.clubId && w.clubs[p.clubId].league === 'ita'), 'marketPlayers filtra liga e nacionalidade');
+  assert(marketPlayers(w, { league: 'free' }).every((p) => !p.clubId), 'marketPlayers: agentes livres');
   // Transferências entre ligas
   let cross = 0;
   for (const p of Object.values(w.players)) if (p.clubId && nat0[p.id] && w.clubs[p.clubId].league !== nat0[p.id]) cross++;
