@@ -116,10 +116,7 @@ function ClubCard({ item, onPick }: { item: RankedClub; onPick: (id: string) => 
       >
         <Crest club={club} size={44} className="shrink-0 transition-transform group-hover:scale-105" />
         <span className="min-w-0 flex-1">
-          <span className="flex items-start justify-between gap-2">
-            <span className="min-w-0 truncate font-display text-lg font-bold uppercase leading-tight">{club.name}</span>
-            <Stars value={stars} className="mt-1 shrink-0" />
-          </span>
+          <span className="block truncate font-display text-lg font-bold uppercase leading-tight" title={club.name}>{club.name}</span>
           <span className="block truncate text-sm italic text-mist">“{club.nickname}”</span>
           <span className="mt-1.5 flex flex-col gap-0.5 text-xs text-mist">
             <span className="flex items-center gap-1.5 truncate"><MapPin className="size-3 shrink-0" aria-hidden /> {club.city}-{club.uf}</span>
@@ -127,7 +124,10 @@ function ClubCard({ item, onPick }: { item: RankedClub; onPick: (id: string) => 
               <Landmark className="size-3 shrink-0" aria-hidden /> {club.stadium} • {club.cap.toLocaleString("pt-BR")}
             </span>
           </span>
-          <Badge tone={tier.tone} className="mt-2">{tier.label}</Badge>
+          <span className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+            <Badge tone={tier.tone}>{tier.label}</Badge>
+            <Stars value={stars} />
+          </span>
         </span>
       </button>
     </li>

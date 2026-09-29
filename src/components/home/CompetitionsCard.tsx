@@ -80,7 +80,7 @@ function Line({ comp, children, detail }: { comp: Competition; children: ReactNo
   return (
     <li className="flex min-h-12 items-center justify-between gap-3 border-b border-white/6 py-2 last:border-0">
       <span className="min-w-0">
-        <CompName comp={comp} className="max-w-full font-semibold" />
+        <CompName comp={comp} short className="max-w-full font-semibold" />
         {detail && <span className="block truncate text-xs text-mist">{detail}</span>}
       </span>
       <span className="shrink-0">{children}</span>

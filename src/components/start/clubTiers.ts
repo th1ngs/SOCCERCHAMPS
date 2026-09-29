@@ -13,7 +13,7 @@ export function tierOf(div: DivisionId, rank: number, size: number): Tier {
   const info = DIVISIONS[div];
   if (!info.up) {
     if (rank < 3) return { label: "Favorito ao título", tone: "gold" };
-    if (rank < 7) return { label: "Sonha com a Copa dos Campeões", tone: "blue" };
+    if (rank < 7) return { label: "Vaga continental", tone: "blue" };
     if (rank < size - 4) return { label: "Meio de tabela", tone: "neutral" };
     return { label: "Luta contra a queda", tone: "red" };
   }

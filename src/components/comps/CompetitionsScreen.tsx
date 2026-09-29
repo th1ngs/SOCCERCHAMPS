@@ -55,7 +55,7 @@ export function CompetitionsScreen() {
         </>
       ),
     })),
-    { value: "cont", group: true, label: <><Trophy className="text-gold-400" aria-hidden /> Copa dos Campeões</> },
+    { value: "cont", group: true, label: <><Trophy aria-hidden /> Copa dos Campeões</> },
     { value: "scorers", label: <><Goal aria-hidden /> Artilharia</> },
     { value: "fixtures", label: <><CalendarDays aria-hidden /> Calendário</> },
     { value: "history", label: <><History aria-hidden /> Histórico</> },
