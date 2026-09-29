@@ -33,13 +33,15 @@ export function LandingNav() {
   return (
     <header className="sticky top-0 z-30 border-b border-white/6 bg-ink-900/70 pt-[env(safe-area-inset-top)] backdrop-blur-md">
       <nav className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3" aria-label="Principal">
-        <Link href="/" className="font-display text-xl font-extrabold uppercase italic leading-none tracking-tight">
+        <Link href="/" className="whitespace-nowrap font-display text-lg font-extrabold uppercase italic leading-none tracking-tight sm:text-xl">
           <span className="text-gold-400">Soccer Champs</span> <span className="text-snow">Manager</span>
         </Link>
         <div className="ml-auto flex items-center gap-1">
-          <a href="#ligas" className={buttonClasses("ghost", "sm", false, "hidden sm:inline-flex")}>Ligas</a>
-          <Link href="/hall-da-fama" className={buttonClasses("ghost", "sm", false, "hidden sm:inline-flex")}>Hall da Fama</Link>
-          <Link href="/arcade" className={buttonClasses("ghost", "sm", false, "hidden sm:inline-flex")}>Arcade</Link>
+          <div className="hidden items-center gap-1 sm:flex">
+            <a href="#ligas" className={buttonClasses("ghost", "sm")}>Ligas</a>
+            <Link href="/hall-da-fama" className={buttonClasses("ghost", "sm")}>Hall da Fama</Link>
+            <Link href="/arcade" className={buttonClasses("ghost", "sm")}>Arcade</Link>
+          </div>
           <Link href="/nova-carreira" className={buttonClasses("primary", "sm")}>Jogar</Link>
         </div>
       </nav>

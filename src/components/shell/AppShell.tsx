@@ -60,9 +60,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <div className="ml-auto flex items-center gap-1.5">
             <CloudIndicator />
-            <Button variant="primary" onClick={advance} disabled={busy} iconRight={<ChevronRight />} className="hidden md:inline-flex">
-              {label}
-            </Button>
+            <div className="hidden md:block">
+              <Button variant="primary" onClick={advance} disabled={busy} iconRight={<ChevronRight />}>
+                {label}
+              </Button>
+            </div>
           </div>
         </div>
         <div className="flex gap-2 px-4 pb-2 sm:hidden">

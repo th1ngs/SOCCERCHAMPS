@@ -16,12 +16,17 @@ export function HallPreview() {
 
   useEffect(() => {
     let alive = true;
-    fetch("/api/hall")
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 6000);
+    fetch("/api/hall", { signal: ctrl.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d: Hall) => alive && setHall(d))
-      .catch(() => alive && setHall("error"));
+      .catch(() => alive && setHall("error"))
+      .finally(() => clearTimeout(timer));
     return () => {
       alive = false;
+      clearTimeout(timer);
+      ctrl.abort();
     };
   }, []);
 
