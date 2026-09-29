@@ -2,6 +2,7 @@
 // contrapropostas às ofertas da CPU, lista de observação, histórico de transferências e dia do fechamento.
 import { TOTAL_WEEKS, divisionLevel } from './leagues';
 import { assignNumbers, releaseClauseFor, valueOf } from './gen';
+import { wageVeto } from './finance';
 import { SQUAD_MAX, acceptOffer, askingPrice, offerCeiling, renewDemand, transfer, wageDemand } from './market';
 import { hash01, isOwnPlayer, weeksSince } from './scouting';
 import type {
@@ -234,6 +235,8 @@ export function negotiateContract(w: World, pid: string, terms: Terms): Contract
   if (!windowOpen(w)) return { status: 'rejected', text: 'A janela de transferências está fechada.' };
   const n = negotiation(w, pid);
   if (p.clubId && !n.agreed) return { status: 'rejected', text: `Acerte primeiro o valor com o ${w.clubs[p.clubId].name}.` };
+  const veto = wageVeto(w, user(w), terms.wage);
+  if (veto) return { status: 'rejected', text: veto };
   const r = decide(w, pid, terms, p.name);
   if (r.status === 'accepted') n.contract = { ...terms };
   return r;
@@ -243,6 +246,9 @@ export function negotiateContract(w: World, pid: string, terms: Terms): Contract
 export function negotiateRenewal(w: World, pid: string, terms: Terms): ContractResponse {
   const p = w.players[pid];
   if (!p || !isRenewal(w, p)) return { status: 'rejected', text: 'Só é possível renovar com jogadores do seu elenco.' };
+  // Renovações têm 10% de tolerância sobre o teto (manter o elenco é prioridade da diretoria).
+  const veto = terms.wage > p.wage ? wageVeto(w, user(w), terms.wage - p.wage, 1.1) : null;
+  if (veto) return { status: 'rejected', text: veto };
   const r = decide(w, pid, terms, p.name);
   if (r.status !== 'accepted') return r;
   const u = user(w);
@@ -272,6 +278,7 @@ export function completeTransfer(w: World, pid: string, deal: Deal): boolean {
   const fee = p.clubId ? deal.fee : 0;
   const first = Math.round(fee / inst);
   if (u.money < first + deal.bonus) return false;
+  if (wageVeto(w, u, deal.wage)) return false;
   const fromName = p.clubId ? w.clubs[p.clubId].name : 'mercado livre';
   const kind = !p.clubId ? 'free' : n.agreed?.clause ? 'clause' : 'transfer';
   transfer(w, pid, u.id, fee, true, { kind, pay: first });
@@ -415,6 +422,8 @@ export function loanInTerms(w: World, pid: string): LoanInTerms {
   const club = w.clubs[p.clubId];
   const better = club.squad.filter((id) => w.players[id].ovr > p.ovr).length;
   if (better < 13) return { ok: false, reason: `O ${club.name} não empresta jogadores que estão entre os 13 melhores do elenco.`, ...base };
+  const veto = wageVeto(w, u, p.wage * base.wageShare);
+  if (veto) return { ok: false, reason: veto, ...base };
   return { ok: true, ...base };
 }
 

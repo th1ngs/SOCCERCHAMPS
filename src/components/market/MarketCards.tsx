@@ -6,6 +6,7 @@ import { OvrBadge, PosBadge } from "@/components/ui/primitives";
 import { ClubCell, PotCell, ScoutCell, StarMark } from "./MarketTable";
 import type { MarketRow } from "./marketFilter";
 import { WatchButton } from "./WatchButton";
+import { TraitChips } from "@/components/player/TraitChips";
 
 /** Resultados do mercado em cartões (celular). O cartão abre a ficha; a estrela observa. */
 export function MarketCards({ rows, onOpen }: { rows: MarketRow[]; onOpen: (pid: string) => void }) {
@@ -28,6 +29,7 @@ export function MarketCards({ rows, onOpen }: { rows: MarketRow[]; onOpen: (pid:
               <span className="flex min-w-0 text-xs text-mist">
                 <ClubCell row={r} />
               </span>
+              <TraitChips traits={r.p.traits} />
               <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-mist">
                 <span>{r.p.age} anos</span>
                 <span className="tabular text-snow">{formatMoney(r.value)}</span>

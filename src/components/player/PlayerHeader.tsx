@@ -64,8 +64,8 @@ export function PlayerHeader({
             {p.listed && <Badge tone="orange">{own ? "À venda" : "Na lista de venda"}</Badge>}
             <TraitBadges player={{ traits: traits ?? [], star: p.star }} />
             {traits === null && (
-              <Badge tone="neutral" title="Peça um relatório do olheiro para conhecer as características" className="normal-case tracking-normal text-mist">
-                <FileSearch className="size-3" aria-hidden /> Características desconhecidas
+              <Badge tone="neutral" title="Peça um relatório do olheiro para conhecer as habilidades" className="normal-case tracking-normal text-mist">
+                <FileSearch className="size-3" aria-hidden /> Habilidades desconhecidas
               </Badge>
             )}
           </div>

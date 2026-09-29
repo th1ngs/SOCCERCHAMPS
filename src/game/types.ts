@@ -26,9 +26,23 @@ export type Competition = DivisionId | KnockoutId;
 export type KitPattern = 'h' | 'v' | 'sash' | 'solid' | 'half';
 export type FormResult = 'V' | 'E' | 'D';
 export type TicketPrice = 'popular' | 'normal' | 'premium';
+/** Habilidades especiais (as 10 primeiras vêm da v4; as demais, da v5). */
 export type TraitKey =
   | 'finalizacao' | 'cabeceio' | 'drible' | 'passe' | 'velocidade'
-  | 'marcacao' | 'desarme' | 'reflexo' | 'lideranca' | 'resistencia';
+  | 'marcacao' | 'desarme' | 'reflexo' | 'lideranca' | 'resistencia'
+  | 'faltas' | 'motorzinho' | 'chuteLonge' | 'penalti' | 'pegaPenalti' | 'lancamento' | 'garra' | 'coringa';
+
+/**
+ * Atributos do jogador (1-99), na ordem de `Player.at`:
+ * velocidade, fôlego, finalização, passe, drible, marcação, cabeceio, bola parada, reflexos e colocação (goleiros).
+ */
+export type AttrKey = 'vel' | 'fol' | 'fin' | 'pas' | 'dri' | 'mar' | 'cab' | 'bp' | 'ref' | 'col';
+
+export interface AttrInfo {
+  name: string;
+  short: string;
+  desc: string;
+}
 
 export interface Trait {
   name: string;
@@ -91,8 +105,20 @@ export interface LeagueInfo {
   name: string;
   country: string;
   flag: string;
-  /** Força econômica: multiplica cota de TV e prêmios. */
+  /** Força econômica: multiplica prêmios e o poder de compra geral. */
   wealth: number;
+  /** Tamanho do contrato de TV da liga (× cota base por divisão). */
+  tv: number;
+  /** Fração da cota de TV dividida pelo peso do clube (0 = igualitária). */
+  tvSplit: number;
+  /** Mercado comercial (patrocínio, sócios e produtos). */
+  commercial: number;
+  /** Preço médio do ingresso relativo ao Brasil. */
+  ticket: number;
+  /** Nível salarial relativo ao Brasil. */
+  wages: number;
+  /** Chance de um clube começar endividado (empréstimo bancário). */
+  debt: number;
   /** Divisões, da mais alta para a mais baixa. */
   divisions: DivisionId[];
 }
@@ -177,7 +203,13 @@ export interface Club extends ClubStatic {
   ticketPrice: TicketPrice;
   captain: string | null;
   penTaker: string | null;
+  /** Batedor de faltas (v5). */
+  fkTaker: string | null;
   loan: Loan | null;
+  /** Patrocínio master semanal, renegociado a cada temporada (v5). */
+  sponsor: number;
+  /** Teto da folha salarial semanal definido pela diretoria (v5). */
+  wageCap: number;
   /** Nível do departamento de olheiros (1-5). */
   scouting: number;
   academyFocus: AcademyFocus;
@@ -216,8 +248,10 @@ export interface Player {
   injNew?: boolean;
   /** Tipo da lesão atual ("Pancada", "Estiramento", "Distensão", "Fratura") ou null. */
   injType: string | null;
-  /** 1-2 características. */
+  /** Habilidades especiais (0-3). */
   traits: TraitKey[];
+  /** Atributos como desvio do overall, na ordem de ATTR_KEYS (valor = overall + desvio, 1-99). */
+  at: number[];
   /** Craque: +3 de overall efetivo em partidas e valor × 1,3. */
   star: boolean;
   /** Nacionalidade. */
@@ -480,7 +514,7 @@ export interface Manager {
 }
 
 /** Movimentações financeiras por categoria (tickets, prize, wages, sponsor, tv, transfers, other, loan). */
-export type FinanceCategory = 'tickets' | 'prize' | 'wages' | 'sponsor' | 'tv' | 'transfers' | 'other' | 'loan';
+export type FinanceCategory = 'tickets' | 'prize' | 'wages' | 'sponsor' | 'tv' | 'commercial' | 'upkeep' | 'transfers' | 'other' | 'loan';
 export type FinanceLog = Partial<Record<FinanceCategory, number>>;
 
 export interface FinanceEntry extends FinanceLog {
@@ -593,6 +627,11 @@ export interface World {
   watchState: Record<string, WatchState>;
   /** Histórico de transferências (todas as do usuário + últimas 400 da CPU). */
   transfers: TransferRecord[];
+  /**
+   * Índice salarial (v5): overall médio dos elencos no início da carreira e o desvio atual.
+   * Os salários de mercado descontam o desvio, para a folha não disparar com a evolução geral.
+   */
+  econ?: { baseOvr: number; drift: number };
 }
 
 export interface WeekReport {
@@ -673,6 +712,10 @@ export interface OnField {
   am?: number;
   /** Desgaste por minuto (antes do fator tático). */
   drain?: number;
+  /** Raçudo: rende mais com o time atrás no placar. */
+  garra?: boolean;
+  /** Atributos usados nos lances (cache do Sim, ordem de ATTR_KEYS). */
+  av?: number[];
 }
 
 export interface SimSide {

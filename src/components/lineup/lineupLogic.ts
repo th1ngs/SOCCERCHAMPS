@@ -1,5 +1,5 @@
 // Regras puras da tela de escalação (trocas, validação e candidatos).
-import { available, clamp, fit } from "@/game";
+import { available, clamp, playerFit } from "@/game";
 import type { Club, Player, Position, TacticKey, World } from "@/game/types";
 
 export const BENCH_SIZE = 7;
@@ -72,7 +72,7 @@ export function candidates(w: World, c: Club, slotPos: Position | null): Candida
     .map((id) => w.players[id])
     .filter((p) => available(p))
     .map((p) => {
-      const f = slotPos ? fit(p.pos, slotPos) : 1;
+      const f = slotPos ? playerFit(p, slotPos) : 1;
       return { p, fit: f, score: p.ovr * f, role: starters.has(p.id) ? "TIT" : bench.has(p.id) ? "RES" : null } as Candidate;
     })
     .sort((a, b) => b.score - a.score);

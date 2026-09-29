@@ -5,12 +5,14 @@ import type { FinanceCategory, FinanceLog, World } from "@/game/types";
 export const FIN_CATS: { key: FinanceCategory; label: string }[] = [
   { key: "tickets", label: "Bilheteria" },
   { key: "tv", label: "Cota de TV" },
-  { key: "sponsor", label: "Patrocínio" },
+  { key: "sponsor", label: "Patrocínio master" },
+  { key: "commercial", label: "Sócios e produtos" },
   { key: "prize", label: "Premiações" },
   { key: "transfers", label: "Transferências" },
   { key: "wages", label: "Folha salarial" },
+  { key: "upkeep", label: "Manutenção (estádio e estrutura)" },
   { key: "loan", label: "Empréstimo" },
-  { key: "other", label: "Outros (estrutura, multas)" },
+  { key: "other", label: "Outros (obras, olheiros, multas)" },
 ];
 
 export const seasonNet = (fs: FinanceLog): number => FIN_CATS.reduce((s, c) => s + (fs[c.key] ?? 0), 0);

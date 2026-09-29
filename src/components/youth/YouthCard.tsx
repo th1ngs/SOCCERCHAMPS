@@ -113,7 +113,7 @@ export function YouthCard({ view: v, offerClub, scoutCost, promoteBlock, loanBlo
           icon={v.scoutReady !== null ? <Hourglass /> : <FileSearch />}
           onClick={onScout}
           disabled={!!scoutBlock}
-          title={scoutBlock ?? "Relatório completo do olheiro: potencial exato e características"}
+          title={scoutBlock ?? "Relatório completo do olheiro: potencial e atributos exatos"}
           className="col-span-2 h-10 min-w-0"
         >
           <span className="truncate">{scoutLabel}</span>

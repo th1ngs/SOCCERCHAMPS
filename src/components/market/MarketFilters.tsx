@@ -2,8 +2,8 @@
 
 import type { ReactNode } from "react";
 import { RotateCcw, Search } from "lucide-react";
-import { LEAGUES, LEAGUE_IDS, POS, POS_NAME } from "@/game";
-import type { LeagueId, Position } from "@/game/types";
+import { LEAGUES, LEAGUE_IDS, POS, POS_NAME, TRAITS, TRAIT_KEYS } from "@/game";
+import type { LeagueId, Position, TraitKey } from "@/game/types";
 import { Button } from "@/components/ui/Button";
 import { Flag } from "@/components/ui/Flag";
 import { Segmented, type SegmentedOption } from "@/components/ui/Segmented";
@@ -49,7 +49,7 @@ export function MarketFilters({ filter: f, onChange, onReset, canReset }: { filt
         </span>
         <Segmented ariaLabel="Liga do clube" options={LEAGUE_OPTIONS} value={f.league} onChange={(league) => onChange({ league })} className="max-w-full" />
       </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-[1.4fr_repeat(5,1fr)]">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-[1.4fr_repeat(3,1fr)] xl:grid-cols-[1.4fr_repeat(6,1fr)]">
         <div className="col-span-2 md:col-span-3 lg:col-span-1">
           <Field label="Buscar">
             <span className="relative block">
@@ -74,6 +74,16 @@ export function MarketFilters({ filter: f, onChange, onReset, canReset }: { filt
             {LEAGUE_IDS.map((id) => (
               <option key={id} value={id}>
                 {LEAGUES[id].country}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Habilidade">
+          <select value={f.trait} onChange={(e) => onChange({ trait: e.target.value as "" | TraitKey })} className={field}>
+            <option value="">Qualquer habilidade</option>
+            {TRAIT_KEYS.map((k) => (
+              <option key={k} value={k}>
+                {TRAITS[k].name}
               </option>
             ))}
           </select>
@@ -105,7 +115,7 @@ export function MarketFilters({ filter: f, onChange, onReset, canReset }: { filt
             ))}
           </select>
         </Field>
-        <div className="flex items-end justify-end lg:col-span-6">
+        <div className="flex items-end justify-end lg:col-span-4 xl:col-span-7">
           <Button variant="ghost" icon={<RotateCcw />} onClick={onReset} disabled={!canReset} title={canReset ? undefined : "Nenhum filtro ativo"}>
             Limpar filtros
           </Button>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FORMATIONS, POS_NAME, autoLineup, ensureLineup, sectors, setCaptain, setPenTaker, user } from "@/game";
+import { FORMATIONS, POS_NAME, autoLineup, ensureLineup, sectors, setCaptain, setFkTaker, setPenTaker, user } from "@/game";
 import type { FormationKey, Player, TacticKey } from "@/game/types";
 import { useWorld } from "@/components/game/GameProvider";
 import { PageHeader } from "@/components/ui/primitives";
@@ -27,11 +27,12 @@ export default function EscalacaoPage() {
     const bench = u.bench.map((id) => world.players[id]).filter((p): p is Player => !!p);
     const captain = u.captain ? world.players[u.captain] ?? null : null;
     const penTaker = u.penTaker ? world.players[u.penTaker] ?? null : null;
-    return { u, starters, bench, captain, penTaker, sec: sectors(world, u), needsFix: lineupNeedsFix(world, u) };
+    const fkTaker = u.fkTaker ? world.players[u.fkTaker] ?? null : null;
+    return { u, starters, bench, captain, penTaker, fkTaker, sec: sectors(world, u), needsFix: lineupNeedsFix(world, u) };
     // `version` muda a cada mutação do mesmo objeto world.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world, version]);
-  const { u, starters, bench, captain, penTaker, sec, needsFix } = view;
+  const { u, starters, bench, captain, penTaker, fkTaker, sec, needsFix } = view;
 
   // Escalação salva inválida (lesão, suspensão, venda…): corrige fora do render, uma vez por versão.
   const fixedAt = useRef(-1);
@@ -97,6 +98,10 @@ export default function EscalacaoPage() {
     mutate((w) => void setPenTaker(w, pid));
     toast(`${world.players[pid]?.name ?? "Jogador"} vai bater os pênaltis.`);
   };
+  const chooseFkTaker = (pid: string) => {
+    mutate((w) => void setFkTaker(w, pid));
+    toast(`${world.players[pid]?.name ?? "Jogador"} vai cobrar as faltas.`);
+  };
 
   return (
     <>
@@ -120,7 +125,15 @@ export default function EscalacaoPage() {
 
         <div className="min-w-0 space-y-5">
           <TacticsCard formation={u.formation} tactic={u.tactic} onFormation={setFormation} onTactic={setTactic} onAuto={auto} />
-          <LeadersCard starters={starters} captain={captain} penTaker={penTaker} onCaptain={chooseCaptain} onPenTaker={choosePenTaker} />
+          <LeadersCard
+            starters={starters}
+            captain={captain}
+            penTaker={penTaker}
+            fkTaker={fkTaker}
+            onCaptain={chooseCaptain}
+            onPenTaker={choosePenTaker}
+            onFkTaker={chooseFkTaker}
+          />
           <SectorCard sec={sec} />
           <BenchCard bench={bench} onPick={(index) => setPicking({ kind: "bench", index })} />
         </div>

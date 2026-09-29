@@ -1,12 +1,12 @@
 // Dados fixos: clubes, nomes, posições, formações e narração.
 import type {
-  AcademyFocus, FormationKey, FormationSlot, Position, SectorWeights, Tactic, TacticKey, TicketPrice, TicketPriceInfo, Trait, TraitKey,
+  AcademyFocus, AttrInfo, AttrKey, FormationKey, FormationSlot, Position, SectorWeights, Tactic, TacticKey, TicketPrice, TicketPriceInfo, Trait, TraitKey,
   Training, TrainingKey,
 } from './types';
 import { NAMES_BY_NAT } from './names';
 import { pick } from './util';
 
-export type { Position, FormationKey, TacticKey, TrainingKey, TraitKey, TicketPrice } from './types';
+export type { AttrKey, Position, FormationKey, TacticKey, TrainingKey, TraitKey, TicketPrice } from './types';
 
 // Clubes fictícios (fonte: ./clubs/<liga>.ts), com liga e divisão inicial.
 export { CLUBS, CLUB_SEEDS, leagueClubs } from './clubs';
@@ -93,6 +93,13 @@ export const TXT = {
   header: ['GOL DE CABEÇA! {p} sobe mais que todo mundo no escanteio e marca para o {t}!', 'Escanteio, cabeçada certeira de {p} e GOL do {t}!'],
   headSave: ['{p} cabeceia firme e {g} faz grande defesa!', 'Cabeçada de {p}, {g} espalma.'],
   headMiss: ['{p} sobe no escanteio e cabeceia por cima.', 'Cabeçada de {p} passa raspando a trave.'],
+  fk: ['Falta perigosa para o {t}, na entrada da área. {p} ajeita a bola.', 'Falta frontal! {p} vai para a cobrança.', 'Falta na meia-lua para o {t}. {p} na bola.'],
+  fkGoal: ['GOL DE FALTA! {p} coloca a bola no ângulo!', 'QUE COBRANÇA! {p} passa por cima da barreira e marca para o {t}!', 'GOLAÇO DE FALTA de {p}! {g} só olhou!'],
+  fkSave: ['{p} cobra com força e {g} espalma!', 'Cobrança de {p} no canto, {g} voa e defende.'],
+  fkMiss: ['A cobrança de {p} explode na barreira.', '{p} bate por cima do gol.', 'Tirou tinta! A falta de {p} passa rente à trave.'],
+  longShot: ['{p} arrisca de longe…', 'Lá de fora! {p} solta a bomba…', '{p} ajeita e chuta de fora da área…'],
+  longGoal: ['GOLAÇO! {p} acerta um foguete de fora da área!', 'DE LONGE! {p} surpreende {g} e marca um golaço!'],
+  counter: ['Contra-ataque do {t}! {p} dispara em velocidade.', 'Roubou e saiu! {p} puxa o contra-ataque do {t}.', 'Lançamento longo e {p} sai na cara do gol!'],
 } satisfies Record<string, string[]>;
 export type TxtKey = keyof typeof TXT;
 
@@ -103,29 +110,79 @@ export const say = (key: TxtKey, vars?: Record<string, string>): string => {
   return s;
 };
 
-// ---------- Características ----------
+// ---------- Habilidades especiais ----------
+// Chaves estáveis (saves); nomes no jeito da arquibancada. As descrições batem com o efeito no motor.
 export const TRAITS: Record<TraitKey, Trait> = {
-  finalizacao: { name: 'Finalização', short: 'FIN', desc: 'Chutes mais perigosos (xG × 1,12).' },
-  cabeceio: { name: 'Cabeceio', short: 'CAB', desc: 'Ameaça nas bolas aéreas: pode marcar após escanteios.' },
-  drible: { name: 'Drible', short: 'DRI', desc: 'Desequilibra no ataque.' },
-  passe: { name: 'Passe', short: 'PAS', desc: 'Organiza o meio-campo e dá mais assistências.' },
-  velocidade: { name: 'Velocidade', short: 'VEL', desc: 'Arranque que fortalece o ataque.' },
-  marcacao: { name: 'Marcação', short: 'MAR', desc: 'Fecha os espaços na defesa.' },
-  desarme: { name: 'Desarme', short: 'DES', desc: 'Rouba bolas e fortalece a defesa.' },
-  reflexo: { name: 'Reflexo', short: 'REF', desc: 'Goleiro: chutes adversários menos perigosos (xG × 0,9).' },
-  lideranca: { name: 'Liderança', short: 'LID', desc: 'Como capitão, dobra o bônus da braçadeira.' },
-  resistencia: { name: 'Resistência', short: 'RES', desc: 'Cansa menos durante a partida (× 0,8).' },
+  finalizacao: { name: 'Matador', short: 'MAT', desc: 'Frio na cara do gol: chutes 12% mais perigosos.' },
+  cabeceio: { name: 'Cabeceador', short: 'CAB', desc: 'Domina a bola aérea: alvo preferido nos escanteios, com cabeçadas mais perigosas.' },
+  drible: { name: 'Driblador', short: 'DRI', desc: 'Desequilibra no ataque e cava faltas perto da área.' },
+  passe: { name: 'Garçom', short: 'GAR', desc: 'Organiza o meio-campo e dá muito mais assistências.' },
+  velocidade: { name: 'Velocista', short: 'VEL', desc: 'Arranque que fortalece o ataque e puxa contra-ataques.' },
+  marcacao: { name: 'Xerife', short: 'XER', desc: 'Fecha os espaços e fortalece a defesa.' },
+  desarme: { name: 'Ladrão de bolas', short: 'LAD', desc: 'Desarma com precisão e fortalece a defesa.' },
+  reflexo: { name: 'Paredão', short: 'PAR', desc: 'Goleiro: chutes adversários 10% menos perigosos.' },
+  lideranca: { name: 'Líder', short: 'LÍD', desc: 'Como capitão, dobra o bônus da braçadeira.' },
+  resistencia: { name: 'Pulmão', short: 'PUL', desc: 'Cansa 20% menos durante a partida.' },
+  faltas: { name: 'Batedor de falta', short: 'FAL', desc: 'Faltas perto da área viram chance real de gol (cobrança 70% mais perigosa).' },
+  motorzinho: { name: 'Motorzinho', short: 'MOT', desc: 'Vai e volta o jogo todo: ajuda na defesa e no ataque, cansa menos e recupera mais rápido.' },
+  chuteLonge: { name: 'Chute de longe', short: 'CHL', desc: 'Arrisca de fora da área com perigo.' },
+  penalti: { name: 'Cobrador de pênalti', short: 'PEN', desc: 'Converte bem mais pênaltis.' },
+  pegaPenalti: { name: 'Pegador de pênalti', short: 'PGP', desc: 'Goleiro: defende bem mais pênaltis.' },
+  lancamento: { name: 'Lançador', short: 'LAN', desc: 'Lançamentos longos: mais contra-ataques e assistências.' },
+  garra: { name: 'Raçudo', short: 'RAÇ', desc: 'Cresce na adversidade: rende 6% mais com o time atrás no placar.' },
+  coringa: { name: 'Coringa', short: 'COR', desc: 'Polivalente: perde pouco rendimento fora da posição.' },
 };
 export const TRAIT_KEYS = Object.keys(TRAITS) as TraitKey[];
 
-/** Pesos para sortear características conforme a posição. */
+/** Pesos para sortear habilidades conforme a posição. */
 export const TRAIT_WEIGHTS: Record<Position, Partial<Record<TraitKey, number>>> = {
-  GOL: { reflexo: 6, lideranca: 2, passe: 1, resistencia: 1 },
-  ZAG: { marcacao: 4, desarme: 3, cabeceio: 4, lideranca: 2, resistencia: 1, velocidade: 1 },
-  LAT: { velocidade: 4, resistencia: 3, passe: 2, desarme: 2, drible: 2, marcacao: 1 },
-  VOL: { desarme: 4, marcacao: 3, passe: 3, resistencia: 3, lideranca: 2 },
-  MEI: { passe: 5, drible: 4, finalizacao: 2, velocidade: 1, lideranca: 1, resistencia: 1 },
-  ATA: { finalizacao: 5, drible: 3, velocidade: 3, cabeceio: 3, lideranca: 1 },
+  GOL: { reflexo: 6, pegaPenalti: 3, lideranca: 2, lancamento: 1, resistencia: 0.5 },
+  ZAG: { marcacao: 4, desarme: 3, cabeceio: 4, lideranca: 2, velocidade: 1, garra: 2, lancamento: 1, coringa: 1 },
+  LAT: { velocidade: 4, resistencia: 3, motorzinho: 2, passe: 2, desarme: 2, drible: 2, marcacao: 1, faltas: 0.8, coringa: 1.5, garra: 1 },
+  VOL: { desarme: 4, marcacao: 3, passe: 3, resistencia: 2, motorzinho: 4, lideranca: 2, chuteLonge: 1.5, lancamento: 2, garra: 2, coringa: 1.5 },
+  MEI: { passe: 5, drible: 4, finalizacao: 2, faltas: 3, chuteLonge: 2.5, lancamento: 2, motorzinho: 1.5, velocidade: 1, penalti: 1.5, lideranca: 1, coringa: 1 },
+  ATA: { finalizacao: 5, drible: 3, velocidade: 3.5, cabeceio: 3, penalti: 2, chuteLonge: 1.5, faltas: 1, garra: 1, lideranca: 0.8 },
+};
+
+// ---------- Atributos ----------
+export const ATTR_KEYS: AttrKey[] = ['vel', 'fol', 'fin', 'pas', 'dri', 'mar', 'cab', 'bp', 'ref', 'col'];
+export const ATTRS: Record<AttrKey, AttrInfo> = {
+  vel: { name: 'Velocidade', short: 'VEL', desc: 'Arranque e contra-ataque.' },
+  fol: { name: 'Fôlego', short: 'FOL', desc: 'Cansa menos em campo e recupera mais rápido entre os jogos.' },
+  fin: { name: 'Finalização', short: 'FIN', desc: 'Quem chuta mais e com mais perigo.' },
+  pas: { name: 'Passe', short: 'PAS', desc: 'Criação no meio-campo e assistências.' },
+  dri: { name: 'Drible', short: 'DRI', desc: 'Força no ataque individual.' },
+  mar: { name: 'Marcação', short: 'MAR', desc: 'Força defensiva.' },
+  cab: { name: 'Cabeceio', short: 'CAB', desc: 'Bolas aéreas nos escanteios.' },
+  bp: { name: 'Bola parada', short: 'BP', desc: 'Faltas diretas e pênaltis.' },
+  ref: { name: 'Reflexos', short: 'REF', desc: 'Goleiro: defesas difíceis.' },
+  col: { name: 'Colocação', short: 'COL', desc: 'Goleiro: posicionamento e saídas do gol.' },
+};
+/** Índice de cada atributo em `Player.at`. */
+export const ATTR_INDEX = Object.fromEntries(ATTR_KEYS.map((k, i) => [k, i])) as Record<AttrKey, number>;
+/** Atributos exibidos por posição (os demais pouco importam para ela). */
+export const ATTRS_FOR: Record<Position, AttrKey[]> = {
+  GOL: ['ref', 'col', 'pas', 'fol', 'vel', 'bp'],
+  ZAG: ['mar', 'cab', 'vel', 'fol', 'pas', 'dri', 'fin', 'bp'],
+  LAT: ['vel', 'fol', 'mar', 'pas', 'dri', 'fin', 'cab', 'bp'],
+  VOL: ['mar', 'fol', 'pas', 'vel', 'dri', 'fin', 'cab', 'bp'],
+  MEI: ['pas', 'dri', 'fin', 'bp', 'vel', 'fol', 'mar', 'cab'],
+  ATA: ['fin', 'vel', 'dri', 'cab', 'pas', 'fol', 'bp', 'mar'],
+};
+/** Desvio médio de cada atributo em relação ao overall, por posição (ordem de ATTR_KEYS). */
+export const ATTR_PROFILE: Record<Position, number[]> = {
+  //      vel  fol  fin  pas  dri  mar  cab   bp  ref  col
+  GOL: [-25, -12, -45, -14, -40, -35, -28, -30, 3, 1],
+  ZAG: [-6, -2, -22, -10, -16, 6, 5, -14, -50, -50],
+  LAT: [5, 4, -14, -1, -2, 0, -8, -6, -50, -50],
+  VOL: [-4, 4, -10, 2, -6, 4, -4, -6, -50, -50],
+  MEI: [0, 0, -2, 5, 4, -12, -10, 2, -50, -50],
+  ATA: [3, -2, 6, -4, 3, -24, 0, -4, -50, -50],
+};
+/** Atributo reforçado por cada habilidade. */
+export const TRAIT_ATTR: Partial<Record<TraitKey, AttrKey>> = {
+  finalizacao: 'fin', cabeceio: 'cab', drible: 'dri', passe: 'pas', velocidade: 'vel', marcacao: 'mar', desarme: 'mar',
+  reflexo: 'ref', resistencia: 'fol', faltas: 'bp', motorzinho: 'fol', chuteLonge: 'fin', penalti: 'bp', pegaPenalti: 'ref', lancamento: 'pas',
 };
 /** Chance de um jogador gerado ser Craque. */
 export const STAR_CHANCE = 0.03;

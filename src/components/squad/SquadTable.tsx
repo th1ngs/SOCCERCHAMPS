@@ -12,6 +12,7 @@ import type { SortKey, SortState } from "./squadSort";
 import type { StatusTag } from "./statusTags";
 import { LoanBadge, PromiseBadge } from "./TransferMarkBadges";
 import { useTransferMarks } from "./transferMarks";
+import { TraitChips } from "@/components/player/TraitChips";
 
 export interface SquadRow {
   p: Player;
@@ -110,6 +111,7 @@ export function SquadTable({ rows, sort, onSort, onOpen }: { rows: SquadRow[]; s
               <td className="px-2 py-2">
                 <span className="inline-flex flex-wrap items-center gap-1">
                   <StatusTags tags={tags} />
+                  <TraitChips traits={p.traits} />
                   <LoanBadge marks={marks.get(p.id)} />
                 </span>
               </td>

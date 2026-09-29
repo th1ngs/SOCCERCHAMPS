@@ -26,6 +26,19 @@ export function chanceLabel(c: number): { text: string; tone: string } {
   return { text: `${pct}% • tende a recusar`, tone: "text-danger-400" };
 }
 
+/** Folha depois do acordo contra o teto da diretoria (renovações têm 10% de tolerância). */
+function PayrollLine({ wages, cap, extra, renewal }: { wages: number; cap: number; extra: number; renewal: boolean }) {
+  const after = wages + Math.max(0, extra);
+  const limit = renewal ? cap * 1.1 : cap;
+  const over = after > limit;
+  return (
+    <p className={cn("mt-2 rounded-lg px-2.5 py-1.5 text-xs", over ? "bg-danger-500/12 text-danger-400" : "bg-white/4 text-mist")}>
+      Folha depois do acordo: <b className={over ? "" : "text-snow"}>{formatMoney(after)}/sem</b> • teto da diretoria {formatMoney(cap)}/sem
+      {over ? " — a diretoria vai vetar." : ` — sobra ${formatMoney(limit - after)}/sem.`}
+    </p>
+  );
+}
+
 /** Termos pessoais (contratação ou renovação): salário, anos, luvas, papel e chance de aceitar em tempo real. */
 export function TermsPanel({
   ask,
@@ -36,6 +49,7 @@ export function TermsPanel({
   onUseCounter,
   agreed,
   currentWage,
+  payroll,
 }: {
   ask: Terms;
   terms: Terms;
@@ -47,6 +61,8 @@ export function TermsPanel({
   agreed: boolean;
   /** Salário atual (renovação): mostra o impacto na folha. */
   currentWage?: number;
+  /** Folha e teto salarial do clube (para avisar antes do veto da diretoria). */
+  payroll?: { wages: number; cap: number };
 }) {
   const set = (patch: Partial<Terms>) => onChange({ ...terms, ...patch });
   const wMin = round100(ask.wage * 0.5);
@@ -65,6 +81,7 @@ export function TermsPanel({
           </span>
         </div>
         <Meter value={chance * 100} label="Chance de o jogador aceitar" className="mt-2 h-2.5 w-full" />
+        {payroll && <PayrollLine wages={payroll.wages} cap={payroll.cap} extra={terms.wage - (currentWage ?? 0)} renewal={currentWage != null} />}
         <p className="mt-2 text-xs text-mist">
           Pedido do jogador: <b className="text-snow">{formatMoney(ask.wage)}/sem</b> • {yearsText(ask.years)} • luvas {formatMoney(ask.bonus)} • {ROLE_INFO[ask.role].label}
         </p>

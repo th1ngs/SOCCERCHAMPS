@@ -1,22 +1,23 @@
 // Temporada: calendário de todas as ligas, resultados, tabelas, copas, semana a semana e virada de ano.
-import { ACADEMY_FOCUS, FOCUS_DEV, TICKET_PRICES, TRAINING, injuryLabel, injuryPhrase, weeksText } from './data';
+import { ACADEMY_FOCUS, FOCUS_DEV, TICKET_PRICES, TRAINING, TRAITS, injuryLabel, injuryPhrase, weeksText } from './data';
 import { contByRep, contQualifiers } from './competitions';
 import { Sim, isDerbyClubs } from './engine';
-import { FREE_MAX, FREE_MIN, assignNumbers, makeFreeAgent, makeYouth, newPlayer, releaseClauseFor, rollNat, valueOf, wageFor } from './gen';
+import { FREE_MAX, FREE_MIN, assignNumbers, attr, clubWage, hasTrait, learnTrait, makeFreeAgent, meanSquadOvr, makeYouth, newPlayer, releaseClauseFor, rollNat, rollTrait, traitCap, valueOf } from './gen';
+import { clubWages, commercialWeekly, renewClubFinances, ticketBase, tvShare, upkeepWeekly } from './finance';
 
 /** Piso da multa rescisória em relação ao valor de mercado. */
 export const RELEASE_MIN_MULT = 1.8;
 import {
   CONT_PRIZE, CONT_WEEKS, CUP_PRIZE, CUP_WEEKS, DIVISIONS, DIVISION_IDS, LEAGUES, LEAGUE_IDS, LEAGUE_PRIZE_BASE,
-  LEAGUE_ROUNDS, PROMOTION_SPOTS, TOTAL_WEEKS, TV_BASE, competitionName, compLeague, cupId, cupRoundName,
+  LEAGUE_ROUNDS, PROMOTION_SPOTS, TOTAL_WEEKS, competitionName, compLeague, cupId, cupRoundName,
   divisionFullName, firstDivisions, isKnockout,
 } from './leagues';
-import { aiListPlayers, aiOffersToUser, aiTransfers, promoteYouth, transfer } from './market';
+import { aiInvest, aiListPlayers, aiOffersToUser, aiTransfers, promoteYouth, transfer } from './market';
 import { potentialRange, processScoutQueue } from './scouting';
 import {
   biggestDeals, checkPromises, checkWatchlist, isDeadlineDay, payDue, returnLoans, trimTransfers,
 } from './transfers';
-import { autoLineup, ensureLineup, pickCaptain, pickPenTaker, teamRating } from './squad';
+import { autoLineup, ensureLineup, pickCaptain, pickFkTaker, pickPenTaker, teamRating } from './squad';
 import type {
   Club, Competition, DivisionId, DivisionMove, FinanceCategory, Fixture, FormResult, GateForecast, HistoryEntry,
   KnockoutId, Match, MatchResult, MessageInput, Player, Position, ScorerEntry, SeasonSummary, SimOptions, TableRow,
@@ -295,7 +296,7 @@ export function expectedGate(w: World, m: Match): GateForecast {
   const tp = TICKET_PRICES[hc.ticketPrice] || TICKET_PRICES.normal;
   const fans = typeof hc.fans === 'number' ? hc.fans : FANS_START;
   const occ = derby ? 1 : clamp(0.35 + hc.rep / 200 + ac.rep / 400 + (isKnockout(m.comp) ? 0.1 : 0) + tp.occ + (fans - FANS_START) / 250, 0.2, 1);
-  const income = Math.round(hc.cap * occ * (15 + hc.rep * 0.3) * tp.mult * (derby ? DERBY_INCOME : 1));
+  const income = Math.round(hc.cap * occ * ticketBase(hc) * tp.mult * (derby ? DERBY_INCOME : 1));
   return { attendance: Math.round(hc.cap * occ), income, derby };
 }
 
@@ -481,7 +482,9 @@ export function endWeek(w: World): WeekReport {
       }
     }
     const tr = club ? TRAINING[club.trainingInt] : TRAINING.mid;
-    p.fitness = clamp(p.fitness + tr.recover, 0, 100);
+    // Fôlego e Motorzinho: recuperam mais rápido entre os jogos.
+    const rec = clamp(0.8 + attr(p, 'fol') / 250, 0.9, 1.2) + (hasTrait(p, 'motorzinho') ? 0.08 : 0);
+    p.fitness = clamp(p.fitness + tr.recover * rec, 0, 100);
     develop(p, club);
     if (club && !p.youth) {
       if (!p.played && !p.inj) p.morale = clamp(p.morale - 1.2, 10, 100);
@@ -506,14 +509,20 @@ export function endWeek(w: World): WeekReport {
       if (p.releaseClause < v * RELEASE_MIN_MULT) p.releaseClause = Math.round((v * 2.5) / 10000) * 10000;
     }
   }
+  // Reputação média por divisão (base da divisão da cota de TV).
+  const divRep: Record<string, [number, number]> = {};
+  for (const c of Object.values(w.clubs)) { const d = (divRep[c.div] ||= [0, 0]); d[0] += c.rep; d[1]++; }
   for (const c of Object.values(w.clubs)) {
     let wages = ownerWages[c.id] || 0;
     for (const id of c.squad) { const p = w.players[id]; wages += p.loan ? p.wage * p.loan.wageShare : p.wage; }
     for (const id of c.youth) wages += w.players[id].wage;
     wages = Math.round(wages);
     addMoney(w, c.id, -wages, 'wages');
-    addMoney(w, c.id, Math.round(c.rep * 3000), 'sponsor');
-    addMoney(w, c.id, Math.round((TV_BASE[DIVISIONS[c.div].level - 1] ?? TV_BASE[TV_BASE.length - 1]) * LEAGUES[c.league].wealth), 'tv');
+    addMoney(w, c.id, c.sponsor || 0, 'sponsor');
+    const dr = divRep[c.div];
+    addMoney(w, c.id, tvShare(w, c, dr[0] / dr[1]), 'tv');
+    addMoney(w, c.id, commercialWeekly(c), 'commercial');
+    addMoney(w, c.id, -upkeepWeekly(c), 'upkeep');
     if (c.loan) {
       addMoney(w, c.id, -c.loan.weekly, 'loan');
       c.loan.weeksLeft--;
@@ -552,6 +561,10 @@ export function endWeek(w: World): WeekReport {
     if (m.offer && !m.offer.done && (m.offer.expires < w.week || m.season !== w.season)) {
       m.offer.done = true; m.offer.expired = true;
     }
+  }
+  if (u.wageCap && clubWages(w, u) > u.wageCap * 1.1) {
+    w.board.conf = clamp(w.board.conf - 0.5, 0, 100);
+    if (w.week % 6 === 0) pushMessage(w, { kind: 'board', title: 'Folha acima do teto', body: `A folha salarial (${formatMoney(clubWages(w, u))}/sem) passou do teto aprovado pela diretoria (${formatMoney(u.wageCap)}/sem). Negocie saídas para equilibrar as contas.` });
   }
   if (u.money < 0) {
     w.board.conf = clamp(w.board.conf - 2, 0, 100);
@@ -665,12 +678,33 @@ export function newSeason(w: World): void {
     if (ps.contNext && ps.contNext.length) w.contNext = ps.contNext;
   }
   w.pendingSeason = null;
+  // Índice salarial: acompanha a evolução média dos elencos.
+  const mean = meanSquadOvr(w);
+  if (!w.econ) w.econ = { baseOvr: mean, drift: 0 };
+  w.econ.drift = Math.round(Math.max(0, mean - w.econ.baseOvr) * 100) / 100;
+  // Patrocínios renovados com a reputação e a divisão novas; teto salarial recalculado.
+  const champs = new Set<string>(ps ? Object.values(ps.entry.champions).concat(Object.values(ps.entry.cups).filter((x): x is string => !!x)) : []);
+  const sponsor = renewClubFinances(w, u, champs.has(u.id));
+  for (const c of Object.values(w.clubs)) {
+    if (c.id === u.id) continue;
+    aiInvest(w, c);
+    renewClubFinances(w, c, champs.has(c.id));
+  }
   // Empréstimos voltam antes de contratos e aposentadorias.
   returnLoans(w);
   // Envelhecimento e aposentadoria
+  const learned: string[] = [];
   for (const p of Object.values(w.players)) {
     p.age++;
     if (p.age >= 25) p.pot = Math.max(Math.round(p.ovr), Math.min(p.pot, Math.round(p.ovr) + 2));
+    // Quem evolui pode desenvolver uma habilidade nova (mais comum entre os jovens).
+    if (p.traits.length < traitCap(p.ovr, p.star) && chance(p.age <= 23 ? 0.35 : p.age <= 28 ? 0.2 : 0.06)) {
+      const t = rollTrait(p.pos, p.traits);
+      if (t) {
+        learnTrait(p, t);
+        if (p.clubId === u.id || u.youth.includes(p.id)) learned.push(`${p.name}: ${TRAITS[t].name}`);
+      }
+    }
     const retireP = p.age >= 38 ? 1 : p.age >= 34 ? (p.age - 33) * 0.22 : 0;
     if (!p.youth && chance(retireP)) {
       if (p.clubId === u.id) news.push(`${p.name} (${p.age} anos) se aposentou.`);
@@ -687,9 +721,9 @@ export function newSeason(w: World): void {
       if (c.id === u.id) {
         news.push(`${p.name} encerrou o contrato e deixou o clube.`);
         toFree(w, p);
-      } else if (chance(0.75)) {
+      } else if (chance(c.wageCap && clubWages(w, c) > c.wageCap ? 0.5 : 0.75)) {
         p.contract = randi(1, 3);
-        p.wage = wageFor(p.ovr);
+        p.wage = clubWage(w, c.id, p.ovr);
         p.releaseClause = releaseClauseFor(p);
       } else toFree(w, p);
     }
@@ -745,6 +779,13 @@ export function newSeason(w: World): void {
   startSeason(w);
   for (const c of Object.values(w.clubs)) ensureLineup(w, c);
   if (news.length) pushMessage(w, { kind: 'info', title: 'Movimentações de fim de temporada', body: news.join('\n') });
+  if (learned.length) pushMessage(w, { kind: 'info', title: 'Novas habilidades no elenco', body: `Com a evolução nos treinos, ${learned.length === 1 ? 'um jogador desenvolveu uma habilidade' : `${learned.length} jogadores desenvolveram habilidades`}: ${learned.join('; ')}.` });
+  const diff = sponsor.after - sponsor.before;
+  pushMessage(w, {
+    kind: 'board',
+    title: 'Orçamento da temporada',
+    body: `Patrocínio master ${diff >= 0 ? 'renovado' : 'renegociado'}: ${formatMoney(sponsor.after)}/sem (${diff >= 0 ? '+' : ''}${formatMoney(diff)} em relação à temporada passada). Teto salarial aprovado pela diretoria: ${formatMoney(u.wageCap)}/sem; folha atual: ${formatMoney(clubWages(w, u))}/sem.`,
+  });
   if (intake.length) {
     const best = intake.slice().sort((a, b) => b.pot - a.pot)[0];
     const r = potentialRange(w, best);
@@ -796,6 +837,7 @@ export function detach(w: World, p: Player): void {
     // Capitão/batedor que saem são substituídos na hora.
     if (c.captain === p.id) { c.captain = null; if (c.squad.length) pickCaptain(w, c); }
     if (c.penTaker === p.id) { c.penTaker = null; if (c.squad.length) pickPenTaker(w, c); }
+    if (c.fkTaker === p.id) { c.fkTaker = null; if (c.squad.length) pickFkTaker(w, c); }
   }
   w.free = w.free.filter((id) => id !== p.id);
 }

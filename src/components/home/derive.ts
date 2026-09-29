@@ -1,5 +1,5 @@
 // Derivações puras do painel inicial.
-import { clubPlayers, nextWindow, sum, table, user, WINDOWS, windowOpen } from "@/game";
+import { clubPlayers, clubWages, nextWindow, table, user, WINDOWS, windowOpen } from "@/game";
 import type { Player, TableRow, World } from "@/game/types";
 
 export interface MiniTable {
@@ -59,8 +59,8 @@ export const clubScorers = (w: World, n = 3): Player[] =>
 
 /** Folha salarial semanal (profissionais + base). */
 export function weeklyWages(w: World): number {
-  const u = user(w);
-  return sum(u.squad.concat(u.youth), (id) => w.players[id]?.wage ?? 0);
+  // Mesma conta do motor (inclui a parte paga de jogadores emprestados).
+  return clubWages(w, user(w));
 }
 
 export function windowText(w: World): string {

@@ -1,9 +1,10 @@
 // Olheiros e potencial escondido: faixas de potencial, características conhecidas, relatórios e foco da base.
-import { TRAITS } from './data';
-import { valueOf } from './gen';
+import { ATTRS, ATTRS_FOR, TRAITS } from './data';
+import { attr, valueOf } from './gen';
 import { LEAGUES, TOTAL_WEEKS } from './leagues';
 import { askingPrice } from './market';
-import type { AcademyFocus, Player, PotentialRange, ScoutLevel, ScoutRequestResult, TraitKey, World } from './types';
+import type { AcademyFocus, AttrKey, Player, PotentialRange, ScoutLevel, ScoutRequestResult, TraitKey, World } from './types';
+import { clamp } from './util';
 import { addMoney, clubPlayers, pushMessage, user } from './world';
 
 /** Largura da faixa de potencial para jogadores de outros clubes, por nível de conhecimento. */
@@ -73,10 +74,39 @@ export function potentialRange(w: World, p: Player): PotentialRange {
   return place(p, SCOUT_WIDTH[level]);
 }
 
-/** Características conhecidas (null se o jogador é de fora e não há relatório). O selo de craque é sempre visível. */
-export function knownTraits(w: World, p: Player): TraitKey[] | null {
-  if (isOwnPlayer(w, p) || p.clubId === w.userClub || scoutLevel(w, p.id) === 2) return p.traits.slice();
-  return null;
+/**
+ * Habilidades conhecidas. Desde a v5 elas são públicas (fama do jogador: todo mundo sabe quem bate falta
+ * ou é velocista); o que os olheiros revelam são o potencial e os atributos exatos. Mantém `| null` por compatibilidade.
+ */
+export function knownTraits(_w: World, p: Player): TraitKey[] | null {
+  return p.traits.slice();
+}
+
+/** Atributo como o usuário o conhece: exato, aproximado (±, observado) ou desconhecido. */
+export interface KnownAttr {
+  key: AttrKey;
+  value: number;
+  /** Faixa conhecida (min = max quando exato). */
+  min: number;
+  max: number;
+  exact: boolean;
+}
+
+/**
+ * Atributos conhecidos na ordem da posição (ATTRS_FOR). Jogadores do usuário e com relatório: exatos;
+ * observados: faixa de ±4 (estável por jogador); sem observação: null.
+ */
+export function knownAttrs(w: World, p: Player): KnownAttr[] | null {
+  const level = scoutLevel(w, p.id);
+  const own = isOwnPlayer(w, p) || p.clubId === w.userClub || level === 2;
+  if (!own && level < 1) return null;
+  return ATTRS_FOR[p.pos].map((key) => {
+    const value = attr(p, key);
+    if (own) return { key, value, min: value, max: value, exact: true };
+    const shift = Math.round(hash01(`${p.id}:${key}`) * 8) - 4;
+    const min = clamp(value - 4 + shift, 1, 99), max = clamp(value + 4 + shift, 1, 99);
+    return { key, value, min: Math.min(min, value), max: Math.max(max, value), exact: false };
+  });
 }
 
 /** Joia: potencial real ≥ 80 e até 17 anos (a UI só mostra o selo quando a faixa conhecida tem min ≥ 78). */
@@ -136,12 +166,14 @@ export function processScoutQueue(w: World): void {
     if (!p) continue;
     w.scouting[p.id] = { level: 2, season: w.season };
     const traits = p.traits.map((t) => TRAITS[t].name).join(', ') || 'nenhuma';
+    const top = ATTRS_FOR[p.pos].map((k) => ({ k, v: attr(p, k) })).sort((a, b) => b.v - a.v).slice(0, 3)
+      .map(({ k, v }) => `${ATTRS[k].name} ${v}`).join(', ');
     const club = p.clubId ? w.clubs[p.clubId].name : 'sem clube';
     pushMessage(w, {
       kind: 'info',
       pid: p.id,
       title: `Relatório do olheiro: ${p.name}`,
-      body: `${p.name} (${p.pos}, ${p.age} anos, ${club}): overall ${Math.round(p.ovr)}, potencial ${Math.round(p.pot)}. Características: ${traits}${p.star ? ' • Craque' : ''}. Veredito: ${scoutVerdict(w, p)}.`,
+      body: `${p.name} (${p.pos}, ${p.age} anos, ${club}): overall ${Math.round(p.ovr)}, potencial ${Math.round(p.pot)}. Pontos fortes: ${top}. Habilidades: ${traits}${p.star ? ' • Craque' : ''}. Veredito: ${scoutVerdict(w, p)}.`,
     });
   }
   w.scoutQueue = keep;

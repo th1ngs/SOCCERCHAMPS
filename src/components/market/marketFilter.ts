@@ -1,6 +1,6 @@
 // Filtros do mercado de transferências (puros).
 import { marketPlayers, potentialRange, valueOf } from "@/game";
-import type { Club, LeagueId, Player, Position, PotentialRange, World } from "@/game/types";
+import type { Club, LeagueId, Player, Position, PotentialRange, TraitKey, World } from "@/game/types";
 
 /** Liga do clube do jogador: "" = todas, "free" = só agentes livres. */
 export type LeagueFilter = "" | LeagueId | "free";
@@ -16,10 +16,12 @@ export interface MarketFilter {
   league: LeagueFilter;
   /** Nacionalidade ("" = qualquer). */
   nat: "" | LeagueId;
+  /** Habilidade especial ("" = qualquer). */
+  trait: "" | TraitKey;
   q: string;
 }
 
-export const DEFAULT_FILTER: MarketFilter = { pos: "", age: 40, ovr: 0, max: 0, league: "", nat: "", q: "" };
+export const DEFAULT_FILTER: MarketFilter = { pos: "", age: 40, ovr: 0, max: 0, league: "", nat: "", trait: "", q: "" };
 export const AGE_OPTIONS = [40, 21, 23, 25, 28, 31];
 export const OVR_OPTIONS = [0, 60, 65, 70, 75, 80];
 export const MAX_OPTIONS = [0, 1, 3, 5, 10, 20];
@@ -56,6 +58,7 @@ export function searchMarket(w: World, f: MarketFilter): { total: number; rows: 
   for (const p of base) {
     const value = valueOf(p);
     if (f.max && value > maxValue) continue;
+    if (f.trait && !p.traits.includes(f.trait)) continue;
     const club = p.clubId ? w.clubs[p.clubId] ?? null : null;
     if (q && !norm(p.name).includes(q) && !(club && norm(club.name).includes(q))) continue;
     rows.push({ p, club, value, range: { min: 0, max: 0, exact: false }, watched: false, scoutLevel: 0, readyWeek: null });
@@ -78,5 +81,6 @@ export const isDefaultFilter = (f: MarketFilter): boolean =>
   f.ovr === DEFAULT_FILTER.ovr &&
   f.max === DEFAULT_FILTER.max &&
   f.league === DEFAULT_FILTER.league &&
+  f.trait === DEFAULT_FILTER.trait &&
   f.nat === DEFAULT_FILTER.nat &&
   !f.q.trim();

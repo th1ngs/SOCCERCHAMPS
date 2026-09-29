@@ -1,5 +1,5 @@
 import { Plus, TriangleAlert } from "lucide-react";
-import { fit } from "@/game";
+import { playerFit } from "@/game";
 import type { FormationSlot, Player } from "@/game/types";
 import { cn } from "@/lib/cn";
 import { surname } from "@/components/player/playerInfo";
@@ -34,7 +34,7 @@ export function PitchSlot({
     );
   }
 
-  const f = fit(p.pos, slot.pos);
+  const f = playerFit(p, slot.pos);
   const tone = fitTone(f);
   const label = `${slot.pos}: ${p.name}, ${p.pos}, overall ${Math.round(p.ovr)}, condição ${Math.round(p.fitness)}%${captain ? ", capitão" : ""}${tone !== "ok" ? ", fora de posição" : ""}. Trocar jogador`;
 

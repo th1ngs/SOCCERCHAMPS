@@ -5,6 +5,8 @@ import { Crest } from "@/components/ui/Crest";
 import { Flag } from "@/components/ui/Flag";
 import { useWorld } from "@/components/game/GameProvider";
 import { SeasonFinancesCard } from "./SeasonFinancesCard";
+import { BudgetCard } from "./BudgetCard";
+import { LeagueFinanceCard } from "./LeagueFinanceCard";
 import { StructureCard } from "./StructureCard";
 import { TicketsCard, TrainingCard } from "./PoliciesCard";
 import { LoanCard } from "./LoanCard";
@@ -36,12 +38,14 @@ export function ClubScreen() {
         </div>
       </div>
       <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <BudgetCard />
         <SeasonFinancesCard />
         <StructureCard />
         <div className="flex flex-col gap-4">
           <TrainingCard />
           <TicketsCard />
         </div>
+        <LeagueFinanceCard />
         <LoanCard />
         <CareerCard />
         <CloudCard />

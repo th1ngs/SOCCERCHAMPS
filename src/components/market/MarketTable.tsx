@@ -8,6 +8,7 @@ import { Badge, OvrBadge, PosBadge } from "@/components/ui/primitives";
 import type { MarketRow } from "./marketFilter";
 import { rangeText } from "./transferDerive";
 import { WatchButton } from "./WatchButton";
+import { TraitChips } from "@/components/player/TraitChips";
 
 const TH = "px-2 py-2.5 font-display text-xs font-bold uppercase tracking-wider text-mist";
 
@@ -105,6 +106,9 @@ export function MarketTable({ rows, onOpen }: { rows: MarketRow[]; onOpen: (pid:
                     {r.p.name}
                   </button>
                   {r.p.star && <StarMark />}
+                </span>
+                <span className="mt-0.5 block">
+                  <TraitChips traits={r.p.traits} max={2} />
                 </span>
               </td>
               <td className="max-w-52 px-2 py-2">

@@ -3,7 +3,7 @@ import { TRAITS } from "@/game";
 import type { TraitKey } from "@/game/types";
 import { Badge } from "@/components/ui/primitives";
 
-/** Características conhecidas (null = ainda não observadas) e selo de Craque, sempre visível. */
+/** Habilidades conhecidas (null = ainda não observadas) e selo de Craque, sempre visível. */
 export function YouthTraits({ traits, star, short = false }: { traits: TraitKey[] | null; star: boolean; short?: boolean }) {
   return (
     <span className="inline-flex min-h-5 flex-wrap items-center gap-1">
@@ -13,7 +13,7 @@ export function YouthTraits({ traits, star, short = false }: { traits: TraitKey[
         </Badge>
       )}
       {traits === null ? (
-        <span className="text-xs text-mist/80">Características: peça um relatório</span>
+        <span className="text-xs text-mist/80">Habilidades: peça um relatório</span>
       ) : traits.length ? (
         traits.map((k) => {
           const t = TRAITS[k];
@@ -25,7 +25,7 @@ export function YouthTraits({ traits, star, short = false }: { traits: TraitKey[
           );
         })
       ) : (
-        <span className="text-xs text-mist/80">Sem características marcantes</span>
+        <span className="text-xs text-mist/80">Sem habilidades especiais ainda</span>
       )}
     </span>
   );

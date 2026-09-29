@@ -2,11 +2,14 @@
 // Decisão: saves anteriores à v3 (sem `league` nos clubes, ou seja, o mundo de uma liga só)
 // NÃO são convertidos. `isCompatible(w)` diz se o save pode ser carregado e `migrateWorld(w)`
 // lança `IncompatibleSaveError` para eles; a UI deve pedir uma nova carreira.
-// Saves v3 são levados à v4 (olheiros, empréstimos, negociações, histórico…); v4 é idempotente.
+// Saves v3 são levados à v4 (olheiros, empréstimos, negociações, histórico…) e v4 à v5
+// (atributos, habilidades novas, batedor de faltas e finanças por clube); v5 é idempotente.
 import { CLUBS, TICKET_PRICES, injuryLabel } from './data';
-import { MIN_COMPATIBLE_VERSION, WORLD_VERSION, rollStar, rollTraits, valueOf } from './gen';
+import { ATTR_KEYS } from './data';
+import { clubWages, sponsorValue, wageCapFor } from './finance';
+import { MIN_COMPATIBLE_VERSION, WORLD_VERSION, meanSquadOvr, rollAttrs, rollStar, rollTraits, valueOf } from './gen';
 import { DIVISIONS, LEAGUES } from './leagues';
-import { pickCaptain, pickPenTaker } from './squad';
+import { pickCaptain, pickFkTaker, pickPenTaker } from './squad';
 import type { Club, Player, World } from './types';
 
 /** Save de uma versão antiga (sem ligas) ou malformado. */
@@ -52,11 +55,17 @@ function migrateClub(w: World, c: Club): void {
   if (!lc.academyFocus) c.academyFocus = 'balanced';
   if (!c.captain && c.squad.length) pickCaptain(w, c);
   if (!c.penTaker && c.squad.length) pickPenTaker(w, c);
+  if (lc.fkTaker === undefined || (c.fkTaker && !c.squad.includes(c.fkTaker))) c.fkTaker = null;
+  if (!c.fkTaker && c.squad.length) pickFkTaker(w, c);
+  // Finanças v5: o caixa é mantido; patrocínio e teto salarial passam a existir.
+  if (typeof lc.sponsor !== 'number' || !(lc.sponsor > 0)) c.sponsor = sponsorValue(c);
+  if (typeof lc.wageCap !== 'number' || !(lc.wageCap > 0)) c.wageCap = Math.max(wageCapFor(w, c), Math.round((clubWages(w, c) * 1.08) / 10000) * 10000);
 }
 
 function migratePlayer(w: World, p: Player): void {
   const lp = p as Loose<Player>;
-  if (!Array.isArray(lp.traits)) p.traits = rollTraits(p.pos);
+  if (!Array.isArray(lp.traits)) p.traits = rollTraits(p.pos, p.ovr, !!p.star);
+  if (!Array.isArray(lp.at) || lp.at.length !== ATTR_KEYS.length) p.at = rollAttrs(p.pos, p.traits);
   if (typeof lp.star !== 'boolean') p.star = rollStar();
   if (lp.injType === undefined) p.injType = p.inj > 0 ? injuryLabel(p.inj) : null;
   if (!lp.nat || !(lp.nat in LEAGUES)) p.nat = p.clubId && w.clubs[p.clubId] ? w.clubs[p.clubId].league : 'bra';
@@ -97,6 +106,7 @@ export function migrateWorld(w: World): World {
   w.board = { conf: typeof board.conf === 'number' ? board.conf : 60, target: board.target ?? 0, label: board.label ?? '' };
   for (const p of Object.values(w.players)) migratePlayer(w, p);
   for (const c of Object.values(w.clubs)) migrateClub(w, c);
+  if (!lw.econ) w.econ = { baseOvr: Math.round(meanSquadOvr(w) * 100) / 100, drift: 0 };
   if (!(typeof lw.version === 'number' && lw.version >= WORLD_VERSION)) w.version = WORLD_VERSION;
   return w;
 }

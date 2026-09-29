@@ -1,7 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Crown, Target } from "lucide-react";
+import { Crosshair, Crown, Target } from "lucide-react";
+import { attr, hasTrait } from "@/game";
+import type { TraitKey } from "@/game";
 import type { Player } from "@/game/types";
 import { Card } from "@/components/ui/primitives";
 
@@ -12,6 +14,7 @@ function LeaderSelect({
   options,
   onChange,
   hint,
+  detail,
 }: {
   label: string;
   icon: ReactNode;
@@ -19,6 +22,8 @@ function LeaderSelect({
   options: Player[];
   onChange: (pid: string) => void;
   hint: string;
+  /** Texto extra de cada opção (ex.: bola parada). */
+  detail?: (p: Player) => string;
 }) {
   const inList = !!value && options.some((p) => p.id === value.id);
   return (
@@ -40,7 +45,7 @@ function LeaderSelect({
         )}
         {options.map((p) => (
           <option key={p.id} value={p.id}>
-            {p.pos} • {p.name} ({Math.round(p.ovr)})
+            {p.pos} • {p.name} ({detail ? detail(p) : Math.round(p.ovr)})
           </option>
         ))}
       </select>
@@ -49,31 +54,49 @@ function LeaderSelect({
   );
 }
 
-/** Capitão e batedor de pênaltis, escolhidos entre os titulares. */
+/** Bola parada e a habilidade que mais ajuda nela ("BP 82 • Batedor de falta"). */
+const setPiece = (key: TraitKey, label: string) => (p: Player) => `BP ${attr(p, "bp")}${hasTrait(p, key) ? ` • ${label}` : ""}`;
+
+/** Capitão, batedor de pênaltis e batedor de faltas, escolhidos entre os titulares. */
 export function LeadersCard({
   starters,
   captain,
   penTaker,
+  fkTaker,
   onCaptain,
   onPenTaker,
+  onFkTaker,
 }: {
   starters: Player[];
   captain: Player | null;
   penTaker: Player | null;
+  fkTaker: Player | null;
   onCaptain: (pid: string) => void;
   onPenTaker: (pid: string) => void;
+  onFkTaker: (pid: string) => void;
 }) {
+  const takers = starters.filter((p) => p.pos !== "GOL").sort((a, b) => attr(b, "bp") - attr(a, "bp"));
   return (
-    <Card title="Liderança">
+    <Card title="Liderança e bola parada">
       <div className="space-y-4">
-        <LeaderSelect label="Capitão" icon={<Crown />} value={captain} options={starters} onChange={onCaptain} hint="Em campo, dá +1,5% em todos os setores (+3% com Liderança)." />
+        <LeaderSelect label="Capitão" icon={<Crown />} value={captain} options={starters} onChange={onCaptain} hint="Em campo, dá +1,5% em todos os setores (+3% com a habilidade Líder)." />
         <LeaderSelect
           label="Batedor de pênaltis"
           icon={<Target />}
           value={penTaker}
-          options={starters.filter((p) => p.pos !== "GOL")}
+          options={takers}
           onChange={onPenTaker}
-          hint="Cobra os pênaltis no jogo e abre a disputa por pênaltis."
+          detail={setPiece("penalti", "Cobrador")}
+          hint="Cobra os pênaltis e abre a disputa. Conta a bola parada (BP), a finalização e a habilidade Cobrador de pênalti."
+        />
+        <LeaderSelect
+          label="Batedor de faltas"
+          icon={<Crosshair />}
+          value={fkTaker}
+          options={takers}
+          onChange={onFkTaker}
+          detail={setPiece("faltas", "Batedor de falta")}
+          hint="Cobra as faltas perto da área. Com a habilidade Batedor de falta, a cobrança fica 70% mais perigosa."
         />
       </div>
     </Card>

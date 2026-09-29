@@ -1,16 +1,29 @@
 // Geração do mundo: clubes, elencos, jogadores, base e agentes livres.
-import { ACADEMY_FOCUS, CLUBS, FOCUS_WEIGHT, NAMES_BY_NAT, POS, STAR_CHANCE, TRAIT_WEIGHTS } from './data';
-import { LEAGUE_IDS } from './leagues';
-import { pickCaptain, pickPenTaker } from './squad';
-import type { Club, FormationKey, LeagueId, NewPlayerOptions, Player, Position, TraitKey, World } from './types';
+import { ACADEMY_FOCUS, ATTR_INDEX, fit, ATTR_KEYS, ATTR_PROFILE, CLUBS, FOCUS_WEIGHT, NAMES_BY_NAT, POS, STAR_CHANCE, TRAIT_ATTR, TRAIT_WEIGHTS } from './data';
+import { LEAGUES, LEAGUE_IDS } from './leagues';
+import { initClubFinances } from './finance';
+import { pickCaptain, pickFkTaker, pickPenTaker } from './squad';
+import type { AttrKey, Club, FormationKey, LeagueId, NewPlayerOptions, Player, Position, TraitKey, World } from './types';
 import { chance, clamp, gauss, pick, rand, randi, weighted } from './util';
 
 const SQUAD_TEMPLATE: Record<Position, number> = { GOL: 3, ZAG: 4, LAT: 4, VOL: 4, MEI: 5, ATA: 4 };
 
-export const wageFor = (ovr: number): number => Math.round((2600 * Math.pow(1.13, ovr - 50)) / 100) * 100;
+/** Salário semanal de referência para um overall; `league` aplica o nível salarial da liga (padrão: Brasil). */
+export const wageFor = (ovr: number, league?: LeagueId): number =>
+  Math.round((1500 * Math.pow(1.155, ovr - 50) * (league ? LEAGUES[league].wages : 1)) / 100) * 100;
+/** Salário de referência no clube `clubId` (nível salarial da liga dele). */
+export const clubWage = (w: World, clubId: string | null | undefined, ovr: number): number =>
+  wageFor(ovr - (w.econ?.drift ?? 0), clubId && w.clubs[clubId] ? w.clubs[clubId].league : undefined);
+
+/** Overall médio dos elencos profissionais (base do índice salarial). */
+export function meanSquadOvr(w: World): number {
+  let sum = 0, n = 0;
+  for (const c of Object.values(w.clubs)) for (const id of c.squad) { const p = w.players[id]; if (p) { sum += p.ovr; n++; } }
+  return n ? sum / n : 65;
+}
 
 /** Versão atual do formato do World. */
-export const WORLD_VERSION = 4;
+export const WORLD_VERSION = 5;
 /** Saves a partir desta versão podem ser migrados. */
 export const MIN_COMPATIBLE_VERSION = 3;
 
@@ -42,18 +55,76 @@ export function releaseClauseFor(p: Player): number {
   return Math.max(100000, Math.round((valueOf(p) * rand(2, 3)) / 10000) * 10000);
 }
 
-/** Sorteia 1-2 características distintas conforme a posição. */
-export function rollTraits(pos: Position): TraitKey[] {
+/** Máximo de habilidades para um overall (craques ganham uma a mais). */
+export function traitCap(ovr: number, star = false): number {
+  const base = ovr < 55 ? 1 : ovr < 66 ? 2 : 3;
+  return Math.min(3, base + (star && ovr >= 60 ? 1 : 0));
+}
+
+/** Sorteia uma habilidade nova para a posição (sem repetir). */
+export function rollTrait(pos: Position, have: TraitKey[]): TraitKey | null {
   const table = TRAIT_WEIGHTS[pos];
-  const keys = Object.keys(table) as TraitKey[];
-  const n = chance(0.4) ? 2 : 1;
+  const keys = (Object.keys(table) as TraitKey[]).filter((x) => !have.includes(x));
+  return (weighted(keys, (x) => table[x] || 0) as TraitKey | undefined) ?? null;
+}
+
+/** Sorteia as habilidades iniciais: jogadores melhores têm mais (0-3). */
+export function rollTraits(pos: Position, ovr = 65, star = false): TraitKey[] {
+  const r = Math.random();
+  let n = ovr < 55 ? (r < 0.45 ? 1 : 0) : ovr < 65 ? (r < 0.25 ? 2 : 1) : ovr < 75 ? (r < 0.05 ? 3 : r < 0.5 ? 2 : 1) : r < 0.3 ? 3 : 2;
+  if (star) n++;
+  n = Math.min(n, traitCap(ovr, star));
   const out: TraitKey[] = [];
   for (let k = 0; k < n; k++) {
-    const t = weighted(keys.filter((x) => !out.includes(x)), (x) => table[x] || 0);
+    const t = rollTrait(pos, out);
     if (t) out.push(t);
   }
   return out;
 }
+
+/** Reforço do atributo ligado a uma habilidade. */
+const traitBoost = (): number => Math.round(rand(9, 14));
+
+/** Desvios dos atributos em relação ao overall: perfil da posição + variação individual + habilidades. */
+export function rollAttrs(pos: Position, traits: TraitKey[]): number[] {
+  const at = ATTR_PROFILE[pos].map((m) => Math.round(m + gauss() * 5));
+  for (const t of traits) {
+    const k = TRAIT_ATTR[t];
+    if (!k) continue;
+    const i = ATTR_INDEX[k];
+    at[i] = Math.max(at[i] + traitBoost(), ATTR_PROFILE[pos][i] + 8);
+  }
+  return at.map((v) => clamp(v, -60, 16));
+}
+
+/** Aprende uma habilidade (reforçando o atributo ligado a ela). */
+export function learnTrait(p: Player, t: TraitKey): void {
+  if (p.traits.includes(t)) return;
+  p.traits.push(t);
+  const k = TRAIT_ATTR[t];
+  if (k && p.at) {
+    const i = ATTR_INDEX[k];
+    p.at[i] = clamp(Math.max(p.at[i] + traitBoost(), ATTR_PROFILE[p.pos][i] + 8), -60, 16);
+  }
+}
+
+/** Valor de um atributo (1-99): overall + desvio. */
+export function attr(p: Pick<Player, 'ovr' | 'at' | 'pos'>, k: AttrKey): number {
+  const i = ATTR_INDEX[k];
+  const off = p.at && p.at.length === ATTR_KEYS.length ? p.at[i] : ATTR_PROFILE[p.pos][i];
+  return clamp(Math.round(p.ovr + off), 1, 99);
+}
+
+/** Rendimento fora da posição: o Coringa nunca cai abaixo de 90% (exceto no gol). */
+export function playerFit(p: Pick<Player, 'pos' | 'traits'>, slot: Position): number {
+  const f = fit(p.pos, slot);
+  if (f >= 0.9 || p.pos === 'GOL' || slot === 'GOL' || !hasTrait(p, 'coringa')) return f;
+  return 0.9;
+}
+
+/** Todos os atributos de um jogador. */
+export const attrs = (p: Pick<Player, 'ovr' | 'at' | 'pos'>): Record<AttrKey, number> =>
+  Object.fromEntries(ATTR_KEYS.map((k) => [k, attr(p, k)])) as Record<AttrKey, number>;
 
 export const rollStar = (): boolean => chance(STAR_CHANCE);
 
@@ -89,7 +160,8 @@ export function newPlayer(w: World, o: NewPlayerOptions): Player {
     played: false,
     wage: 0,
     injType: null,
-    traits: rollTraits(o.pos),
+    traits: [],
+    at: [],
     star: rollStar(),
     nat,
     start: { season: w.season, ovr: Math.round(o.ovr * 10) / 10 },
@@ -98,7 +170,9 @@ export function newPlayer(w: World, o: NewPlayerOptions): Player {
   };
   // `joined` só importa para o clube do usuário (conhecimento do potencial); sem ele, o clube já conhece o jogador.
   if (p.clubId && p.clubId === w.userClub && w.weeks.length > 0) p.joined = { season: w.season, week: w.week };
-  p.wage = o.youth ? 800 : wageFor(p.ovr) * rand(0.85, 1.15);
+  p.traits = rollTraits(p.pos, p.ovr, p.star);
+  p.at = rollAttrs(p.pos, p.traits);
+  p.wage = o.youth ? 800 : clubWage(w, p.clubId, p.ovr) * rand(0.85, 1.15);
   p.wage = Math.round(p.wage / 100) * 100;
   p.releaseClause = releaseClauseFor(p);
   w.players[id] = p;
@@ -192,7 +266,9 @@ export function newWorld(managerName: string, clubId: string): World {
     const club: Club = {
       ...c,
       colors: [c.colors[0], c.colors[1]],
-      money: Math.round((2 + (c.rep * c.rep) / 200) * 1e6),
+      money: 0,
+      sponsor: 0,
+      wageCap: 0,
       academy: clamp(Math.round(c.rep / 25 + rand(-0.5, 0.8)), 1, 5),
       training: clamp(Math.round(c.rep / 25 + rand(-0.5, 0.8)), 1, 5),
       formation: pick(FORMATION_POOL),
@@ -204,6 +280,7 @@ export function newWorld(managerName: string, clubId: string): World {
       ticketPrice: 'normal',
       captain: null,
       penTaker: null,
+      fkTaker: null,
       loan: null,
       scouting: clamp(Math.round(c.rep / 25 + rand(-0.5, 0.8)), 1, 5),
       academyFocus: 'balanced',
@@ -221,14 +298,22 @@ export function newWorld(managerName: string, clubId: string): World {
       const p = w.players[pick(club.squad)];
       p.ovr = clamp(p.ovr + rand(4, 9), 40, 93);
       p.pot = Math.max(p.pot, Math.round(p.ovr));
-      p.wage = wageFor(p.ovr);
+      p.wage = clubWage(w, club.id, p.ovr);
+      if (p.traits.length < traitCap(p.ovr, p.star)) {
+        const t = rollTrait(p.pos, p.traits);
+        if (t) learnTrait(p, t);
+      }
       p.releaseClause = releaseClauseFor(p);
     }
     for (let k = 0; k < 4; k++) makeYouth(w, club);
     assignNumbers(w, club);
     pickCaptain(w, club);
     pickPenTaker(w, club);
+    pickFkTaker(w, club);
   });
+  // Finanças depois de todos os clubes existirem (a cota de TV depende da divisão inteira).
+  for (const club of Object.values(w.clubs)) initClubFinances(w, club);
+  w.econ = { baseOvr: Math.round(meanSquadOvr(w) * 100) / 100, drift: 0 };
   for (let k = 0; k < FREE_MIN; k++) makeFreeAgent(w);
   return w;
 }

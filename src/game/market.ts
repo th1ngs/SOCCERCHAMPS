@@ -1,12 +1,13 @@
 // Mercado: transferências, propostas, renovações, base e estrutura do clube.
 import { LOAN_INTEREST, LOAN_OPTIONS, LOAN_WEEKS, POS } from './data';
-import { assignNumbers, makeYouth, releaseClauseFor, valueOf, wageFor } from './gen';
+import { assignNumbers, clubWage, makeYouth, releaseClauseFor, valueOf } from './gen';
+import { clubWages, financeProfile } from './finance';
 import { hash01 } from './scouting';
 import { endLoan, recordTransfer } from './transfers';
 import type {
   BidResult, Club, LeagueId, Message, Player, Position, TransferKind, TrialOptions, UpgradeKey, Upgrade, World,
 } from './types';
-import { avg, chance, clamp, formatMoney, pick, rand, randi, shuffle } from './util';
+import { avg, chance, clamp, formatMoney, pick, rand, randi, shuffle, weighted } from './util';
 import { addMoney, clubPlayers, detach, neededPos, pushMessage, removePlayer, toFree, user, windowOpen } from './world';
 
 export const SQUAD_MAX = 32;
@@ -34,7 +35,7 @@ export function transfer(w: World, pid: string, toId: string, fee: number, silen
   p.num = 0;
   p.contract = randi(2, 4);
   p.morale = 75;
-  if (!p.agreedWage) p.wage = Math.round(wageFor(p.ovr) * rand(0.95, 1.15) / 100) * 100;
+  if (!p.agreedWage) p.wage = Math.round(clubWage(w, toId, p.ovr) * rand(0.95, 1.15) / 100) * 100;
   else { p.wage = p.agreedWage; p.agreedWage = null; }
   p.loan = null;
   p.promise = null;
@@ -96,7 +97,7 @@ export function askingPrice(w: World, p: Player): number {
 export function wageDemand(w: World, p: Player, club: Club): number {
   const fromRep = p.clubId ? w.clubs[p.clubId].rep : club.rep;
   const f = 1.1 + Math.max(0, fromRep - club.rep) / 60;
-  return Math.round((wageFor(p.ovr) * f) / 100) * 100;
+  return Math.round((clubWage(w, club.id, p.ovr) * f) / 100) * 100;
 }
 
 /** Resposta a uma proposta do usuário por um jogador. */
@@ -149,7 +150,7 @@ export function acceptOffer(w: World, msg: Message): boolean {
 }
 
 export function renewDemand(w: World, p: Player): number {
-  if (!p.renewAsk) p.renewAsk = Math.round((wageFor(p.ovr) * rand(1.05, 1.3)) / 100) * 100;
+  if (!p.renewAsk) p.renewAsk = Math.round((clubWage(w, p.clubId, p.ovr) * rand(1.05, 1.3)) / 100) * 100;
   return p.renewAsk;
 }
 
@@ -180,7 +181,7 @@ export function promoteYouth(w: World, pid: string, silent?: boolean): void {
   c.squad.push(pid);
   p.youth = false;
   p.contract = 3;
-  p.wage = Math.round((wageFor(p.ovr) * 0.6) / 100) * 100;
+  p.wage = Math.round((clubWage(w, c.id, p.ovr) * 0.6) / 100) * 100;
   assignNumbers(w, c);
   void silent;
 }
@@ -224,9 +225,9 @@ export function runTrial(w: World, opts: TrialOptions = {}): Player[] | null {
 
 // ---------- Estrutura ----------
 export const UPGRADES: Record<UpgradeKey, Upgrade> = {
-  academy: { name: 'Categoria de base', desc: 'Garotos com mais potencial em cada safra.', max: 5, cost: (c) => 3e6 * c.academy, level: (c) => c.academy },
-  training: { name: 'Centro de treinamento', desc: 'Jogadores evoluem mais rápido.', max: 5, cost: (c) => 4e6 * c.training, level: (c) => c.training },
-  stadium: { name: 'Estádio (+5.000 lugares)', desc: 'Mais público e mais bilheteria.', max: 90000, cost: (c) => 10e6 + c.cap * 100, level: (c) => c.cap },
+  academy: { name: 'Categoria de base', desc: 'Garotos com mais potencial em cada safra. Cada nível aumenta a manutenção semanal.', max: 5, cost: (c) => 3e6 * c.academy, level: (c) => c.academy },
+  training: { name: 'Centro de treinamento', desc: 'Jogadores evoluem mais rápido. Cada nível aumenta a manutenção semanal.', max: 5, cost: (c) => 4e6 * c.training, level: (c) => c.training },
+  stadium: { name: 'Estádio (+5.000 lugares)', desc: 'Mais público e mais bilheteria, com manutenção um pouco maior.', max: 90000, cost: (c) => 10e6 + c.cap * 100, level: (c) => c.cap },
   scouting: { name: 'Departamento de olheiros', desc: 'Mais olheiros ao mesmo tempo, relatórios mais rápidos e faixas de potencial mais estreitas na base.', max: 5, cost: (c) => 3e6 * (c.scouting || 1), level: (c) => c.scouting || 1 },
 };
 
@@ -239,6 +240,27 @@ export function upgrade(w: World, kind: UpgradeKey): boolean {
   else { if (u[kind] >= up.max) return false; u[kind]++; }
   addMoney(w, u.id, -cost, 'other');
   return true;
+}
+
+/**
+ * Clubes da CPU com caixa sobrando investem na estrutura (fim de temporada): CT, base, olheiros ou
+ * estádio (se ele for pequeno para o tamanho do clube). No máximo 2 obras por temporada.
+ */
+export function aiInvest(w: World, c: Club): void {
+  if (c.id === w.userClub) return;
+  const weekly = financeProfile(w, c).revenue;
+  for (let k = 0; k < 2; k++) {
+    if (c.money < weekly * 30) return;
+    const options: UpgradeKey[] = (['training', 'academy', 'scouting'] as const).filter((key) => UPGRADES[key].level(c) < UPGRADES[key].max);
+    if (c.cap < c.rep * 800 && c.cap < UPGRADES.stadium.max) options.push('stadium');
+    if (!options.length) return;
+    const key = options.sort((a, b) => UPGRADES[a].cost(c) - UPGRADES[b].cost(c))[0];
+    const cost = UPGRADES[key].cost(c);
+    if (c.money - cost < weekly * 12) return;
+    if (key === 'stadium') c.cap += 5000;
+    else c[key]++;
+    addMoney(w, c.id, -cost, 'other');
+  }
 }
 
 // ---------- Empréstimo bancário ----------
@@ -273,8 +295,11 @@ export function aiTransfers(w: World): void {
   const userDiv = user(w).div;
   // Escala com o número de clubes (legado: 2-5 tentativas para 32 clubes).
   const n = Math.round((randi(2, 5) * clubs.length) / 32);
+  // Clubes com mais caixa vão mais ao mercado.
+  const buyerWeight = (c: Club): number => Math.sqrt(Math.max(0, c.money) / 1e6);
   for (let k = 0; k < n; k++) {
-    const buyer = pick(clubs);
+    const buyer = weighted(clubs, buyerWeight) as Club | undefined;
+    if (!buyer) continue;
     if (buyer.money < 3e6 || buyer.squad.length >= 30) continue;
     const pos = chance(0.5) ? neededPos(w, buyer) : pick(POS);
     const mine = clubPlayers(w, buyer).filter((p) => p.pos === pos).sort((a, b) => b.ovr - a.ovr);
@@ -292,18 +317,45 @@ export function aiTransfers(w: World): void {
     const t = pick(cands.sort((a, b) => b.ovr - a.ovr).slice(0, 5));
     const fee = Math.round((valueOf(t) * rand(1, 1.35)) / 10000) * 10000;
     if (fee > buyer.money * 0.6) continue;
+    // A diretoria da CPU também respeita o teto salarial.
+    if (buyer.wageCap && clubWages(w, buyer) + clubWage(w, buyer.id, t.ovr) > buyer.wageCap * 1.03) continue;
     const from = w.clubs[t.clubId as string];
     transfer(w, t.id, buyer.id, fee, true);
     if (t.ovr >= 70 && (from.div === userDiv || buyer.div === userDiv)) {
       pushMessage(w, { kind: 'news', title: `Mercado: ${t.name} no ${buyer.name}`, body: `${t.name} (${t.pos}, ${Math.round(t.ovr)}) deixa o ${from.name} e acerta com o ${buyer.name} por ${formatMoney(fee)}.` });
     }
   }
+  distressedSales(w, clubs);
   // Reposição com agentes livres
   for (const c of clubs) {
     if (c.squad.length >= 22 || !chance(0.4)) continue;
     const pos = neededPos(w, c);
     const fa = w.free.map((id) => w.players[id]).filter((p) => p && p.pos === pos).sort((a, b) => b.ovr - a.ovr)[0];
     if (fa) transfer(w, fa.id, c.id, 0, true);
+  }
+}
+
+/**
+ * Clubes da CPU no vermelho (ou com a folha muito acima do teto) vendem o jogador mais valioso fora dos
+ * 5 melhores do elenco para um clube que possa pagar. No máximo uma venda por clube por semana.
+ */
+function distressedSales(w: World, clubs: Club[]): void {
+  const userDiv = user(w).div;
+  for (const seller of clubs) {
+    const over = seller.wageCap ? clubWages(w, seller) > seller.wageCap * 1.15 : false;
+    if ((seller.money >= 0 && !over) || seller.squad.length <= 20 || !chance(0.35)) continue;
+    const ranked = clubPlayers(w, seller).filter((p) => !p.loan).sort((a, b) => b.ovr - a.ovr);
+    const sale = ranked.slice(5).sort((a, b) => valueOf(b) - valueOf(a))[0];
+    if (!sale) continue;
+    const fee = Math.round((valueOf(sale) * rand(0.85, 1.1)) / 10000) * 10000;
+    const buyers = clubs.filter((b) => b.id !== seller.id && b.money > fee * 1.5 && b.squad.length < 30 && b.rep >= seller.rep - 12 &&
+      (!b.wageCap || clubWages(w, b) + clubWage(w, b.id, sale.ovr) <= b.wageCap));
+    if (!buyers.length) continue;
+    const buyer = pick(buyers);
+    transfer(w, sale.id, buyer.id, fee, true);
+    if (seller.div === userDiv || buyer.div === userDiv) {
+      pushMessage(w, { kind: 'news', title: `Crise no ${seller.name}`, body: `Com as contas no vermelho, o ${seller.name} vendeu ${sale.name} (${sale.pos}, ${Math.round(sale.ovr)}) ao ${buyer.name} por ${formatMoney(fee)}.` });
+    }
   }
 }
 

@@ -64,7 +64,7 @@ export default function MercadoPage() {
   const results = useMemo(
     () => searchMarket(world, { ...filter, q }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [world, version, filter.pos, filter.age, filter.ovr, filter.max, filter.league, filter.nat, q],
+    [world, version, filter.pos, filter.age, filter.ovr, filter.max, filter.league, filter.nat, filter.trait, q],
   );
 
   const open = (pid: string) => setOverlay({ kind: "player", pid });

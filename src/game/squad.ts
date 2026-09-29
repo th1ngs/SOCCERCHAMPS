@@ -1,6 +1,6 @@
 // Escalação: disponibilidade, escalação automática e validação.
-import { FORMATIONS, SECTOR, fit } from './data';
-import { assignNumbers, hasTrait, newPlayer } from './gen';
+import { FORMATIONS, SECTOR } from './data';
+import { assignNumbers, attr, hasTrait, newPlayer, playerFit } from './gen';
 import { promoteYouth } from './market';
 import type { Club, Player, Position, SectorStrength, World } from './types';
 import { avg, rand, randi } from './util';
@@ -13,7 +13,7 @@ const PEN_W: Record<Position, number> = { GOL: 0, ZAG: 0.5, LAT: 0.8, VOL: 1.1, 
 /** Jogador apto a ser escalado (não lesionado, não suspenso, não é da base). */
 export const available = (p: Player | null | undefined): p is Player => !!p && !p.inj && !p.susp && !p.youth;
 
-const slotScore = (p: Player, slotPos: Position): number => p.ovr * fit(p.pos, slotPos) * (0.85 + (0.15 * p.fitness) / 100);
+const slotScore = (p: Player, slotPos: Position): number => p.ovr * playerFit(p, slotPos) * (0.85 + (0.15 * p.fitness) / 100);
 
 function fillSlots(w: World, club: Club, lineup: (string | null)[]): (string | null)[] {
   const slots = FORMATIONS[club.formation];
@@ -73,6 +73,7 @@ export function autoLineup(w: World, club: Club): void {
   club.bench = fillBench(w, club, club.lineup, []);
   pickCaptain(w, club);
   pickPenTaker(w, club);
+  pickFkTaker(w, club);
 }
 
 // ---------- Capitão e batedor ----------
@@ -93,16 +94,31 @@ export function pickCaptain(w: World, club: Club): string | null {
   return club.captain;
 }
 
-/** Escolhe e grava o batedor de pênaltis (linha, overall × posição, finalização; titulares primeiro). */
-export function pickPenTaker(w: World, club: Club): string | null {
+/** Nota de cobrança de pênalti: bola parada e finalização, com bônus para o Cobrador de pênalti. */
+export const penScore = (p: Player): number => attr(p, 'bp') * 0.6 + attr(p, 'fin') * 0.4 + (hasTrait(p, 'penalti') ? 12 : 0) + PEN_W[p.pos];
+/** Nota de cobrança de falta: bola parada, com bônus para o Batedor de falta. */
+export const fkScore = (p: Player): number => attr(p, 'bp') + (hasTrait(p, 'faltas') ? 15 : 0);
+
+function pickBest(w: World, club: Club, score: (p: Player) => number): string | null {
   let best: Player | null = null, bs = -Infinity;
   for (const { p, starter } of leaderPool(w, club)) {
     if (p.pos === 'GOL') continue;
-    const sc = (starter ? 1000 : 0) + p.ovr * PEN_W[p.pos] * (hasTrait(p, 'finalizacao') ? 1.15 : 1);
+    const sc = (starter ? 1000 : 0) + score(p);
     if (sc > bs) { bs = sc; best = p; }
   }
-  club.penTaker = best ? best.id : null;
+  return best ? best.id : null;
+}
+
+/** Escolhe e grava o batedor de pênaltis (bola parada e finalização; titulares primeiro). */
+export function pickPenTaker(w: World, club: Club): string | null {
+  club.penTaker = pickBest(w, club, penScore);
   return club.penTaker;
+}
+
+/** Escolhe e grava o batedor de faltas (bola parada; titulares primeiro). */
+export function pickFkTaker(w: World, club: Club): string | null {
+  club.fkTaker = pickBest(w, club, fkScore);
+  return club.fkTaker;
 }
 
 /** Define o capitão do clube do usuário. Falso se o jogador não é do elenco profissional. */
@@ -110,6 +126,14 @@ export function setCaptain(w: World, pid: string): boolean {
   const u = user(w);
   if (!u.squad.includes(pid)) return false;
   u.captain = pid;
+  return true;
+}
+
+/** Define o batedor de faltas do clube do usuário. Falso se o jogador não é do elenco profissional. */
+export function setFkTaker(w: World, pid: string): boolean {
+  const u = user(w);
+  if (!u.squad.includes(pid)) return false;
+  u.fkTaker = pid;
   return true;
 }
 
@@ -146,6 +170,7 @@ export function ensureLineup(w: World, club: Club): string[] {
   // Capitão/batedor escolhidos pelo usuário: trocados só se estiverem indisponíveis.
   if (!leaderOk(w, club, club.captain)) pickCaptain(w, club);
   if (!leaderOk(w, club, club.penTaker)) pickPenTaker(w, club);
+  if (!leaderOk(w, club, club.fkTaker)) pickFkTaker(w, club);
   return changes;
 }
 
@@ -157,7 +182,7 @@ export function teamRating(w: World, club: Club): number {
     const top = club.squad.map((id) => w.players[id]).sort((a, b) => b.ovr - a.ovr).slice(0, 11);
     return avg(top, (p) => p.ovr);
   }
-  return avg(ids.map((id, i) => ({ p: id ? w.players[id] : undefined, s: slots[i] })), (x) => (x.p ? x.p.ovr * fit(x.p.pos, x.s.pos) : 40));
+  return avg(ids.map((id, i) => ({ p: id ? w.players[id] : undefined, s: slots[i] })), (x) => (x.p ? x.p.ovr * playerFit(x.p, x.s.pos) : 40));
 }
 
 /** Força por setor do time titular (tela de tática: "força por setor"). */
@@ -168,7 +193,7 @@ export function sectors(w: World, club: Club): SectorStrength {
     const p = id ? w.players[id] : undefined;
     if (!p) return;
     const sp = slots[i].pos;
-    const eff = p.ovr * fit(p.pos, sp) * (0.7 + 0.3 * p.fitness / 100);
+    const eff = p.ovr * playerFit(p, sp) * (0.7 + 0.3 * p.fitness / 100);
     const wt = SECTOR[sp];
     for (const k of ['d', 'm', 'a'] as const) {
       const wk = wt[k];

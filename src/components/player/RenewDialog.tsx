@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ArrowLeft, PenLine } from "lucide-react";
-import { contractChance, formatMoney, negotiateRenewal, renewAsk } from "@/game";
+import { clubWages, contractChance, formatMoney, negotiateRenewal, renewAsk, user } from "@/game";
 import type { ContractResponse, Terms } from "@/game/types";
 import { useWorld } from "@/components/game/GameProvider";
 import { Button } from "@/components/ui/Button";
@@ -83,6 +83,7 @@ export function RenewDialog({ pid, onBack }: { pid: string; onBack: () => void }
           }}
           agreed={false}
           currentWage={p.wage}
+          payroll={{ wages: clubWages(world, user(world)), cap: user(world).wageCap }}
         />
         <p className="text-xs text-mist">Renovar melhora o moral do jogador e atualiza a multa rescisória.</p>
       </div>

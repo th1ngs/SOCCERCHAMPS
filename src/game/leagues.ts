@@ -3,13 +3,19 @@ import type { Competition, CupId, DivisionId, DivisionInfo, KnockoutId, LeagueId
 
 export const LEAGUE_IDS: LeagueId[] = ['bra', 'arg', 'por', 'esp', 'eng', 'ita'];
 
+/**
+ * Economia de cada liga (Brasil = 1). Inspirada nas diferenças reais:
+ * - a Inglaterra tem o maior contrato de TV e divide a cota de forma mais igualitária;
+ * - Portugal e Argentina têm poucos clubes ricos e cotas concentradas;
+ * - Brasil, Itália e Argentina têm mais clubes endividados.
+ */
 export const LEAGUES: Record<LeagueId, LeagueInfo> = {
-  bra: { id: 'bra', name: 'Brasil', country: 'Brasil', flag: '🇧🇷', wealth: 1.0, divisions: ['bra1', 'bra2', 'bra3'] },
-  arg: { id: 'arg', name: 'Argentina', country: 'Argentina', flag: '🇦🇷', wealth: 0.75, divisions: ['arg1', 'arg2'] },
-  por: { id: 'por', name: 'Portugal', country: 'Portugal', flag: '🇵🇹', wealth: 0.85, divisions: ['por1', 'por2'] },
-  esp: { id: 'esp', name: 'Espanha', country: 'Espanha', flag: '🇪🇸', wealth: 1.35, divisions: ['esp1', 'esp2'] },
-  eng: { id: 'eng', name: 'Inglaterra', country: 'Inglaterra', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', wealth: 1.6, divisions: ['eng1', 'eng2'] },
-  ita: { id: 'ita', name: 'Itália', country: 'Itália', flag: '🇮🇹', wealth: 1.25, divisions: ['ita1', 'ita2'] },
+  bra: { id: 'bra', name: 'Brasil', country: 'Brasil', flag: '🇧🇷', wealth: 1.0, tv: 1.0, tvSplit: 0.55, commercial: 1.0, ticket: 1.0, wages: 1.0, debt: 0.4, divisions: ['bra1', 'bra2', 'bra3'] },
+  arg: { id: 'arg', name: 'Argentina', country: 'Argentina', flag: '🇦🇷', wealth: 0.75, tv: 0.55, tvSplit: 0.5, commercial: 0.65, ticket: 0.6, wages: 0.65, debt: 0.45, divisions: ['arg1', 'arg2'] },
+  por: { id: 'por', name: 'Portugal', country: 'Portugal', flag: '🇵🇹', wealth: 0.85, tv: 0.6, tvSplit: 0.75, commercial: 0.8, ticket: 0.85, wages: 0.75, debt: 0.3, divisions: ['por1', 'por2'] },
+  esp: { id: 'esp', name: 'Espanha', country: 'Espanha', flag: '🇪🇸', wealth: 1.35, tv: 1.45, tvSplit: 0.45, commercial: 1.4, ticket: 1.45, wages: 1.3, debt: 0.3, divisions: ['esp1', 'esp2'] },
+  eng: { id: 'eng', name: 'Inglaterra', country: 'Inglaterra', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', wealth: 1.6, tv: 2.3, tvSplit: 0.25, commercial: 1.6, ticket: 1.9, wages: 1.6, debt: 0.15, divisions: ['eng1', 'eng2'] },
+  ita: { id: 'ita', name: 'Itália', country: 'Itália', flag: '🇮🇹', wealth: 1.25, tv: 1.25, tvSplit: 0.45, commercial: 1.2, ticket: 1.2, wages: 1.15, debt: 0.4, divisions: ['ita1', 'ita2'] },
 };
 
 const DIV_NAMES: Record<DivisionId, string> = {
@@ -86,7 +92,7 @@ export const CUP_PRIZE = [1e6, 2e6, 3.5e6, 6e6, 12e6];
 /** Prêmio por fase vencida na Copa dos Campeões (sem fator wealth). */
 export const CONT_PRIZE = [4e6, 8e6, 15e6, 30e6];
 /** Cota de TV semanal por nível de divisão (× wealth). */
-export const TV_BASE = [380000, 120000, 90000];
+export const TV_BASE = [380000, 190000, 140000];
 /** Prêmio da liga por posição: (17 − posição) × base[nível] × wealth. */
 export const LEAGUE_PRIZE_BASE = [0.8e6, 0.25e6, 0.1e6];
 /** Vagas por primeira divisão na Copa dos Campeões (antes do corte para 16). */

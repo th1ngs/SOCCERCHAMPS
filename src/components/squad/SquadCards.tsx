@@ -8,6 +8,7 @@ import { StatusTags } from "./StatusTags";
 import type { SquadRow } from "./SquadTable";
 import { LoanBadge, PromiseBadge } from "./TransferMarkBadges";
 import { useTransferMarks } from "./transferMarks";
+import { TraitChips } from "@/components/player/TraitChips";
 
 /** Lista compacta do elenco para celulares (< 640 px): cada cartão abre a ficha. */
 export function SquadCards({ rows, onOpen }: { rows: SquadRow[]; onOpen: (pid: string) => void }) {
@@ -38,6 +39,7 @@ export function SquadCards({ rows, onOpen }: { rows: SquadRow[]; onOpen: (pid: s
               </div>
               <span className="flex flex-wrap items-center gap-1">
                 <StatusTags tags={tags} />
+                <TraitChips traits={p.traits} />
                 {marks.get(p.id)?.promise && <PromiseBadge marks={marks.get(p.id)} />}
                 <LoanBadge marks={marks.get(p.id)} />
               </span>

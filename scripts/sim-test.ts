@@ -1,10 +1,11 @@
-// Teste de balanceamento headless do motor do Manager (6 ligas, World v4).
+// Teste de balanceamento headless do motor do Manager (6 ligas, World v5).
 //   npx tsx scripts/sim-test.ts [clubId] [--seasons N] [--checks]
 // Sem --checks: simula N temporadas (padrão 3) com todos os clubes no automático e imprime
 // campeões, gols por jogo e artilheiros por liga, tempo por temporada e tamanho do JSON.
 // Com --checks: exercita a API de mercado/base, uma partida ao vivo interativa, as novidades da v2
 // (capitão/batedor, ingresso, empréstimo, clássico, DM), as da v3 (ligas, copas, acesso, histórico)
-// e as da v4 (olheiros, base, empréstimos de jogadores, negociação, histórico de transferências).
+// as da v4 (olheiros, base, empréstimos de jogadores, negociação, histórico de transferências)
+// e as da v5 (atributos, habilidades, batedor de faltas, finanças por clube e teto salarial).
 import { gzipSync } from 'node:zlib';
 import * as G from '../src/game';
 import {
@@ -188,11 +189,12 @@ const adhoc = (w: World, h: string, a: string): Match => ({ id: 'chk' + h + a, h
 
 function runV2Checks(w: World): void {
   const u = user(w);
-  assert(w.version === WORLD_VERSION && WORLD_VERSION === 4, 'World v4');
+  assert(w.version === WORLD_VERSION && WORLD_VERSION === 5, 'World v5');
 
   // Características e Craque
   const all = Object.values(w.players);
-  assert(all.every((p) => p.traits.length >= 1 && p.traits.length <= 2 && p.traits.every((t) => t in TRAITS)), '1-2 características válidas');
+  assert(all.every((p) => p.traits.length <= 3 && p.traits.every((t) => t in TRAITS)), '0-3 habilidades válidas');
+  assert(all.every((p) => Array.isArray(p.at) && p.at.length === G.ATTR_KEYS.length), 'atributos gerados');
   const stars = all.filter((p) => p.star).length / all.length;
   assert(stars > 0.005 && stars < 0.08, `~3% de Craques (veio ${(stars * 100).toFixed(1)}%)`);
   console.log(`traits ok: ${all.length} jogadores, ${(stars * 100).toFixed(1)}% Craques`);
@@ -222,7 +224,8 @@ function runV2Checks(w: World): void {
   assert(gr.income !== gp.income, 'preço muda a renda');
   console.log(`expectedGate ok: popular ${gp.attendance}/${formatMoney(gp.income)}, normal ${gn.attendance}/${formatMoney(gn.income)}, premium ${gr.attendance}/${formatMoney(gr.income)}`);
 
-  // Empréstimo
+  // Empréstimo (o clube pode começar endividado: quita a dívida antiga antes do teste)
+  Object.assign(u, { loan: null });
   const m0 = u.money, l0 = w.finSeason.loan || 0;
   assert(!takeLoan(w, 123), 'takeLoan recusa valor fora de LOAN_OPTIONS');
   assert(takeLoan(w, LOAN_OPTIONS[1]) && u.money === m0 + LOAN_OPTIONS[1], 'takeLoan credita');
@@ -276,7 +279,7 @@ function runV2Checks(w: World): void {
   }
   delete (old as Record<string, unknown>).finWeek;
   const mig = migrateWorld(old);
-  assert(mig.version === 4, 'migrateWorld -> v4');
+  assert(mig.version === 5, 'migrateWorld -> v5');
   assert(Object.values(mig.clubs).every((c) => c.fans === 60 && c.ticketPrice === 'normal' && c.loan === null && !!c.captain && !!c.penTaker && typeof c.rival === 'string'), 'clubes migrados');
   assert(Object.values(mig.players).every((p) => Array.isArray(p.traits) && typeof p.star === 'boolean' && !!p.nat && (p.inj > 0 ? !!p.injType : p.injType === null)), 'jogadores migrados');
   const once = JSON.stringify(mig);
@@ -397,7 +400,7 @@ function runV4Checks(): void {
   }
   const o1 = others[0];
   assert(G.potentialRange(w, o1).max - G.potentialRange(w, o1).min === 22 && !G.potentialRange(w, o1).exact, 'outro clube, nível 0: largura 22');
-  assert(G.knownTraits(w, o1) === null, 'características desconhecidas de outro clube');
+  assert(Array.isArray(G.knownTraits(w, o1)) && G.knownAttrs(w, o1) === null, 'habilidades públicas; atributos desconhecidos de outro clube');
   G.observe(w, o1.id);
   assert(G.potentialRange(w, o1).max - G.potentialRange(w, o1).min === 12 && w.scouting[o1.id].level === 1, 'observado: largura 12');
   const mine = clubPlayers(w, u)[0];
@@ -449,6 +452,8 @@ function runV4Checks(): void {
   assert(G.acceptOffer(w, yo) && gem.clubId === yBuyer && w.clubs[yBuyer].youth.includes(gem.id) && !u.youth.includes(gem.id), 'aceitar faz o garoto sair');
   console.log(`youth offer ok: ${gem.name} vendido ao ${w.clubs[yBuyer].name}`);
 
+  // O teto salarial da diretoria é testado nas checagens v5; aqui as contratações em série não podem ser vetadas.
+  u.wageCap = 1e9;
   // ---- empréstimos ----
   const sq = clubPlayers(w, u).sort((a, b) => b.ovr - a.ovr);
   // Jogadores do fim do elenco que clubes menores aceitam receber.
@@ -619,13 +624,75 @@ function runV4Checks(): void {
   }
   assert(isCompatible(v3), 'v3 é compatível');
   const m4 = migrateWorld(v3);
-  assert(m4.version === 4 && Array.isArray(m4.transfers) && Array.isArray(m4.scoutQueue) && m4.negotiations && m4.scouting, 'campos de World v4');
+  assert(m4.version === 5 && Array.isArray(m4.transfers) && Array.isArray(m4.scoutQueue) && m4.negotiations && m4.scouting, 'campos de World v4');
   assert(Object.values(m4.clubs).every((c) => c.scouting >= 1 && c.scouting <= 5 && c.academyFocus === 'balanced'), 'clubes v4');
   assert(Object.values(m4.players).every((p) => p.start && p.loan === null && typeof p.releaseClause === 'number'), 'jogadores v4');
   const j4 = JSON.stringify(m4);
   assert(JSON.stringify(migrateWorld(m4)) === j4, 'migrateWorld v4 idempotente');
   advance(m4);
   console.log(`v4 checks ok (${((performance.now() - t0) / 1000).toFixed(1)} s)`);
+  runV5Checks();
+}
+
+/** Atributos, habilidades, batedor de faltas e finanças por clube (World v5). */
+function runV5Checks(): void {
+  const w = freshWorld();
+  const u = user(w);
+  const all = Object.values(w.players);
+  // Atributos coerentes com a posição: atacantes finalizam melhor que zagueiros; goleiros têm reflexos.
+  const avgAttr = (pos: G.Position, k: G.AttrKey) => {
+    const ps = all.filter((p) => p.pos === pos && !p.youth);
+    return ps.reduce((s, p) => s + G.attr(p, k), 0) / ps.length;
+  };
+  assert(avgAttr('ATA', 'fin') > avgAttr('ZAG', 'fin') + 15, 'ATA finaliza melhor que ZAG');
+  assert(avgAttr('ZAG', 'mar') > avgAttr('ATA', 'mar') + 15, 'ZAG marca melhor que ATA');
+  assert(avgAttr('GOL', 'ref') > avgAttr('MEI', 'ref') + 30, 'goleiros têm reflexos');
+  assert(all.every((p) => G.ATTR_KEYS.every((k) => { const v = G.attr(p, k); return v >= 1 && v <= 99; })), 'atributos entre 1 e 99');
+  // Habilidade reforça o atributo ligado.
+  const fk = all.filter((p) => p.traits.includes('faltas') && !p.youth);
+  const noFk = all.filter((p) => !p.traits.includes('faltas') && !p.youth && (p.pos === 'MEI'));
+  assert(fk.length > 20, 'há batedores de falta');
+  const devBp = (ps: G.Player[]) => ps.reduce((s, p) => s + (G.attr(p, 'bp') - p.ovr), 0) / ps.length;
+  assert(devBp(fk) > devBp(noFk) + 6, 'Batedor de falta tem bola parada alta');
+  const newKeys: G.TraitKey[] = ['faltas', 'motorzinho', 'chuteLonge', 'penalti', 'pegaPenalti', 'lancamento', 'garra', 'coringa'];
+  assert(newKeys.every((k) => all.some((p) => p.traits.includes(k))), 'todas as habilidades novas aparecem');
+  // Batedor de faltas escolhido e configurável.
+  assert(Object.values(w.clubs).every((c) => !!c.fkTaker && c.squad.includes(c.fkTaker)), 'batedor de faltas em todos os clubes');
+  const other = u.squad.find((id) => id !== u.fkTaker) as string;
+  assert(G.setFkTaker(w, other) && u.fkTaker === other && !G.setFkTaker(w, 'nope'), 'setFkTaker');
+  // Coringa perde menos fora da posição.
+  const cor = all.find((p) => p.traits.includes('coringa') && p.pos === 'VOL');
+  if (cor) assert(G.playerFit(cor, 'ATA') >= 0.9 && G.fit('VOL', 'ATA') < 0.9, 'Coringa: encaixe mínimo de 90%');
+  // Conhecimento dos atributos: outro clube sem observação = null; observado = faixa; relatório = exato.
+  const stranger = all.find((p) => p.clubId && p.clubId !== u.id && !p.youth) as G.Player;
+  assert(G.knownAttrs(w, stranger) === null, 'atributos ocultos sem observação');
+  G.observe(w, stranger.id);
+  const obs = G.knownAttrs(w, stranger)!;
+  assert(obs.every((a) => !a.exact && a.min <= a.value && a.max >= a.value && a.max - a.min <= 12), 'atributos em faixa quando observado');
+  const mine = G.knownAttrs(w, w.players[u.squad[0]])!;
+  assert(mine.every((a) => a.exact), 'atributos exatos no próprio elenco');
+  console.log(`attrs ok: ${fk.length} batedores de falta; bola parada +${devBp(fk).toFixed(1)} vs ${devBp(noFk).toFixed(1)}`);
+
+  // Finanças por clube: ligas ricas pagam e faturam mais; teto salarial e veto da diretoria.
+  const rev = (lg: G.LeagueId) => {
+    const cs = Object.values(w.clubs).filter((c) => c.league === lg && G.DIVISIONS[c.div].level === 1);
+    return cs.reduce((s, c) => s + G.financeProfile(w, c).revenue, 0) / cs.length;
+  };
+  assert(rev('eng') > rev('bra') * 1.4 && rev('bra') > rev('arg') * 1.2, 'receita: Inglaterra > Brasil > Argentina');
+  assert(G.wageFor(75, 'eng') > G.wageFor(75, 'bra') && G.wageFor(75, 'bra') > G.wageFor(75, 'arg'), 'salários por liga');
+  assert(Object.values(w.clubs).every((c) => c.sponsor > 0 && c.wageCap > 0 && Number.isFinite(c.money)), 'patrocínio e teto em todos os clubes');
+  assert(Object.values(w.clubs).some((c) => c.loan) && Object.values(w.clubs).some((c) => !c.loan), 'alguns clubes começam endividados');
+  assert(G.clubWages(w, u) <= u.wageCap, 'usuário começa dentro do teto');
+  const veto = G.wageVeto(w, u, u.wageCap);
+  assert(!!veto && veto.includes('diretoria vetou') && G.wageVeto(w, u, 0) === null, 'veto da diretoria acima do teto');
+  const fin0 = { ...w.finSeason };
+  simulateWeek(w); endWeek(w);
+  assert((w.finSeason.commercial ?? 0) > (fin0.commercial ?? 0) && (w.finSeason.upkeep ?? 0) < (fin0.upkeep ?? 0), 'sócios/produtos e manutenção semanais');
+  // Renovação do patrocínio no fim da temporada.
+  const before = u.sponsor;
+  const ren = G.renewClubFinances(w, u, true);
+  assert(ren.before === before && ren.after > 0 && ren.after <= before * 1.45 + 1000 && ren.after >= before * 0.7 - 1000, 'renovação do patrocínio limitada');
+  console.log(`finance ok: receita/sem 1ª div eng ${formatMoney(rev('eng'))}, bra ${formatMoney(rev('bra'))}, arg ${formatMoney(rev('arg'))}; teto ${formatMoney(u.wageCap)}`);
 }
 
 if (args.includes('--checks')) runChecks();

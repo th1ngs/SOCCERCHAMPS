@@ -12,3 +12,4 @@ export * from './market';
 export * from './migrate';
 export * from './scouting';
 export * from './transfers';
+export * from './finance';

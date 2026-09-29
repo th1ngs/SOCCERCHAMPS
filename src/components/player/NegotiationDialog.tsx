@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Ban, Check, Handshake, Send } from "lucide-react";
-import { SQUAD_MAX, TOTAL_WEEKS, completeTransfer, contractAsk, contractChance, ensureLineup, formatMoney, negotiateContract, negotiateTransfer, user, valueOf, windowOpen } from "@/game";
+import { SQUAD_MAX, TOTAL_WEEKS, clubWages, completeTransfer, contractAsk, contractChance, ensureLineup, formatMoney, negotiateContract, negotiateTransfer, user, valueOf, windowOpen } from "@/game";
 import type { ClubResponse, ContractResponse, Terms } from "@/game/types";
 import { useWorld } from "@/components/game/GameProvider";
 import { Button } from "@/components/ui/Button";
@@ -393,7 +393,7 @@ export function NegotiationDialog({ pid, mode, onBack, onDone }: { pid: string; 
             </Alert>
           )}
           {mode === "free" && <p className="text-sm text-mist">Agente livre: não há taxa de transferência, só o contrato com o jogador.</p>}
-          <TermsPanel ask={ask} terms={terms} onChange={editTerms} chance={chance} reply={termsReply} onUseCounter={useCounter} agreed={agreed} />
+          <TermsPanel ask={ask} terms={terms} onChange={editTerms} chance={chance} reply={termsReply} onUseCounter={useCounter} agreed={agreed} payroll={{ wages: clubWages(world, u), cap: u.wageCap }} />
           <DealSummary deal={deal} terms={terms} cash={u.money} />
         </div>
       ) : (

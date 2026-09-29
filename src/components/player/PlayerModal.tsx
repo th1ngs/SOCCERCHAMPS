@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import {
   ArrowUpFromLine,
   BadgeDollarSign,
+  Crosshair,
   Crown,
   FileSearch,
   Gavel,
@@ -27,6 +28,7 @@ import {
   ensureLineup,
   exerciseBuyOption,
   formatMoney,
+  knownAttrs,
   knownTraits,
   loanInTerms,
   observe,
@@ -38,6 +40,7 @@ import {
   releaseCost,
   requestScoutReport,
   setCaptain,
+  setFkTaker,
   setPenTaker,
   toggleWatch,
   user,
@@ -54,6 +57,7 @@ import { PATIENCE_MAX, negotiationInfo, scoutStatus } from "@/components/market/
 import { loanMark, promiseStatus, ROLE_SHORT } from "@/components/squad/transferMarks";
 import { LoanInDialog, LoanOutDialog } from "./LoanDialogs";
 import { NegotiationDialog, type NegotiationMode } from "./NegotiationDialog";
+import { PlayerAttributes } from "./PlayerAttributes";
 import { PlayerHeader } from "./PlayerHeader";
 import { PlayerStats } from "./PlayerStats";
 import { RenewDialog } from "./RenewDialog";
@@ -136,9 +140,11 @@ export function PlayerModal({ pid, onClose }: { pid: string; onClose: () => void
       squadFull: u.squad.length >= SQUAD_MAX,
       captain: u.captain === p.id,
       penTaker: u.penTaker === p.id,
+      fkTaker: u.fkTaker === p.id,
       fee: releaseCost(p),
       range: potentialRange(world, p),
       traits: knownTraits(world, p),
+      attrs: knownAttrs(world, p),
       watched: world.watchlist.includes(pid),
       scout: scoutStatus(world, pid),
       neg: negotiationInfo(world, pid),
@@ -151,7 +157,7 @@ export function PlayerModal({ pid, onClose }: { pid: string; onClose: () => void
   }, [world, pid, version]);
 
   if (!info) return null;
-  const { p, u, club, own, loanIn, loanOut, inSquad, other, value, open, squadFull, captain, penTaker, fee, range, traits, watched, scout, neg, loanQuote } = info;
+  const { p, u, club, own, loanIn, loanOut, inSquad, other, value, open, squadFull, captain, penTaker, fkTaker, fee, range, traits, attrs, watched, scout, neg, loanQuote } = info;
   const fullReason = `Elenco cheio (${u.squad.length}/${SQUAD_MAX})`;
   const back = () => setView({ kind: "info" });
   const name = p.name;
@@ -187,6 +193,10 @@ export function PlayerModal({ pid, onClose }: { pid: string; onClose: () => void
   const makePenTaker = () => {
     mutate((w) => void setPenTaker(w, pid));
     toast(`${name} vai bater os pênaltis.`, "good");
+  };
+  const makeFkTaker = () => {
+    mutate((w) => void setFkTaker(w, pid));
+    toast(`${name} vai cobrar as faltas.`, "good");
   };
   const doRelease = () => {
     close();
@@ -386,7 +396,7 @@ export function PlayerModal({ pid, onClose }: { pid: string; onClose: () => void
                   Relatório do olheiro • {formatMoney(scout.cost)}
                 </Button>
                 <span className="text-xs text-mist">
-                  {scout.reason ?? `Revela potencial exato e características em 1–2 semanas. Olheiros livres: ${scout.slots - scout.busy}/${scout.slots}.`}
+                  {scout.reason ?? `Revela o potencial e os atributos exatos em 1–2 semanas. Olheiros livres: ${scout.slots - scout.busy}/${scout.slots}.`}
                 </span>
               </>
             )}
@@ -429,6 +439,7 @@ export function PlayerModal({ pid, onClose }: { pid: string; onClose: () => void
       body = (
         <div className="space-y-4">
           <PlayerHeader player={p} club={club} own={own} captain={inSquad && captain} penTaker={inSquad && penTaker} range={range} traits={traits} />
+          <PlayerAttributes attrs={attrs} traits={traits} />
           {marketPanel}
           {contractPanel}
           <PlayerStats player={p} />
@@ -451,6 +462,15 @@ export function PlayerModal({ pid, onClose }: { pid: string; onClose: () => void
                 ) : (
                   <Button variant="ghost" icon={<Target />} onClick={makePenTaker} disabled={!canLead} title={canLead ? undefined : "Indisponível (DM ou suspenso)"}>
                     Batedor de pênaltis
+                  </Button>
+                )}
+                {fkTaker ? (
+                  <span className="inline-flex h-10 items-center gap-2 px-2 text-sm text-info-400">
+                    <Crosshair className="size-4" aria-hidden /> Cobra as faltas
+                  </span>
+                ) : (
+                  <Button variant="ghost" icon={<Crosshair />} onClick={makeFkTaker} disabled={!canLead} title={canLead ? undefined : "Indisponível (DM ou suspenso)"}>
+                    Batedor de faltas
                   </Button>
                 )}
                 {!canLead && <Reason>Indisponível: está no DM ou suspenso.</Reason>}
