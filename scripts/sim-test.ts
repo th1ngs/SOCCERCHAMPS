@@ -349,7 +349,7 @@ function runLeagueChecks(w: World): void {
   const moved = Object.values(w.clubs).filter((c) => c.div !== divBefore[c.id]).length;
   assert(moved === ps.moves.length, 'newSeason aplica as trocas');
   assert(contEntrants(w).slice().sort().join() === ps.contNext.slice().sort().join(), 'Copa dos Campeões usa os classificados');
-  console.log(`league checks ok: ${ps.moves.length} trocas de divisão, ${cross} jogadores em outra liga, Copa dos Campeões ${competitionName('cont')}: ${w.clubs[ps.entry.cups.cont as string].name}`);
+  console.log(`league checks ok: ${ps.moves.length} trocas de divisão, ${cross} jogadores em outra liga, ${competitionName('cont')}: ${w.clubs[ps.entry.cups.cont as string].name}`);
 
   // Troca para um clube estrangeiro
   const u = user(w);

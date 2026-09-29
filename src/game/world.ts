@@ -17,6 +17,10 @@ import type {
 } from './types';
 import { chance, clamp, gauss, pick, rand, randi, shuffle, sum } from './util';
 
+// Arredondamentos para manter o JSON do World enxuto.
+const round2 = (v: number): number => Math.round(v * 100) / 100;
+const round3 = (v: number): number => Math.round(v * 1000) / 1000;
+
 export const WINDOWS: [number, number][] = [[0, 4], [15, 19]];
 export const windowOpen = (w: World): boolean => WINDOWS.some(([a, b]) => w.week >= a && w.week <= b);
 export const nextWindow = (w: World): number | null => {
@@ -34,6 +38,8 @@ const FANS_START = 60;
 const FANS_DRIFT = 0.03;
 /** Variação de reputação por posição na tabela, por nível de divisão. */
 const REP_BY_POS = [0.35, 0.25, 0.2];
+/** Máximo de garotos na base de um clube da CPU após a nova safra. */
+const AI_YOUTH_MAX = 8;
 
 /** Semanas de lesão após a redução pelo nível do CT (1 → 100%, 5 → 80%). */
 export const injuryWeeks = (weeks: number, trainingLvl: number): number =>
@@ -305,7 +311,7 @@ export function applyResult(w: World, m: Match, res: MatchResult): void {
       const p = w.players[pid];
       if (!p) continue;
       p.s.apps++; p.c.apps++;
-      p.s.rsum += res.ratings[pid] || 6;
+      p.s.rsum = round2(p.s.rsum + (res.ratings[pid] || 6));
       p.played = true;
       if (res.fat[pid] != null) p.fitness = Math.round(res.fat[pid]);
       const dm = derby ? DERBY_MORALE : 5;
@@ -387,10 +393,6 @@ export function simulateWeek(w: World): void {
   for (const m of wk.matches) if (!m.played) simMatch(w, m);
 }
 
-// Arredondamentos para manter o JSON do World enxuto.
-const round2 = (v: number): number => Math.round(v * 100) / 100;
-const round3 = (v: number): number => Math.round(v * 1000) / 1000;
-
 // ---------- Evolução ----------
 function develop(p: Player, club: Club | undefined): void {
   const trainLvl = club ? club.training : 2;
@@ -450,7 +452,7 @@ export function endWeek(w: World): WeekReport {
   for (const p of Object.values(w.players)) {
     const club: Club | undefined = ownerOf[p.id];
     if (p.inj > 0) {
-      if (p.injNew) p.injNew = false;
+      if (p.injNew) delete p.injNew;
       else {
         p.inj--;
         if (p.inj === 0) {
@@ -667,6 +669,12 @@ export function newSeason(w: World): void {
       const y = makeYouth(w, c, randi(15, 16));
       if (c.id === u.id) intake.push(y);
     }
+  }
+  // Base da CPU: no máximo AI_YOUTH_MAX garotos (dispensa os de menor potencial) para o World não crescer sem limite.
+  for (const c of Object.values(w.clubs)) {
+    if (c.id === u.id || c.youth.length <= AI_YOUTH_MAX) continue;
+    const extra = c.youth.map((id) => w.players[id]).sort((a, b) => b.pot - a.pot).slice(AI_YOUTH_MAX);
+    for (const p of extra) removePlayer(w, p);
   }
   // Agentes livres: mantém entre FREE_MIN e FREE_MAX (descarta os piores).
   w.free = w.free.filter((id) => w.players[id]);
