@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Check, Wand2 } from "lucide-react";
 import { formatMoney } from "@/game";
 import type { ContractResponse, Role, Terms } from "@/game/types";
@@ -17,6 +18,44 @@ const input =
   "h-11 w-full rounded-xl bg-ink-950/70 px-3 font-display text-lg font-bold tabular ring-1 ring-inset ring-white/12 focus:outline-2 focus:outline-gold-400";
 
 const round100 = (v: number) => Math.max(0, Math.round(v / 100) * 100);
+
+/** Mantém os dígitos digitados até sair do campo; arredondar a cada tecla impede substituir valores altos. */
+function MoneyInput({ id, value, roundTo, onChange }: { id?: string; value: number; roundTo: number; onChange: (value: number) => void }) {
+  const field = useRef<HTMLInputElement>(null);
+  const lastSent = useRef(value);
+
+  useEffect(() => {
+    if (value !== lastSent.current && field.current) {
+      field.current.value = String(value);
+      lastSent.current = value;
+    }
+  }, [value]);
+
+  return (
+    <input
+      ref={field}
+      id={id}
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      defaultValue={value}
+      onChange={(event) => {
+        const digits = event.currentTarget.value.replace(/\D/g, "").slice(0, 12);
+        event.currentTarget.value = digits;
+        const next = Number(digits || 0);
+        lastSent.current = next;
+        onChange(next);
+      }}
+      onBlur={() => {
+        const next = Math.max(0, Math.round(Number(field.current?.value || 0) / roundTo) * roundTo);
+        if (field.current) field.current.value = String(next);
+        lastSent.current = next;
+        onChange(next);
+      }}
+      className={input}
+    />
+  );
+}
 
 /** Texto e cor do medidor de chance. */
 export function chanceLabel(c: number): { text: string; tone: string } {
@@ -103,16 +142,7 @@ export function TermsPanel({
             aria-label="Salário semanal"
             className="h-10 w-full accent-gold-400"
           />
-          <input
-            id="terms-wage"
-            type="number"
-            inputMode="numeric"
-            min={0}
-            step={100}
-            value={terms.wage}
-            onChange={(e) => set({ wage: round100(Number(e.target.value) || 0) })}
-            className={input}
-          />
+          <MoneyInput id="terms-wage" value={terms.wage} roundTo={100} onChange={(wage) => set({ wage })} />
         </div>
         {diff != null && (
           <p className="mt-1 text-xs text-mist">
@@ -132,15 +162,7 @@ export function TermsPanel({
         </div>
         <label className="block">
           <span className="mb-1.5 block text-sm font-semibold">Luvas (R$)</span>
-          <input
-            type="number"
-            inputMode="numeric"
-            min={0}
-            step={10000}
-            value={terms.bonus}
-            onChange={(e) => set({ bonus: Math.max(0, Math.round((Number(e.target.value) || 0) / 1000) * 1000) })}
-            className={input}
-          />
+          <MoneyInput value={terms.bonus} roundTo={1000} onChange={(bonus) => set({ bonus })} />
           <span className="mt-1 block text-xs text-mist">Pagas na assinatura: {formatMoney(terms.bonus)}</span>
         </label>
       </div>
