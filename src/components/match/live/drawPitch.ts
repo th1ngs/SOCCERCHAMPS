@@ -18,12 +18,13 @@ export interface PitchAnim {
   trail: { x: number; y: number }[];
   target: string;
   pulse: { x: number; y: number; at: number; kind: string } | null;
+  flight: { fromX: number; fromY: number; toX: number; toY: number; at: number; duration: number; bend: number } | null;
 }
 
 export const PITCH_RATIO = 105 / 68;
 const GK_COLORS = ["#ffb000", "#7b2cbf"];
 
-export function drawLivePitch(c: CanvasRenderingContext2D, sc: PitchScale, sim: Sim, w: World, kits: [Kit, Kit], anim: PitchAnim, dt: number, now: number): void {
+export function drawLivePitch(c: CanvasRenderingContext2D, sc: PitchScale, sim: Sim, w: World, kits: [Kit, Kit], anim: PitchAnim, dt: number, now: number, minuteMs: number): void {
   const { w: W, h: H, dpr } = sc;
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   const mx = W * 0.04, my = H * 0.06;
@@ -58,11 +59,23 @@ export function drawLivePitch(c: CanvasRenderingContext2D, sc: PitchScale, sim: 
   const target = `${sim.minute}:${b.x}:${b.y}:${b.kind}`;
   if (target !== anim.target) {
     anim.target = target;
+    const fastPlay = b.kind === "goal" || b.kind === "shot" || b.kind === "save";
+    anim.flight = {
+      fromX: bd.x, fromY: bd.y, toX: b.x, toY: b.y, at: now,
+      duration: Math.max(110, minuteMs * (fastPlay ? 0.75 : 0.9)),
+      bend: fastPlay ? (b.y >= 50 ? -1 : 1) * (7 + sim.minute % 6) : b.kind === "attack" ? (sim.minute % 2 ? 7 : -7) : (sim.minute % 3 - 1) * 3,
+    };
+    anim.trail = [];
     if (b.kind === "shot" || b.kind === "save" || b.kind === "goal") anim.pulse = { x: b.x, y: b.y, at: now, kind: b.kind };
   }
   const fast = b.kind === "goal" || b.kind === "shot" || b.kind === "save";
-  bd.x += (b.x - bd.x) * (1 - Math.exp(-dt * (fast ? 13 : 6)));
-  bd.y += (b.y - bd.y) * (1 - Math.exp(-dt * (fast ? 12 : 6)));
+  if (anim.flight) {
+    const play = anim.flight;
+    const progress = clamp((now - play.at) / play.duration, 0, 1);
+    const eased = progress * progress * (3 - 2 * progress);
+    bd.x = play.fromX + (play.toX - play.fromX) * eased;
+    bd.y = play.fromY + (play.toY - play.fromY) * eased + Math.sin(Math.PI * progress) * play.bend;
+  }
   anim.trail.push({ x: bd.x, y: bd.y });
   if (anim.trail.length > 12) anim.trail.shift();
   const t = now / 1000;

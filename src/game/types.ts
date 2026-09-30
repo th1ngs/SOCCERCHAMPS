@@ -858,6 +858,15 @@ export interface SimEvent {
   /** Lado (0 = mandante, 1 = visitante) ou null para eventos neutros. */
   side: number | null;
   text: string;
+  /** Dados do lance para a apresentação ao vivo, sem depender do texto da narração. */
+  penalty?: {
+    shooterId: string;
+    keeperId: string | null;
+    outcome: 'goal' | 'save' | 'miss';
+    /** Placar da disputa após esta cobrança; ausente nos pênaltis do tempo normal. */
+    shootoutScore?: [number, number];
+    round?: number;
+  };
 }
 
 export interface SimGoal {

@@ -74,12 +74,12 @@ export const TXT = {
   half: ['Fim do primeiro tempo.', 'O árbitro apita o intervalo.'],
   second: ['Começa o segundo tempo!', 'Bola rolando para a etapa final.'],
   full: ['Fim de jogo!', 'Apita o árbitro. Acabou!'],
-  goal: ['GOOOOL! {p} manda para o fundo da rede!', 'GOL! {p} não perdoa e marca para o {t}!', 'É GOL! Que finalização de {p}!', 'GOOOL do {t}! {p} bate firme e marca!', 'Golaço de {p}! A torcida do {t} vai à loucura!'],
+  goal: ['GOOOOL! {p} manda para o fundo da rede!', 'GOL! {p} não perdoa e marca para o {t}!', 'É GOL! Que finalização de {p}!', 'GOOOL do {t}! {p} bate firme e marca!', 'Golaço de {p}! A torcida do {t} vai à loucura!', '{p} recebe na área, escolhe o canto e balança a rede!', 'O {t} encontrou espaço: {p} finaliza com categoria!', '{p} aparece na hora certa e marca para o {t}!'],
   assist: [' Passe de {a}.', ' Assistência de {a}.', ' Belo cruzamento de {a}.', ' Lançamento perfeito de {a}.'],
-  save: ['Defesaça de {g}! {p} parou no goleiro.', '{p} finaliza e {g} espalma.', '{g} voa e salva o {t}!', 'Chute de {p}, {g} segura firme.'],
-  miss: ['{p} chuta por cima do gol.', 'Tirou tinta da trave! {p} quase marca.', '{p} bate cruzado, para fora.', 'Na trave! {p} fica no quase.', '{p} arrisca de longe, sem direção.'],
+  save: ['Defesaça de {g}! {p} parou no goleiro.', '{p} finaliza e {g} espalma.', '{g} voa e salva o {t}!', 'Chute de {p}, {g} segura firme.', '{g} fecha o ângulo e frustra {p}!', '{p} bate rasteiro; {g} cai para defender.', 'Reflexo incrível de {g} na finalização de {p}!'],
+  miss: ['{p} chuta por cima do gol.', 'Tirou tinta da trave! {p} quase marca.', '{p} bate cruzado, para fora.', 'Na trave! {p} fica no quase.', '{p} arrisca de longe, sem direção.', '{p} pega de primeira, mas a bola passa ao lado.', 'A torcida já levantava: {p} manda rente ao poste.', '{p} tenta o canto e erra por muito pouco.'],
   block: ['A zaga bloqueia o chute de {p}.', '{p} tenta, mas a defesa trava.'],
-  build: ['{t} troca passes no campo de ataque.', '{p} avança pela ponta.', '{t} pressiona a saída de bola.', '{p} tenta o drible e perde.', '{t} gira a bola procurando espaço.', 'Bola longa do {t}, a zaga afasta.'],
+  build: ['{t} troca passes no campo de ataque.', '{p} avança pela ponta.', '{t} pressiona a saída de bola.', '{p} tenta o drible e perde.', '{t} gira a bola procurando espaço.', 'Bola longa do {t}, a zaga afasta.', '{p} recebe entre as linhas e acelera.', 'O {t} muda o lado da jogada.', '{p} protege a bola e espera a passagem dos companheiros.', 'A defesa fecha os espaços diante do {t}.'],
   foul: ['Falta de {p}.', '{p} chega atrasado e comete falta.'],
   yellow: ['Cartão amarelo para {p}.', '{p} recebe o amarelo.'],
   red: ['CARTÃO VERMELHO! {p} está expulso!', 'Segundo amarelo para {p}. Expulso!'],
@@ -100,7 +100,7 @@ export const TXT = {
   cross: ['Jogada pela ponta e cruzamento na área para {p}…', 'Cruzamento da linha de fundo, {p} sobe…', 'Bola alçada na área, {p} vai de cabeça…'],
   longShot: ['{p} arrisca de longe…', 'Lá de fora! {p} solta a bomba…', '{p} ajeita e chuta de fora da área…'],
   longGoal: ['GOLAÇO! {p} acerta um foguete de fora da área!', 'DE LONGE! {p} surpreende {g} e marca um golaço!'],
-  counter: ['Contra-ataque do {t}! {p} dispara em velocidade.', 'Roubou e saiu! {p} puxa o contra-ataque do {t}.', 'Lançamento longo e {p} sai na cara do gol!'],
+  counter: ['Contra-ataque do {t}! {p} dispara em velocidade.', 'Roubou e saiu! {p} puxa o contra-ataque do {t}.', 'Lançamento longo e {p} sai na cara do gol!', 'Campo aberto para {p}: o {t} acelera na transição!', '{p} arranca pelo meio com a defesa voltando às pressas.'],
 } satisfies Record<string, string[]>;
 export type TxtKey = keyof typeof TXT;
 

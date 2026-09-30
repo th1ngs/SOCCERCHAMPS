@@ -429,12 +429,19 @@ export class Sim {
     this.stats.xg[s] += xg;
     const vars = { p: shooter.name, t: side.club.name, g: gkName };
     const r = Math.random();
-    if (r < xg) { this.goal(s, shooterO, penalty); return 'goal'; }
+    if (r < xg) {
+      this.goal(s, shooterO, penalty);
+      if (penalty) this.events[this.events.length - 1].penalty = { shooterId: shooter.id, keeperId: gkO?.pid ?? null, outcome: 'goal' };
+      return 'goal';
+    }
     if (penalty) {
-      this.log('miss', s, say('penMiss', vars));
+      const saved = Math.random() < 0.7;
+      if (saved) this.stats.onT[s]++;
+      const event = this.log(saved ? 'save' : 'miss', s, saved ? `${gkName} se estica e defende o pênalti de ${shooter.name}!` : `${shooter.name} manda a cobrança para fora!`);
+      event.penalty = { shooterId: shooter.id, keeperId: gkO?.pid ?? null, outcome: saved ? 'save' : 'miss' };
       if (gkO) this.ratings[gkO.pid] += 0.8;
       this.ratings[shooter.id] -= 0.6;
-      return 'save';
+      return saved ? 'save' : 'shot';
     }
     if (r < xg + 0.3) {
       this.stats.onT[s]++;
@@ -706,6 +713,11 @@ export class Sim {
       const t = takers[s][k % Math.max(1, takers[s].length)];
       const ok = Math.random() < this.penChance(t, keepers[1 - s], this.cur[1 - s].G) + 0.02;
       if (ok) pens[s]++;
+      const keeper = keepers[1 - s];
+      const outcome = ok ? 'goal' : Math.random() < 0.65 ? 'save' : 'miss';
+      const text = outcome === 'goal' ? `${t?.name ?? 'Batedor'} converte a cobrança!` : outcome === 'save' ? `${keeper?.name ?? 'O goleiro'} defende a cobrança de ${t?.name ?? 'o batedor'}!` : `${t?.name ?? 'Batedor'} manda a cobrança para fora!`;
+      const event = this.log('pens', s, text);
+      event.penalty = { shooterId: t?.id ?? '', keeperId: keeper?.id ?? null, outcome, shootoutScore: [pens[0], pens[1]], round: k + 1 };
       return ok;
     };
     let k = 0;

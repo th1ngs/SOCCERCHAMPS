@@ -258,6 +258,15 @@ function runChecks(): void {
   const insights = postMatchInsights(w, res, s);
   assert(insights.some((item) => item.title === 'Leitura tática'), 'pós-jogo interpreta estatísticas');
   assert(insights.some((item) => item.title === 'Substituições' || item.title === 'Impacto da substituição'), 'pós-jogo analisa substituição');
+  const penaltySim = new Sim(w, m.h, m.a);
+  penaltySim.cur = [penaltySim.strength(0), penaltySim.strength(1)];
+  penaltySim.shot(s, 1, true);
+  const penaltyEvent = penaltySim.events.at(-1);
+  assert(penaltyEvent?.penalty?.shooterId && ['goal', 'save', 'miss'].includes(penaltyEvent.penalty.outcome), 'pênalti comum fornece o resultado da cena');
+  penaltySim.penalties();
+  const kicks = penaltySim.events.filter((event) => event.penalty?.shootoutScore);
+  assert(kicks.length >= 6 && kicks.every((event) => event.penalty?.round && event.penalty.shooterId), 'disputa fornece cada cobrança para a animação');
+  assert(JSON.stringify(kicks.at(-1)?.penalty?.shootoutScore) === JSON.stringify(penaltySim.pens), 'placar da disputa chega ao resultado final');
   applyResult(w, m, res);
   simulateWeek(w);
   endWeek(w);

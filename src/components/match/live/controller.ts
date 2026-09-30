@@ -14,6 +14,17 @@ export interface FeedItem extends SimEvent {
   key: number;
 }
 
+export interface PenaltyScene {
+  key: number;
+  side: number;
+  shooter: string;
+  keeper: string;
+  outcome: 'goal' | 'save' | 'miss';
+  round: number | null;
+  shootoutScore: [number, number] | null;
+  duration: number;
+}
+
 export type LiveOverlay = "half" | "end" | null;
 
 export interface LiveSnapshot {
@@ -29,7 +40,9 @@ export interface LiveSnapshot {
   paused: boolean;
   over: boolean;
   overlay: LiveOverlay;
-  flash: { side: number; key: number } | null;
+  flash: { side: number; key: number; label: string } | null;
+  penaltyScene: PenaltyScene | null;
+  moment: { key: number; title: string; text: string; side: number | null; tone: 'gold' | 'red' | 'blue' } | null;
   subsOpen: boolean;
   subsNote: string | null;
 }
@@ -49,7 +62,7 @@ export class LiveController {
   paused = false;
   over = false;
   overlay: LiveOverlay = null;
-  flash: { side: number; key: number } | null = null;
+  flash: { side: number; key: number; label: string } | null = null;
   subsOpen = false;
   subsNote: string | null = null;
   private resumeOnClose = false;
@@ -58,9 +71,20 @@ export class LiveController {
   private acc = 0;
   private rev = 0;
   private started = false;
-  private anim: PitchAnim = { dots: new Map(), ball: { x: 50, y: 50 }, trail: [], target: "", pulse: null };
+  private anim: PitchAnim = { dots: new Map(), ball: { x: 50, y: 50 }, trail: [], target: "", pulse: null, flight: null };
   private scale: PitchScale = { w: 1, h: 1, dpr: 1 };
   private flashTimer: ReturnType<typeof setTimeout> | null = null;
+  private sceneTimer: ReturnType<typeof setTimeout> | null = null;
+  private momentTimer: ReturnType<typeof setTimeout> | null = null;
+  private moment: LiveSnapshot['moment'] = null;
+  private momentSeq = 0;
+  private sceneQueue: SimEvent[] = [];
+  private postSceneFeed: SimEvent[] = [];
+  private currentSceneEvent: SimEvent | null = null;
+  private sceneSeq = 0;
+  private scene: PenaltyScene | null = null;
+  private shownPens: [number, number] | null = null;
+  private hiddenScore: [number, number] | null = null;
   private listeners = new Set<() => void>();
   private snap: LiveSnapshot;
 
@@ -84,13 +108,13 @@ export class LiveController {
   private build(): LiveSnapshot {
     const sim = this.sim;
     const min = sim.minute;
-    const minuteText = sim.finished ? "Encerrado" : sim.phase === "half" ? "Intervalo" : min > 90 ? `90+${min - 90}'` : `${min}'`;
+    const minuteText = this.scene && sim.finished ? this.scene.round ? "Pênaltis" : `${min}'` : sim.finished ? "Encerrado" : sim.phase === "half" ? "Intervalo" : min > 90 ? `90+${min - 90}'` : `${min}'`;
     return {
       rev: this.rev,
       minute: min,
       minuteText,
-      score: [sim.score[0], sim.score[1]],
-      pens: sim.pens ? [sim.pens[0], sim.pens[1]] : null,
+      score: this.hiddenScore ?? [sim.score[0], sim.score[1]],
+      pens: this.shownPens ?? (this.scene || this.sceneQueue.length ? null : sim.pens ? [sim.pens[0], sim.pens[1]] : null),
       poss: pct(sim.stats.poss[0], sim.stats.poss[1]),
       stats: cloneStats(sim.stats),
       feed: this.feed,
@@ -99,6 +123,8 @@ export class LiveController {
       over: this.over,
       overlay: this.overlay,
       flash: this.flash,
+      penaltyScene: this.scene,
+      moment: this.moment,
       subsOpen: this.subsOpen,
       subsNote: this.subsNote,
     };
@@ -146,15 +172,15 @@ export class LiveController {
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       const sim = this.sim;
-      if (!this.paused && !sim.finished) {
+      if (!this.paused && !this.scene && !sim.finished) {
         this.acc += dt;
         const dur = SPEEDS[this.speed];
-        while (this.acc >= dur && !this.paused && !sim.finished) {
+        while (this.acc >= dur && !this.paused && !this.scene && !sim.finished) {
           this.acc -= dur;
           this.minute();
         }
       }
-      if (ctx) drawLivePitch(ctx, this.scale, sim, this.w, this.kits, this.anim, dt, now);
+      if (ctx) drawLivePitch(ctx, this.scale, sim, this.w, this.kits, this.anim, dt, now, SPEEDS[this.speed] * 1000);
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
@@ -169,6 +195,10 @@ export class LiveController {
   dispose(): void {
     if (this.flashTimer) clearTimeout(this.flashTimer);
     this.flashTimer = null;
+    if (this.sceneTimer) clearTimeout(this.sceneTimer);
+    this.sceneTimer = null;
+    if (this.momentTimer) clearTimeout(this.momentTimer);
+    this.momentTimer = null;
   }
 
   private pushFeed(ev: SimEvent): void {
@@ -176,14 +206,103 @@ export class LiveController {
     this.feed = [{ ...ev, key: ++this.feedSeq }, ...this.feed].slice(0, 120);
   }
 
+  private showNextScene(): void {
+    const event = this.sceneQueue.shift();
+    if (!event?.penalty) {
+      for (const deferred of this.postSceneFeed) this.pushFeed(deferred);
+      this.postSceneFeed = [];
+      this.currentSceneEvent = null;
+      this.scene = null;
+      this.hiddenScore = null;
+      if (this.sim.finished) this.finish();
+      else if (this.sim.phase === 'half') { this.paused = true; this.overlay = 'half'; }
+      this.emit();
+      return;
+    }
+    const detail = event.penalty;
+    this.currentSceneEvent = event;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const duration = reduced ? 500 : this.speed === 2 ? 2400 : 3600;
+    this.scene = {
+      key: ++this.sceneSeq,
+      side: event.side ?? 0,
+      shooter: this.w.players[detail.shooterId]?.name ?? 'Batedor',
+      keeper: detail.keeperId ? this.w.players[detail.keeperId]?.name ?? 'Goleiro' : 'Goleiro',
+      outcome: detail.outcome,
+      round: detail.round ?? null,
+      shootoutScore: detail.shootoutScore ?? null,
+      duration,
+    };
+    this.sceneTimer = setTimeout(() => this.completeScene(event), duration);
+    this.emit();
+  }
+
+  private completeScene(event: SimEvent): void {
+    this.sceneTimer = null;
+    this.currentSceneEvent = null;
+    this.pushFeed(event);
+    if (event.penalty?.shootoutScore) this.shownPens = event.penalty.shootoutScore;
+    if (event.penalty?.outcome === 'goal') {
+      this.hiddenScore = null;
+      if (!event.penalty.shootoutScore) {
+        this.flash = { side: event.side ?? 0, key: this.feedSeq, label: 'GOL DE PÊNALTI!' };
+        if (this.flashTimer) clearTimeout(this.flashTimer);
+        this.flashTimer = setTimeout(() => { this.flash = null; this.emit(); }, 2200);
+        Audio.goal();
+      } else Audio.kick(0.8);
+    } else Audio.kick(0.6);
+    this.showNextScene();
+  }
+
+  /** Encerra as cenas restantes e revela os resultados sem alterar a simulação. */
+  skipScenes(): void {
+    if (!this.scene) return;
+    if (this.sceneTimer) clearTimeout(this.sceneTimer);
+    this.sceneTimer = null;
+    // O evento atual fica guardado separadamente para preservar a ordem do relato.
+    if (this.currentSceneEvent) this.pushFeed(this.currentSceneEvent);
+    for (const event of this.sceneQueue) this.pushFeed(event);
+    for (const event of this.postSceneFeed) this.pushFeed(event);
+    this.sceneQueue = [];
+    this.postSceneFeed = [];
+    this.currentSceneEvent = null;
+    this.scene = null;
+    this.hiddenScore = null;
+    this.shownPens = this.sim.pens ? [...this.sim.pens] : null;
+    if (this.sim.finished) this.finish();
+    else if (this.sim.phase === 'half') { this.paused = true; this.overlay = 'half'; }
+    this.emit();
+  }
+
   private minute(): void {
     const sim = this.sim;
+    const scoreBefore: [number, number] = [sim.score[0], sim.score[1]];
     const evs = sim.step();
-    for (const ev of evs) this.pushFeed(ev);
-    const goals = evs.filter((e) => e.type === "goal");
+    const hasPenaltyScene = evs.some((event) => !!event.penalty);
+    for (const ev of evs) {
+      if (ev.penalty) this.sceneQueue.push(ev);
+      else if (hasPenaltyScene && (ev.type === 'pens' || sim.finished && ev.type === 'info')) this.postSceneFeed.push(ev);
+      else this.pushFeed(ev);
+    }
+    const penaltyGoal = evs.some((event) => event.penalty?.outcome === 'goal' && !event.penalty.shootoutScore);
+    if (penaltyGoal) this.hiddenScore = scoreBefore;
+    if (this.sceneQueue.length && !this.scene) {
+      Audio.whistle(false);
+      this.showNextScene();
+    }
+    const featured = evs.filter((event) => !event.penalty && ['save', 'miss', 'red', 'yellow', 'injury'].includes(event.type)).at(-1);
+    if (featured && !this.scene) {
+      const title = featured.type === 'save' ? 'Defesaça!' : featured.type === 'miss' ? 'Quase gol!' : featured.type === 'red' ? 'Expulsão!' : featured.type === 'yellow' ? 'Cartão amarelo' : 'Atendimento médico';
+      this.moment = { key: ++this.momentSeq, title, text: featured.text, side: featured.side, tone: featured.type === 'red' || featured.type === 'injury' ? 'red' : featured.type === 'save' ? 'blue' : 'gold' };
+      if (this.momentTimer) clearTimeout(this.momentTimer);
+      this.momentTimer = setTimeout(() => { this.moment = null; this.emit(); }, this.speed === 2 ? 1100 : 2100);
+    }
+    const goals = evs.filter((e) => e.type === "goal" && !e.penalty);
     if (goals.length) {
       const g = goals[goals.length - 1];
-      this.flash = { side: g.side ?? 0, key: this.feedSeq };
+      const upper = g.text.toLocaleUpperCase('pt-BR');
+      const label = upper.includes('FALTA') ? 'GOL DE FALTA!' : upper.includes('CABEÇA') || upper.includes('CABECEADA') ? 'GOL DE CABEÇA!' : upper.includes('GOLAÇO') || upper.includes('DE LONGE') ? 'GOLAÇO!' : 'GOOOOL!';
+      this.flash = { side: g.side ?? 0, key: this.feedSeq, label };
       if (this.flashTimer) clearTimeout(this.flashTimer);
       this.flashTimer = setTimeout(() => {
         this.flash = null;
@@ -192,18 +311,18 @@ export class LiveController {
       Audio.goal();
       if (this.speed === 2) this.acc = -1.2; // respiro para ver o gol no 4x
     }
-    if (evs.some((e) => e.type === "save" || e.type === "miss")) Audio.kick(0.6);
+    if (evs.some((e) => !e.penalty && (e.type === "save" || e.type === "miss"))) Audio.kick(0.6);
     if (sim.pendingInjury) {
       const pi = sim.pendingInjury;
       sim.pendingInjury = null;
       this.paused = true;
       this.openSubs(`${this.w.players[pi.pid]?.name ?? "Um jogador"} se machucou. Faça uma substituição.`, true);
     }
-    if (sim.phase === "half") {
+    if (sim.phase === "half" && !this.scene) {
       this.paused = true;
       this.overlay = "half";
     }
-    if (sim.finished) this.finish();
+    if (sim.finished && !this.scene) this.finish();
     this.emit();
   }
 
@@ -223,7 +342,7 @@ export class LiveController {
   }
 
   togglePause(): void {
-    if (this.over) return;
+    if (this.over || this.scene) return;
     this.paused = !this.paused;
     if (!this.paused) this.overlay = null;
     this.emit();
@@ -240,6 +359,7 @@ export class LiveController {
   /** Simula direto até o apito final. */
   skip(): void {
     if (this.over) return;
+    if (this.scene) this.skipScenes();
     const sim = this.sim;
     this.overlay = null;
     this.subsOpen = false;
