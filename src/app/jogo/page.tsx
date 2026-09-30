@@ -1,9 +1,10 @@
 "use client";
 
-import { weekLabel } from "@/game";
+import { calendarDayLabel, weekLabel } from "@/game";
 import { PageHeader } from "@/components/ui/primitives";
 import { useWorld } from "@/components/game/GameProvider";
 import { NextMatchCard } from "@/components/home/NextMatchCard";
+import { WeekCalendarCard } from "@/components/home/WeekCalendarCard";
 import { BoardCard } from "@/components/home/BoardCard";
 import { MiniTableCard } from "@/components/home/MiniTableCard";
 import { CompetitionsCard } from "@/components/home/CompetitionsCard";
@@ -17,8 +18,9 @@ export default function InicioPage() {
   const { world: w } = useWorld();
   return (
     <>
-      <PageHeader title="Início" subtitle={`Temporada ${w.season} • ${weekLabel(w)} • ${w.manager.name}`} />
+      <PageHeader title="Início" subtitle={`Temporada ${w.season} • ${weekLabel(w)}${w.week > 0 ? ` • ${calendarDayLabel(w)}` : ""} • ${w.manager.name}`} />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <WeekCalendarCard />
         <NextMatchCard />
         <ChecklistCard />
         <BoardCard />

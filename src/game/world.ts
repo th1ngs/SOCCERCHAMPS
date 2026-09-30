@@ -94,12 +94,16 @@ function roundRobin(ids: string[]): Pair[][] {
     const pairs: Pair[] = [];
     for (let i = 0; i < n / 2; i++) {
       const a = arr[i], b = arr[n - 1 - i];
-      pairs.push((r + i) % 2 === 0 ? [a, b] : [b, a]);
+      // Alterna mandos conforme a posição no círculo. Somar r aqui fazia
+      // quase todos os clubes jogarem 15 vezes seguidas no mesmo mando.
+      pairs.push((i === 0 ? r : i) % 2 === 0 ? [a, b] : [b, a]);
     }
     rounds.push(pairs);
     arr.splice(1, 0, arr.pop() as string);
   }
-  return rounds.concat(rounds.map((r) => r.map(([a, b]): Pair => [b, a])));
+  // Deslocar a volta uma rodada evita sequência tripla na transição entre turnos.
+  const returnLeg = rounds.slice(1).concat([rounds[0]]).map((round) => round.map(([a, b]): Pair => [b, a]));
+  return rounds.concat(returnLeg);
 }
 
 let mid = 1;
@@ -112,6 +116,7 @@ export const clubsByDivision = (w: World, div: DivisionId): Club[] => Object.val
 
 export function startSeason(w: World): void {
   const schedules = DIVISION_IDS.map((div) => ({ div, rounds: roundRobin(shuffle(divClubs(w, div))) }));
+  w.scheduleRevision = 1;
   w.weeks = [null];
   let li = 0;
   for (let wk = 1; wk <= TOTAL_WEEKS; wk++) {
@@ -182,6 +187,22 @@ export function knockoutWinner(m: Match): string {
 }
 
 export const currentWeek = (w: World): Week | null => w.weeks[w.week] || null;
+
+export const DAY_NAMES = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'] as const;
+export const DAY_ACTIVITY = ['Descanso', 'Treino', 'Treino', 'Descanso', 'Treino', 'Descanso', 'Jogo'] as const;
+
+/** A temporada abre na primeira segunda-feira de março. */
+export function calendarDate(season: number, week: number, day: number): Date {
+  const first = new Date(Date.UTC(season, 2, 1));
+  first.setUTCDate(first.getUTCDate() + (8 - first.getUTCDay()) % 7 + (week - 1) * 7 + day);
+  return first;
+}
+
+export function calendarDayLabel(w: World): string {
+  const day = Math.min(6, Math.max(0, w.day ?? 0));
+  const date = calendarDate(w.season, w.week, day);
+  return `${DAY_NAMES[day]}, ${String(date.getUTCDate()).padStart(2, '0')}/${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+}
 
 export function userMatch(w: World): Match | null {
   const wk = currentWeek(w);
@@ -416,7 +437,7 @@ export function simulateWeek(w: World): void {
 /** Semana em que as promessas de titular são cobradas. */
 export const PROMISE_CHECK_WEEK = 20;
 
-function develop(p: Player, club: Club | undefined): void {
+function develop(p: Player, club: Club | undefined, share = 1): void {
   const trainLvl = club ? club.training : 2;
   const intensity = club ? TRAINING[club.trainingInt].dev : 1;
   let g = 0;
@@ -424,12 +445,48 @@ function develop(p: Player, club: Club | undefined): void {
     const gap = p.pot - p.ovr;
     const rate = p.age <= 18 ? 0.0085 : p.age <= 21 ? 0.007 : p.age <= 24 ? 0.0048 : p.age <= 27 ? 0.002 : 0.0005;
     // Emprestado como titular conta como quem joga; garotos do setor em foco da base evoluem 15% mais.
-    const plays = p.played || (!!p.loan && p.loan.role === 'titular');
+    const plays = p.played || !!club?.lineup.includes(p.id) || (!!p.loan && p.loan.role === 'titular');
     const focus = p.youth && club && (ACADEMY_FOCUS[club.academyFocus]?.pos ?? []).includes(p.pos) ? FOCUS_DEV : 1;
     g = gap * rate * (0.75 + 0.1 * trainLvl) * intensity * (plays ? 1.3 : p.youth ? 1.1 : 0.85) * focus * rand(0.5, 1.5);
   }
   if (p.age >= 31) g -= (p.age - 30) * 0.03 * rand(0.5, 1.5);
-  p.ovr = round3(clamp(p.ovr + g, 25, 99));
+  p.ovr = round3(clamp(p.ovr + g * share, 25, 99));
+}
+
+const DAILY_RECOVERY = [0.3, 0.1, 0.1, 0.25, 0.1, 0.15];
+
+function processCalendarDay(w: World, day: number): void {
+  if (day >= 6) return;
+  const trainingDay = DAY_ACTIVITY[day] === 'Treino';
+  const ownerOf: Record<string, Club> = {};
+  for (const club of Object.values(w.clubs)) {
+    for (const id of club.squad) ownerOf[id] = club;
+    for (const id of club.youth) ownerOf[id] = club;
+  }
+  const u = user(w);
+  for (const p of Object.values(w.players)) {
+    const club = ownerOf[p.id];
+    const tr = club ? TRAINING[club.trainingInt] : TRAINING.mid;
+    const rec = clamp(0.8 + attr(p, 'fol') / 250, 0.9, 1.2) + (hasTrait(p, 'motorzinho') ? 0.08 : 0);
+    p.fitness = clamp(p.fitness + tr.recover * DAILY_RECOVERY[day] * rec, 0, 100);
+    if (!trainingDay) continue;
+    develop(p, club, 1 / 3);
+    if (club && !p.youth && !p.inj && chance(0.0035 * tr.injury / 3)) {
+      const sev = randi(1, 3);
+      p.inj = injuryWeeks(sev, club.training);
+      p.injType = injuryLabel(sev);
+      p.injNew = true;
+      if (club === u) pushMessage(w, { kind: 'medical', title: `${p.name} machucado no treino`, body: `${p.name} sofreu ${injuryPhrase(p.injType)} no treino e fica fora por ${weeksText(p.inj)}.` });
+    }
+  }
+}
+
+/** Avança um dia de preparação; domingo é reservado à partida. */
+export function advanceCalendarDay(w: World): boolean {
+  if (w.week === 0 || w.day >= 6 || w.pendingSeason) return false;
+  processCalendarDay(w, w.day);
+  w.day++;
+  return true;
 }
 
 /** Atualiza as copas ao fim de uma semana de mata-mata. */
@@ -466,6 +523,10 @@ export function endWeek(w: World): WeekReport {
   const u = user(w);
   const report: WeekReport = { news: [] };
 
+  // Chamadas diretas do motor (CPU/testes/saves antigos) completam a preparação.
+  for (let day = w.day ?? 0; day < 6; day++) processCalendarDay(w, day);
+  w.day = 0;
+
   if (wk && (wk.type === 'cup' || wk.type === 'cont')) closeKnockoutWeek(w, wk);
 
   // Jogadores
@@ -486,20 +547,9 @@ export function endWeek(w: World): WeekReport {
         }
       }
     }
-    const tr = club ? TRAINING[club.trainingInt] : TRAINING.mid;
-    // Fôlego e Motorzinho: recuperam mais rápido entre os jogos.
-    const rec = clamp(0.8 + attr(p, 'fol') / 250, 0.9, 1.2) + (hasTrait(p, 'motorzinho') ? 0.08 : 0);
-    p.fitness = clamp(p.fitness + tr.recover * rec, 0, 100);
-    develop(p, club);
     if (club && !p.youth) {
       if (!p.played && !p.inj) p.morale = clamp(p.morale - 1.2, 10, 100);
       p.morale = round2(p.morale + (65 - p.morale) * 0.04);
-      if (!p.inj && chance(0.0035 * tr.injury)) {
-        const sev = randi(1, 3);
-        p.inj = injuryWeeks(sev, club.training);
-        p.injType = injuryLabel(sev);
-        if (club === u) pushMessage(w, { kind: 'medical', title: `${p.name} machucado no treino`, body: `${p.name} sofreu ${injuryPhrase(p.injType)} no treino e fica fora por ${weeksText(p.inj)}.` });
-      }
     }
     p.played = false;
   }

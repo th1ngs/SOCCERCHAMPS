@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { isDerby } from "@/game";
+import { calendarDate, isDerby } from "@/game";
 import { Badge, FormChips } from "@/components/ui/primitives";
 import { Crest } from "@/components/ui/Crest";
 import { Flag } from "@/components/ui/Flag";
@@ -29,6 +29,7 @@ export function FixturesView() {
         const weekCell = (
           <span className="font-display text-xs font-bold uppercase tracking-wider text-mist">
             Sem. {week}
+            <span className="block text-[11px] normal-case tracking-normal">Dom {calendarDate(w.season, week, 6).toLocaleDateString("pt-BR", { timeZone: "UTC", day: "2-digit", month: "2-digit" })}</span>
             {cur && <span className="block text-gold-400">Atual</span>}
           </span>
         );

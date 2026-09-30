@@ -58,7 +58,7 @@ export class LiveController {
   private acc = 0;
   private rev = 0;
   private started = false;
-  private anim: PitchAnim = { dots: new Map(), ball: { x: 50, y: 50 } };
+  private anim: PitchAnim = { dots: new Map(), ball: { x: 50, y: 50 }, trail: [], target: "", pulse: null };
   private scale: PitchScale = { w: 1, h: 1, dpr: 1 };
   private flashTimer: ReturnType<typeof setTimeout> | null = null;
   private listeners = new Set<() => void>();

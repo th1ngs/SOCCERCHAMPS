@@ -778,6 +778,10 @@ export interface World {
   userClub: string;
   season: number;
   week: number;
+  /** 0 = segunda, 6 = domingo (jogo). */
+  day: number;
+  /** Migração da orientação dos mandos no calendário de liga. */
+  scheduleRevision?: number;
   clubs: Record<string, Club>;
   players: Record<string, Player>;
   free: string[];

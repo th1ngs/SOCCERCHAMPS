@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback } from "react";
-import { competitionName, endWeek, simulateWeek, userMatch, weekLabel } from "@/game";
+import { advanceCalendarDay, calendarDayLabel, competitionName, DAY_ACTIVITY, endWeek, simulateWeek, userMatch, weekLabel } from "@/game";
 import { useToast } from "@/components/ui/Toast";
 import { useWorld } from "./GameProvider";
 
-/** Fluxo semanal: rótulo do botão principal, avançar e encerrar a semana. */
+/** Fluxo diário: preparação de segunda a sábado, jogo no domingo. */
 export function useFlow() {
   const g = useWorld();
   const toast = useToast();
@@ -17,9 +17,11 @@ export function useFlow() {
       ? "Encerrar temporada"
       : w.week === 0
         ? "Iniciar temporada"
+        : w.day < 6
+          ? "Avançar dia"
         : userMatch(w)
           ? "Ir para o jogo"
-          : "Avançar semana";
+          : "Simular rodada";
 
   // Contexto curto do próximo passo, mostrado junto do botão principal.
   const next = userMatch(w);
@@ -29,6 +31,8 @@ export function useFlow() {
       ? "Fim da temporada"
       : w.week === 0
         ? `Pré-temporada ${w.season}`
+        : w.day < 6
+          ? `${calendarDayLabel(w)} • ${DAY_ACTIVITY[w.day]}`
         : next
           ? `${next.h === w.userClub ? "Casa" : "Fora"} • ${w.clubs[next.h === w.userClub ? next.a : next.h].name} • ${competitionName(next.comp)}`
           : `${weekLabel(w)} • sem jogo do seu time`;
@@ -53,6 +57,11 @@ export function useFlow() {
       endWeek(w);
       commit();
       toast(`Temporada ${w.season} iniciada. Boa sorte!`, "good");
+      return;
+    }
+    if (w.day < 6) {
+      advanceCalendarDay(w);
+      commit();
       return;
     }
     const m = userMatch(w);

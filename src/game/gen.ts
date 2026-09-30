@@ -238,6 +238,8 @@ export function newWorld(managerName: string, clubId: string): World {
     userClub: clubId,
     season: 2026,
     week: 0,
+    day: 0,
+    scheduleRevision: 1,
     clubs: {},
     players: {},
     free: [],

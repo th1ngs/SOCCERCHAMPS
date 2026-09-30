@@ -13,7 +13,7 @@ import { postMatchInsights } from '../src/components/match/postMatch';
 import * as G from '../src/game';
 import {
   CLUBS, DIVISIONS, DIVISION_IDS, DIVISION_SIZE, IncompatibleSaveError, LEAGUES, LEAGUE_IDS, LOAN_OPTIONS, Sim, TRAITS,
-  UPGRADES, WORLD_VERSION, autoLineup, applyResult, clubPlayers, completeBuy, competitionName, contEntrants,
+  UPGRADES, WORLD_VERSION, advanceCalendarDay, autoLineup, applyResult, calendarDate, clubPlayers, completeBuy, competitionName, contEntrants,
   currentWeek, cupId, divisionFullName, endWeek, ensureLineup, evaluateBid, expectedGate, firstDivisions, formatMoney,
   injuryLabel, injuryWeeks, isCompatible, marketPlayers, isDerby, isDivision, jobOffers, loanBalance, migrateWorld, newSeason,
   newWorld, promoteYouth, release, renew, repayLoan, runTrial, setCaptain, setPenTaker, setTicketPrice, simMatch,
@@ -69,6 +69,43 @@ function playSeason(w: World): { ps: SeasonSummary; stats: Record<LeagueId, Leag
 
 const kb = (n: number): string => (n / 1024).toFixed(0) + ' KB';
 
+function checkCalendar(): void {
+  const w = freshWorld();
+  for (const div of DIVISION_IDS) {
+    const matches = w.weeks.flatMap((week) => week?.matches.filter((m) => m.comp === div) ?? []);
+    for (const club of Object.values(w.clubs).filter((c) => c.div === div)) {
+      const sequence = matches.filter((m) => m.h === club.id || m.a === club.id).map((m) => m.h === club.id ? 'H' : 'A').join('');
+      assert(sequence.length === 30, `${club.id}: 30 jogos de liga`);
+      assert((sequence.match(/H/g) ?? []).length === 15, `${club.id}: 15 mandos`);
+      assert(Math.max(...(sequence.match(/H+|A+/g) ?? []).map((run) => run.length)) <= 2, `${club.id}: sem longa sequência de mandos`);
+    }
+  }
+  assert(calendarDate(w.season, 2, 0).getTime() - calendarDate(w.season, 1, 0).getTime() === 7 * 86400000, 'calendário avança sete dias por semana');
+  w.week = 1;
+  const p = w.players[w.clubs[w.userClub].squad[0]];
+  p.fitness = 40;
+  assert(advanceCalendarDay(w) && w.day === 1 && p.fitness > 40, 'descanso diário recupera condicionamento');
+  for (let i = 1; i < 6; i++) assert(advanceCalendarDay(w), 'dias de preparação avançam');
+  assert(Number(w.day) === 6 && !advanceCalendarDay(w), 'domingo aguarda o jogo');
+
+  const legacy = freshWorld();
+  let round = 0;
+  for (const week of legacy.weeks) {
+    if (week?.type !== 'league') continue;
+    const match = week.matches.find((m) => m.h === legacy.userClub || m.a === legacy.userClub)!;
+    if ((round < 15 && match.h === legacy.userClub) || (round >= 15 && match.a === legacy.userClub)) [match.h, match.a] = [match.a, match.h];
+    if (round < 3) match.played = true;
+    round++;
+  }
+  legacy.scheduleRevision = undefined;
+  migrateWorld(legacy);
+  const repaired = legacy.weeks.flatMap((week) => week?.type === 'league' ? week.matches.filter((m) => m.h === legacy.userClub || m.a === legacy.userClub) : []);
+  assert(repaired.slice(0, 3).every((m) => m.played && m.a === legacy.userClub), 'migração preserva jogos disputados');
+  assert((repaired.filter((m) => m.h === legacy.userClub)).length === 15, 'migração mantém 15 mandos');
+  const future = repaired.slice(3).map((m) => m.h === legacy.userClub ? 'H' : 'A').join('');
+  assert(Math.max(...(future.match(/H+|A+/g) ?? []).map((run) => run.length)) <= 3, 'migração intercala jogos futuros');
+}
+
 function checkAwardWeights(): void {
   const w = freshWorld();
   const topClub = Object.values(w.clubs).find((c) => c.div === 'eng1')!;
@@ -89,6 +126,7 @@ function checkAwardWeights(): void {
 }
 
 function runSeasons(): void {
+  checkCalendar();
   checkAwardWeights();
   let t0 = performance.now();
   const w = freshWorld();
@@ -139,6 +177,7 @@ function runSeasons(): void {
 }
 
 function runChecks(): void {
+  checkCalendar();
   const w = freshWorld();
   const u = user(w);
   u.money += 50e6; // garante caixa para todas as operações

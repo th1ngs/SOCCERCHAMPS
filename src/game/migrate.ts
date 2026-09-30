@@ -28,6 +28,47 @@ type Loose<T> = { [K in keyof T]?: T[K] };
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null;
 
+/** Corrige os mandos ainda não disputados de saves criados pelo calendário antigo. */
+function repairRemainingMandos(w: World): void {
+  const last = new Map<string, { home: boolean; streak: number; homes: number; aways: number }>();
+  const firstHome = new Map<string, string>();
+  const pairKey = (a: string, b: string) => a < b ? `${a}|${b}` : `${b}|${a}`;
+  const update = (clubId: string, home: boolean) => {
+    const prev = last.get(clubId);
+    last.set(clubId, {
+      home, streak: prev?.home === home ? prev.streak + 1 : 1,
+      homes: (prev?.homes ?? 0) + (home ? 1 : 0),
+      aways: (prev?.aways ?? 0) + (home ? 0 : 1),
+    });
+  };
+  const penalty = (clubId: string, home: boolean) => {
+    const prev = last.get(clubId);
+    if (!prev) return 0;
+    const streak = prev.home === home ? prev.streak : 0;
+    const imbalance = (prev.homes + (home ? 1 : 0)) - (prev.aways + (home ? 0 : 1));
+    return (streak >= 2 ? 100 : streak === 1 ? 8 : 0) + Math.abs(imbalance) * 0.3;
+  };
+  for (const week of w.weeks) {
+    if (!week || week.type !== 'league') continue;
+    for (const match of week.matches) {
+      if (!(match.comp in DIVISIONS)) continue;
+      const a = match.h, b = match.a, key = pairKey(a, b);
+      const previousHome = firstHome.get(key);
+      if (!match.played) {
+        if (previousHome) {
+          if (match.h === previousHome) [match.h, match.a] = [match.a, match.h];
+        } else if (penalty(a, true) + penalty(b, false) > penalty(a, false) + penalty(b, true)) {
+          [match.h, match.a] = [match.a, match.h];
+        }
+      }
+      if (!previousHome) firstHome.set(key, match.h);
+      update(match.h, true);
+      update(match.a, false);
+    }
+  }
+  w.scheduleRevision = 1;
+}
+
 /** O save pode ser carregado por esta versão do motor (v3+, todos os clubes com liga e divisão válidas)? */
 export function isCompatible(w: unknown): w is World {
   if (!isObj(w) || !isObj(w.clubs) || !isObj(w.players) || typeof w.userClub !== 'string') return false;
@@ -89,6 +130,8 @@ export function migrateWorld(w: World): World {
     throw new IncompatibleSaveError(v);
   }
   const lw = w as Loose<World>;
+  if (typeof lw.day !== 'number' || lw.day < 0 || lw.day > 6) w.day = 0;
+  if (lw.scheduleRevision !== 1 && Array.isArray(w.weeks)) repairRemainingMandos(w);
   if (!lw.finWeek) w.finWeek = {};
   if (!lw.finSeason) w.finSeason = {};
   if (!lw.finance) w.finance = [];

@@ -15,6 +15,9 @@ export interface PitchScale {
 export interface PitchAnim {
   dots: Map<string, { x: number; y: number }>;
   ball: { x: number; y: number };
+  trail: { x: number; y: number }[];
+  target: string;
+  pulse: { x: number; y: number; at: number; kind: string } | null;
 }
 
 export const PITCH_RATIO = 105 / 68;
@@ -52,14 +55,30 @@ export function drawLivePitch(c: CanvasRenderingContext2D, sc: PitchScale, sim: 
   // Posições dos jogadores: o bloco se desloca na direção da bola.
   const k = 1 - Math.exp(-dt * 3);
   const b = sim.ball, bd = anim.ball;
+  const target = `${sim.minute}:${b.x}:${b.y}:${b.kind}`;
+  if (target !== anim.target) {
+    anim.target = target;
+    if (b.kind === "shot" || b.kind === "save" || b.kind === "goal") anim.pulse = { x: b.x, y: b.y, at: now, kind: b.kind };
+  }
   const fast = b.kind === "goal" || b.kind === "shot" || b.kind === "save";
-  bd.x += (b.x - bd.x) * (1 - Math.exp(-dt * (fast ? 7 : 3.5)));
-  bd.y += (b.y - bd.y) * (1 - Math.exp(-dt * 4));
+  bd.x += (b.x - bd.x) * (1 - Math.exp(-dt * (fast ? 13 : 6)));
+  bd.y += (b.y - bd.y) * (1 - Math.exp(-dt * (fast ? 12 : 6)));
+  anim.trail.push({ x: bd.x, y: bd.y });
+  if (anim.trail.length > 12) anim.trail.shift();
   const t = now / 1000;
   let carrier: { x: number; y: number } | null = null, cd = Infinity;
   const placed: { d: { x: number; y: number }; num: number; gk: boolean; s: number }[] = [];
   sim.sides.forEach((side, s) => {
     const slots = FORMATIONS[side.formation];
+    const nearest = side.on
+      .filter((o) => slots[o.slot].pos !== "GOL" || (s === 0 ? bd.x < 20 : bd.x > 80))
+      .reduce<{ slot: number; distance: number } | null>((best, o) => {
+        const sl = slots[o.slot];
+        const sx = s === 0 ? sl.x : 100 - sl.x;
+        const sy = s === 0 ? sl.y : 100 - sl.y;
+        const distance = Math.hypot(sx - bd.x, (sy - bd.y) * 0.75);
+        return !best || distance < best.distance ? { slot: o.slot, distance } : best;
+      }, null)?.slot;
     for (const o of side.on) {
       const sl = slots[o.slot];
       const gk = sl.pos === "GOL";
@@ -68,6 +87,11 @@ export function drawLivePitch(c: CanvasRenderingContext2D, sc: PitchScale, sim: 
       let ty = s === 0 ? sl.y : 100 - sl.y;
       tx = clamp(tx + shift, 2, 98);
       ty = clamp(ty + (bd.y - 50) * (gk ? 0.1 : 0.18) + Math.sin(t * 1.3 + o.slot * 2.1 + s) * 1.4, 3, 97);
+      if (o.slot === nearest) {
+        const chase = b.side === s ? 0.58 : 0.34;
+        tx = clamp(tx + (bd.x - tx) * chase, 2, 98);
+        ty = clamp(ty + (bd.y - ty) * chase, 3, 97);
+      }
       let d = anim.dots.get(o.pid);
       if (!d) {
         d = { x: tx, y: ty };
@@ -85,6 +109,25 @@ export function drawLivePitch(c: CanvasRenderingContext2D, sc: PitchScale, sim: 
 
   // Raio mínimo generoso: no celular o campo é estreito e os números precisam ser legíveis.
   const r = Math.max(9.5, Math.min(W / 58, 16));
+  // Rastro de bola e onda do lance, visíveis mesmo em velocidade alta.
+  if (anim.trail.length > 1) {
+    c.lineCap = "round";
+    for (let i = 1; i < anim.trail.length; i++) {
+      const from = anim.trail[i - 1], to = anim.trail[i];
+      c.strokeStyle = `rgba(255,255,255,${(i / anim.trail.length) * (fast ? 0.52 : 0.25)})`;
+      c.lineWidth = Math.max(1, r * 0.5 * i / anim.trail.length);
+      c.beginPath(); c.moveTo(X(from.x), Y(from.y)); c.lineTo(X(to.x), Y(to.y)); c.stroke();
+    }
+  }
+  if (anim.pulse) {
+    const age = (now - anim.pulse.at) / 850;
+    if (age >= 1) anim.pulse = null;
+    else {
+      c.strokeStyle = anim.pulse.kind === "goal" ? `rgba(255,205,70,${0.8 * (1 - age)})` : `rgba(255,255,255,${0.65 * (1 - age)})`;
+      c.lineWidth = Math.max(2, r * 0.24);
+      c.beginPath(); c.arc(X(anim.pulse.x), Y(anim.pulse.y), r * (0.8 + age * 2.6), 0, Math.PI * 2); c.stroke();
+    }
+  }
   c.font = `700 ${Math.round(r * 1.1)}px ${displayFont()}`;
   c.textAlign = "center";
   c.textBaseline = "middle";
@@ -102,9 +145,9 @@ export function drawLivePitch(c: CanvasRenderingContext2D, sc: PitchScale, sim: 
     c.fillStyle = contrast(fill);
     c.fillText(p.num ? String(p.num) : "", px, py + 0.5);
     if (p.d === carrier && b.kind !== "goal") {
-      c.strokeStyle = "rgba(255,255,255,.9)";
+      c.strokeStyle = `rgba(255,255,255,${0.7 + 0.25 * Math.sin(t * 7)})`;
       c.lineWidth = 2;
-      c.beginPath(); c.arc(px, py, r + 4, 0, Math.PI * 2); c.stroke();
+      c.beginPath(); c.arc(px, py, r + 4 + Math.sin(t * 7) * 1.5, 0, Math.PI * 2); c.stroke();
     }
   }
 

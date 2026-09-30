@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronRight, Cloud, CloudAlert, CloudOff, LoaderCircle, Mail, Menu, Wallet } from "lucide-react";
 import type { ReactNode } from "react";
-import { divisionName, formatMoney, user, weekLabel, windowOpen } from "@/game";
+import { calendarDayLabel, divisionName, formatMoney, user, weekLabel, windowOpen } from "@/game";
 import { Crest } from "@/components/ui/Crest";
 import { Flag } from "@/components/ui/Flag";
 import { Button } from "@/components/ui/Button";
@@ -71,7 +71,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </span>
           </Link>
           <div className="hidden flex-1 flex-wrap items-center gap-2 lg:flex">
-            <Badge className="h-8 px-2.5 text-sm normal-case tracking-normal">{weekLabel(w)}</Badge>
+            <Badge className="h-8 px-2.5 text-sm normal-case tracking-normal">{weekLabel(w)}{w.week > 0 && ` • ${calendarDayLabel(w)}`}</Badge>
             <Badge tone={u.money < 0 ? "red" : "neutral"} className="h-8 px-2.5 text-sm normal-case tracking-normal tabular">
               <Wallet className="size-4" /> {formatMoney(u.money)}
             </Badge>
@@ -100,7 +100,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         {/* Situação rápida no celular e em telas médias. */}
         <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 pb-2 lg:hidden">
-          <Badge className="h-7 shrink-0 px-2.5 text-[13px] normal-case tracking-normal">{weekLabel(w)}</Badge>
+          <Badge className="h-7 shrink-0 px-2.5 text-[13px] normal-case tracking-normal">{weekLabel(w)}{w.week > 0 && ` • ${calendarDayLabel(w)}`}</Badge>
           <Badge tone={u.money < 0 ? "red" : "neutral"} className="h-7 shrink-0 px-2.5 text-[13px] normal-case tracking-normal tabular">
             <Wallet className="size-3.5" /> {formatMoney(u.money)}
           </Badge>

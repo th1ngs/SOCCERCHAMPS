@@ -39,7 +39,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 /** Próximo jogo do usuário, ocupando a largura toda do painel. */
 export function NextMatchCard() {
   const { world: w, version } = useWorld();
-  const { advance } = useFlow();
+  const { advance, label } = useFlow();
 
   const data = useMemo(() => {
     void version;
@@ -86,7 +86,7 @@ export function NextMatchCard() {
         <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
           <span>Próximo jogo •</span>
           <CompName comp={nf.m.comp} />
-          <span>• {roundLabel(nf.m, nf.wk)}{thisWeek ? "" : ` • semana ${nf.week}`}</span>
+          <span>• {roundLabel(nf.m, nf.wk)}{thisWeek ? ` • ${Math.max(0, 6 - w.day)} dia(s)` : ` • semana ${nf.week}`}</span>
         </span>
       }
       action={derby ? <Badge tone="orange" className="h-6 px-2"><Flame className="size-3.5" aria-hidden /> Clássico</Badge> : null}
@@ -132,7 +132,7 @@ export function NextMatchCard() {
 
       {thisWeek && !w.fired && !w.pendingSeason && (
         <Button variant="primary" size="lg" block className="mt-4" onClick={advance} iconRight={<ChevronRight />}>
-          Ir para o jogo
+          {label}
         </Button>
       )}
     </Card>
