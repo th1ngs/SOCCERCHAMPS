@@ -2,10 +2,11 @@
 
 import { useMemo, type KeyboardEvent } from "react";
 import { Landmark, MapPin } from "lucide-react";
-import { CLUBS, DIVISION_SIZE, divisionName, LEAGUE_IDS, LEAGUES } from "@/game";
+import { CLUBS, DIVISION_SIZE, divisionName, LEAGUE_IDS, LEAGUES, leagueStars, leagueTier } from "@/game";
 import type { ClubStatic, DivisionId, LeagueId } from "@/game/types";
 import { Crest } from "@/components/ui/Crest";
 import { Flag } from "@/components/ui/Flag";
+import { LeagueStars } from "@/components/ui/LeagueStars";
 import { Badge, Stars } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
 import { divisionHint, rankDivision, wealthLevel, type RankedClub } from "./clubTiers";
@@ -62,6 +63,10 @@ export function LeaguePicker({ value, onChange }: { value: LeagueId; onChange: (
             <span className="font-display text-lg font-bold uppercase leading-none">{lg.name}</span>
             <span className="text-xs text-mist">
               {lg.divisions.length} divisões • {lg.divisions.length * DIVISION_SIZE} clubes
+            </span>
+            <span className="flex items-center gap-1.5 text-xs text-mist" title={`Nível do futebol: ${leagueTier(id)}`}>
+              <LeagueStars value={leagueStars(id)} size={12} />
+              <span className="whitespace-nowrap">{leagueTier(id)}</span>
             </span>
             <WealthBars league={id} />
           </button>

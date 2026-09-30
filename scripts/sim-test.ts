@@ -395,6 +395,47 @@ function runV2Checks(w: World): void {
   console.log('migrateWorld ok (v3 completado, idempotente; v2 -> IncompatibleSaveError)');
 }
 
+/** Qualidade das ligas: elencos, prestígio, vontade de trocar de liga e agentes livres. */
+function runLeagueQualityChecks(w: World): void {
+  const avg = (a: number[]) => a.reduce((s, x) => s + x, 0) / Math.max(1, a.length);
+  const ovr11 = (c: G.Club) => avg(c.squad.map((id) => w.players[id].ovr).sort((a, b) => b - a).slice(0, 11));
+  const strength = (lg: LeagueId) => avg(Object.values(w.clubs).filter((c) => c.div === LEAGUES[lg].divisions[0]).map(ovr11));
+  const rank = G.leagueRanking(w);
+  assert(rank.length === LEAGUE_IDS.length && rank.every((r, i) => r.rank === i + 1 && (i === 0 || r.strength <= rank[i - 1].strength)), 'leagueRanking ordenado');
+  // A ordem de qualidade aparece nos elencos (com folga de ruído entre ligas vizinhas).
+  const order = LEAGUE_IDS.slice().sort((a, b) => LEAGUES[b].quality - LEAGUES[a].quality);
+  const top4 = order.slice(0, 4), bottom4 = order.slice(-4);
+  assert(avg(top4.map(strength)) - avg(bottom4.map(strength)) > 6, `ligas fortes > ligas fracas (${avg(top4.map(strength)).toFixed(1)} x ${avg(bottom4.map(strength)).toFixed(1)})`);
+  assert(strength('eng') > strength('bra') + 3 && strength('bra') > strength('gre') + 2, 'Inglaterra > Brasil > Grécia');
+  assert(rank[0].id === 'eng' || rank[0].id === 'esp', `topo do ranking é eng/esp (veio ${rank[0].id})`);
+  assert(G.leagueStars('eng') === 5 && G.leagueStars('gre') === 1 && G.leagueTier('eng') === 'Elite mundial' && G.leagueTier('gre') === 'Emergente', 'estrelas e rótulos das ligas');
+  // A diferença vale também nas divisões de baixo (menor).
+  const d2 = (lg: LeagueId) => avg(Object.values(w.clubs).filter((c) => c.div === LEAGUES[lg].divisions[1]).map(ovr11));
+  assert(d2('eng') - d2('gre') > 2 && d2('eng') - d2('gre') < strength('eng') - strength('gre'), 'diferença menor na 2ª divisão');
+  // Prestígio entre países.
+  const fra = Object.values(w.clubs).find((c) => c.league === 'eng')!, gre = Object.values(w.clubs).find((c) => c.league === 'gre')!;
+  const eq = { ...gre, rep: fra.rep, league: 'gre' as LeagueId }, eq2 = { ...fra, rep: fra.rep };
+  assert(G.prestigeOf(eq2) - G.prestigeOf(eq) > 15, 'mesma reputação: liga forte vale mais');
+  assert(G.qualityBonus({ league: 'eng', div: 'eng1' }) > G.qualityBonus({ league: 'eng', div: 'eng2' }) && G.qualityBonus({ league: 'gre', div: 'gre1' }) < 0, 'bônus de qualidade por divisão');
+  // Vontade de trocar de liga: jovem evita liga bem mais fraca; veterano aceita; liga mais forte sempre.
+  const young = { age: 25 } as G.Player, vet = { age: 33 } as G.Player;
+  const engClub = Object.values(w.clubs).find((c) => c.league === 'eng')!, greClub = Object.values(w.clubs).find((c) => c.league === 'gre')!;
+  let okDown = 0, okUp = 0, okVet = 0;
+  for (let k = 0; k < 400; k++) { if (G.willingToMove(young, engClub, greClub)) okDown++; if (G.willingToMove(young, greClub, engClub)) okUp++; if (G.willingToMove(vet, engClub, greClub)) okVet++; }
+  assert(okUp === 400 && okVet === 400 && okDown < 60, `willingToMove (desce ${okDown}/400, sobe ${okUp}/400, veterano ${okVet}/400)`);
+  // Agentes livres: astro acima do nível do clube não assina com ele.
+  const weak = Object.values(w.clubs).find((c) => c.league === 'gre' && G.DIVISIONS[c.div].level === 2)!;
+  const star = G.newPlayer(w, { pos: 'ATA', age: 26, ovr: 86, pot: 87, contract: 0, nat: 'bra' });
+  w.free.push(star.id);
+  assert(G.freeAgentFor(w, weak, 'ATA')?.id !== star.id, 'astro livre não assina com clube fraco');
+  assert(G.freeAgentFor(w, Object.values(w.clubs).find((c) => c.rep >= 94 && c.league === 'eng')!, 'ATA')?.id === star.id, 'astro livre assina com o clube de topo');
+  w.free = w.free.filter((id) => id !== star.id); delete w.players[star.id];
+  // Base: potencial médio da base acompanha a qualidade; países de talento têm mais joias.
+  const yPot = (lg: LeagueId) => avg(Object.values(w.clubs).filter((c) => c.league === lg).flatMap((c) => c.youth.map((id) => w.players[id].pot)));
+  assert(yPot('eng') > yPot('gre') + 3, `potencial da base: eng ${yPot('eng').toFixed(1)} > gre ${yPot('gre').toFixed(1)}`);
+  console.log(`league quality ok: ${rank.map((r) => `${r.id} ${r.strength.toFixed(1)}`).join(' | ')}`);
+}
+
 /** Temporada completa com todas as ligas: acesso/rebaixamento, copas, Copa dos Campeões, histórico, mercado. */
 function runLeagueChecks(w: World): void {
   // Estrutura
@@ -407,10 +448,15 @@ function runLeagueChecks(w: World): void {
   assert(cont0.length === 16 && new Set(cont0).size === 16 && cont0.every((id) => DIVISIONS[w.clubs[id].div].level === 1), 'Copa dos Campeões: 16 clubes de primeiras divisões');
   const nat0: Record<string, string> = {};
   for (const p of Object.values(w.players)) if (p.clubId) nat0[p.id] = w.clubs[p.clubId].league;
-  // Nacionalidades: ~85% domésticos nos elencos
+  // Nacionalidades: cada liga tem a sua parcela de jogadores locais (Brasil quase só local; Inglaterra importa muito)
   let dom = 0, tot = 0;
   for (const c of Object.values(w.clubs)) for (const id of c.squad) { tot++; if (w.players[id].nat === c.league) dom++; }
-  assert(dom / tot > 0.78 && dom / tot < 0.92, `~85% domésticos (veio ${((dom / tot) * 100).toFixed(1)}%)`);
+  for (const lg of LEAGUE_IDS) {
+    let d = 0, n = 0;
+    for (const c of Object.values(w.clubs)) if (c.league === lg) for (const id of c.squad) { n++; if (w.players[id].nat === lg) d++; }
+    assert(Math.abs(d / n - LEAGUES[lg].domestic) < 0.09, `${lg}: ~${Math.round(LEAGUES[lg].domestic * 100)}% domésticos (veio ${((d / n) * 100).toFixed(1)}%)`);
+  }
+  runLeagueQualityChecks(w);
 
   const t0 = performance.now();
   const { ps } = playSeason(w);
@@ -558,7 +604,7 @@ function runV4Checks(): void {
   assert(loanable.length >= 2, 'há jogadores emprestáveis');
   const lo = loanable[0];
   const offers = G.loanOutOffers(w, lo.id);
-  assert(offers.length >= 1 && offers.length <= 3 && offers.every((o) => { const c = w.clubs[o.club]; return c.rep < u.rep + 3 || (c.league === u.league && G.divisionLevel(c.div) > G.divisionLevel(u.div)); }), 'loanOutOffers');
+  assert(offers.length >= 1 && offers.length <= 3 && offers.every((o) => { const c = w.clubs[o.club]; return G.prestigeOf(c) < G.prestigeOf(u) + 3 || (c.league === u.league && G.divisionLevel(c.div) > G.divisionLevel(u.div)); }), 'loanOutOffers');
   assert(JSON.stringify(G.loanOutOffers(w, lo.id)) === JSON.stringify(offers), 'loanOutOffers estável');
   assert(G.loanOut(w, lo.id, offers[0].club), 'loanOut');
   assert(lo.clubId === offers[0].club && lo.loan?.from === u.id && G.loanedOut(w).some((p) => p.id === lo.id) && !u.squad.includes(lo.id), 'emprestado sai do elenco');
@@ -777,7 +823,8 @@ function runV5Checks(): void {
     return cs.reduce((s, c) => s + G.financeProfile(w, c).revenue, 0) / cs.length;
   };
   assert(rev('eng') > rev('bra') * 1.4 && rev('bra') > rev('arg') * 1.2, 'receita: Inglaterra > Brasil > Argentina');
-  assert(G.wageFor(75, 'eng') > G.wageFor(75, 'bra') && G.wageFor(75, 'bra') > G.wageFor(75, 'arg'), 'salários por liga');
+  const avgWage = (lg: LeagueId) => { const ps = Object.values(w.clubs).filter((c) => c.div === LEAGUES[lg].divisions[0]).flatMap((c) => c.squad.map((id) => w.players[id].wage)); return ps.reduce((x, y) => x + y, 0) / ps.length; };
+  assert(avgWage('eng') > avgWage('bra') * 1.2 && avgWage('bra') > avgWage('arg') * 1.2 && avgWage('bra') > avgWage('gre'), 'salário médio por liga: eng > bra > arg/gre');
   assert(Object.values(w.clubs).every((c) => c.sponsor > 0 && c.wageCap > 0 && Number.isFinite(c.money)), 'patrocínio e teto em todos os clubes');
   assert(Object.values(w.clubs).some((c) => c.loan) && Object.values(w.clubs).some((c) => !c.loan), 'alguns clubes começam endividados');
   assert(G.clubWages(w, u) <= u.wageCap, 'usuário começa dentro do teto');

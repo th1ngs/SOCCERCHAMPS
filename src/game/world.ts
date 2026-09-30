@@ -11,7 +11,7 @@ export const RELEASE_MIN_MULT = 1.8;
 import {
   CONT_PRIZE, CONT_WEEKS, CUP_PRIZE, CUP_WEEKS, DIVISIONS, DIVISION_IDS, LEAGUES, LEAGUE_IDS, LEAGUE_PRIZE_BASE,
   LEAGUE_ROUNDS, PROMOTION_SPOTS, TOTAL_WEEKS, competitionName, compLeague, cupId, cupRoundName,
-  divisionFullName, firstDivisions, isKnockout,
+  clubBaseOvr, divisionFullName, firstDivisions, isKnockout, prestigeOf,
 } from './leagues';
 import { aiInvest, aiListPlayers, aiOffersToUser, aiTransfers, promoteYouth, transfer } from './market';
 import { potentialRange, processScoutQueue } from './scouting';
@@ -447,7 +447,9 @@ function develop(p: Player, club: Club | undefined, share = 1): void {
     // Emprestado como titular conta como quem joga; garotos do setor em foco da base evoluem 15% mais.
     const plays = p.played || !!club?.lineup.includes(p.id) || (!!p.loan && p.loan.role === 'titular');
     const focus = p.youth && club && (ACADEMY_FOCUS[club.academyFocus]?.pos ?? []).includes(p.pos) ? FOCUS_DEV : 1;
-    g = gap * rate * (0.75 + 0.1 * trainLvl) * intensity * (plays ? 1.3 : p.youth ? 1.1 : 0.85) * focus * rand(0.5, 1.5);
+    // Ligas mais fortes (melhor nível de treino e de competição) desenvolvem os jogadores um pouco mais rápido.
+    const league = club ? 1 + LEAGUES[club.league].quality * 0.015 : 1;
+    g = gap * rate * (0.75 + 0.1 * trainLvl) * intensity * (plays ? 1.3 : p.youth ? 1.1 : 0.85) * focus * league * rand(0.5, 1.5);
   }
   if (p.age >= 31) g -= (p.age - 30) * 0.03 * rand(0.5, 1.5);
   p.ovr = round3(clamp(p.ovr + g * share, 25, 99));
@@ -721,8 +723,8 @@ export function seasonEnd(w: World): SeasonSummary {
   };
   if (fired) w.fired = { reason: `Objetivo não cumprido: a meta era ${w.board.label}, e o time terminou em ${userPos}º.` };
   else if (userPos <= Math.max(1, w.board.target - 3) || (DIVISIONS[u.div].up && userPos <= PROMOTION_SPOTS)) {
-    const bigger = Object.values(w.clubs).filter((c) => c.rep > u.rep + 4 && c.id !== u.id);
-    const near = bigger.filter((c) => c.rep <= u.rep + 15);
+    const bigger = Object.values(w.clubs).filter((c) => prestigeOf(c) > prestigeOf(u) + 4 && c.id !== u.id);
+    const near = bigger.filter((c) => prestigeOf(c) <= prestigeOf(u) + 15);
     const pool = near.length ? near : bigger;
     if (pool.length && chance(0.6)) summary.offer = pick(pool).id;
   }
@@ -826,7 +828,8 @@ export function newSeason(w: World): void {
     }
   }
   // Clubes da CPU completam o elenco
-  for (const c of Object.values(w.clubs)) if (c.id !== u.id) aiMaintain(w, c);
+  // Os clubes mais prestigiados escolhem primeiro entre os agentes livres (antes valia a ordem do cadastro).
+  for (const c of Object.values(w.clubs).sort((a, b) => prestigeOf(b) - prestigeOf(a))) if (c.id !== u.id) aiMaintain(w, c);
   // Nova safra da base
   const intake: Player[] = [];
   for (const c of Object.values(w.clubs)) {
@@ -878,6 +881,21 @@ export function newSeason(w: World): void {
   }
 }
 
+/** Quanto acima do nível de um clube (overall esperado do elenco) um agente livre ainda aceita assinar com ele. */
+const FREE_AGENT_CEILING = 5;
+
+/**
+ * Melhor agente livre da posição que aceita o clube: astros muito acima do nível do clube não assinam com ele
+ * (quem está no topo espera propostas de clubes e ligas de nível parecido). `minOvr` é o piso desejado.
+ */
+export function freeAgentFor(w: World, club: Club, pos: Position, minOvr = 0): Player | undefined {
+  const ceiling = clubBaseOvr(club) + FREE_AGENT_CEILING;
+  return w.free
+    .map((id) => w.players[id])
+    .filter((p) => p && p.pos === pos && p.ovr > minOvr && p.ovr <= ceiling)
+    .sort((a, b) => b.ovr - a.ovr)[0];
+}
+
 /** Mantém o elenco de um clube da CPU entre 23 e 30 jogadores. */
 export function aiMaintain(w: World, c: Club): void {
   while (c.squad.length > 30) {
@@ -887,10 +905,10 @@ export function aiMaintain(w: World, c: Club): void {
   }
   while (c.squad.length < 23) {
     const need = neededPos(w, c);
-    const fa = w.free.map((id) => w.players[id]).filter((p) => p.pos === need).sort((a, b) => b.ovr - a.ovr)[0];
-    if (fa && fa.ovr > 45 + c.rep * 0.25) transfer(w, fa.id, c.id, 0, true);
+    const fa = freeAgentFor(w, c, need, 45 + c.rep * 0.25);
+    if (fa) transfer(w, fa.id, c.id, 0, true);
     else {
-      const base = 48 + c.rep * 0.32;
+      const base = clubBaseOvr(c);
       const age = randi(19, 30);
       const p = newPlayer(w, { pos: need, age, ovr: clamp(base - 3 + gauss() * 4, 40, 90), pot: base + rand(0, 8), clubId: c.id, contract: randi(1, 4), nat: rollNat(c.league) });
       c.squad.push(p.id);
@@ -948,8 +966,8 @@ export function removePlayer(w: World, p: Player): void {
 export function jobOffers(w: World): string[] {
   const u = user(w);
   const others = Object.values(w.clubs).filter((c) => c.id !== u.id);
-  let pool = others.filter((c) => c.rep < u.rep - 3 && c.rep >= u.rep - 20);
-  if (pool.length < 3) pool = others.filter((c) => c.rep < u.rep - 3);
+  let pool = others.filter((c) => prestigeOf(c) < prestigeOf(u) - 3 && prestigeOf(c) >= prestigeOf(u) - 20);
+  if (pool.length < 3) pool = others.filter((c) => prestigeOf(c) < prestigeOf(u) - 3);
   if (pool.length < 3) pool = others;
   return shuffle(pool.slice()).slice(0, 3).map((c) => c.id);
 }

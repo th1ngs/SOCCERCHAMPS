@@ -4,26 +4,51 @@ import type { Competition, CupId, DivisionId, DivisionInfo, KnockoutId, LeagueId
 export const LEAGUE_IDS: LeagueId[] = ['bra', 'arg', 'por', 'esp', 'eng', 'ita', 'ger', 'fra', 'ned', 'bel', 'tur', 'sco', 'gre'];
 
 /**
- * Economia de cada liga (Brasil = 1). Inspirada nas diferenças reais:
- * - a Inglaterra tem o maior contrato de TV e divide a cota de forma mais igualitária;
- * - Portugal e Argentina têm poucos clubes ricos e cotas concentradas;
- * - Brasil, Itália e Argentina têm mais clubes endividados.
+ * Economia e qualidade de cada liga (Brasil = 1 nas economias), inspiradas nas diferenças reais:
+ * - `quality`: nível do futebol. Inglaterra, Espanha, Alemanha e Itália têm os melhores elencos;
+ *   França vem logo atrás; Portugal, Brasil, Holanda e Argentina ficam no meio; Bélgica, Turquia,
+ *   Escócia e Grécia ficam abaixo. Os valores somam ~zero para não mexer na média do mundo.
+ * - `talent`: Brasil, Argentina e França formam (e exportam) mais craques; Holanda, Bélgica e Portugal também.
+ * - `domestic`: Brasil e Argentina usam quase só jogadores locais; Inglaterra, Portugal e Bélgica importam muito.
+ * - TV: a Inglaterra tem o maior contrato e divide a cota de forma mais igualitária; Portugal e Argentina
+ *   têm poucos clubes ricos e cotas concentradas.
  */
 export const LEAGUES: Record<LeagueId, LeagueInfo> = {
-  bra: { id: 'bra', name: 'Brasil', country: 'Brasil', flag: '🇧🇷', wealth: 1.0, tv: 1.0, tvSplit: 0.55, commercial: 1.0, ticket: 1.0, wages: 1.0, debt: 0.4, divisions: ['bra1', 'bra2', 'bra3'] },
-  arg: { id: 'arg', name: 'Argentina', country: 'Argentina', flag: '🇦🇷', wealth: 0.75, tv: 0.55, tvSplit: 0.5, commercial: 0.65, ticket: 0.6, wages: 0.65, debt: 0.45, divisions: ['arg1', 'arg2'] },
-  por: { id: 'por', name: 'Portugal', country: 'Portugal', flag: '🇵🇹', wealth: 0.85, tv: 0.6, tvSplit: 0.75, commercial: 0.8, ticket: 0.85, wages: 0.75, debt: 0.3, divisions: ['por1', 'por2'] },
-  esp: { id: 'esp', name: 'Espanha', country: 'Espanha', flag: '🇪🇸', wealth: 1.35, tv: 1.45, tvSplit: 0.45, commercial: 1.4, ticket: 1.45, wages: 1.3, debt: 0.3, divisions: ['esp1', 'esp2'] },
-  eng: { id: 'eng', name: 'Inglaterra', country: 'Inglaterra', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', wealth: 1.6, tv: 2.3, tvSplit: 0.25, commercial: 1.6, ticket: 1.9, wages: 1.6, debt: 0.15, divisions: ['eng1', 'eng2'] },
-  ita: { id: 'ita', name: 'Itália', country: 'Itália', flag: '🇮🇹', wealth: 1.25, tv: 1.25, tvSplit: 0.45, commercial: 1.2, ticket: 1.2, wages: 1.15, debt: 0.4, divisions: ['ita1', 'ita2'] },
-  ger: { id: 'ger', name: 'Alemanha', country: 'Alemanha', flag: '🇩🇪', wealth: 1.45, tv: 1.65, tvSplit: 0.35, commercial: 1.5, ticket: 1.55, wages: 1.35, debt: 0.2, divisions: ['ger1', 'ger2'] },
-  fra: { id: 'fra', name: 'França', country: 'França', flag: '🇫🇷', wealth: 1.2, tv: 1.2, tvSplit: 0.5, commercial: 1.25, ticket: 1.2, wages: 1.15, debt: 0.28, divisions: ['fra1', 'fra2'] },
-  ned: { id: 'ned', name: 'Holanda', country: 'Holanda', flag: '🇳🇱', wealth: 1.0, tv: 0.95, tvSplit: 0.55, commercial: 1.1, ticket: 1.15, wages: 0.95, debt: 0.22, divisions: ['ned1', 'ned2'] },
-  bel: { id: 'bel', name: 'Bélgica', country: 'Bélgica', flag: '🇧🇪', wealth: 0.95, tv: 0.85, tvSplit: 0.55, commercial: 1.0, ticket: 1.05, wages: 0.9, debt: 0.25, divisions: ['bel1', 'bel2'] },
-  tur: { id: 'tur', name: 'Turquia', country: 'Turquia', flag: '🇹🇷', wealth: 0.9, tv: 0.85, tvSplit: 0.6, commercial: 1.05, ticket: 0.9, wages: 0.95, debt: 0.45, divisions: ['tur1', 'tur2'] },
-  sco: { id: 'sco', name: 'Escócia', country: 'Escócia', flag: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', wealth: 0.85, tv: 0.7, tvSplit: 0.55, commercial: 0.9, ticket: 1.1, wages: 0.85, debt: 0.3, divisions: ['sco1', 'sco2'] },
-  gre: { id: 'gre', name: 'Grécia', country: 'Grécia', flag: '🇬🇷', wealth: 0.75, tv: 0.6, tvSplit: 0.6, commercial: 0.8, ticket: 0.8, wages: 0.75, debt: 0.45, divisions: ['gre1', 'gre2'] },
+  bra: { id: 'bra', name: 'Brasil', country: 'Brasil', flag: '🇧🇷', wealth: 1.0, tv: 1.0, tvSplit: 0.55, commercial: 1.0, ticket: 1.0, quality: -0.5, talent: 1.3, domestic: 0.92, wages: 1.0, debt: 0.4, divisions: ['bra1', 'bra2', 'bra3'] },
+  arg: { id: 'arg', name: 'Argentina', country: 'Argentina', flag: '🇦🇷', wealth: 0.75, tv: 0.55, tvSplit: 0.5, commercial: 0.65, ticket: 0.6, quality: -1.5, talent: 1.25, domestic: 0.93, wages: 0.65, debt: 0.45, divisions: ['arg1', 'arg2'] },
+  por: { id: 'por', name: 'Portugal', country: 'Portugal', flag: '🇵🇹', wealth: 0.85, tv: 0.6, tvSplit: 0.75, commercial: 0.8, ticket: 0.85, quality: -0.5, talent: 1.1, domestic: 0.55, wages: 0.68, debt: 0.3, divisions: ['por1', 'por2'] },
+  esp: { id: 'esp', name: 'Espanha', country: 'Espanha', flag: '🇪🇸', wealth: 1.35, tv: 1.45, tvSplit: 0.45, commercial: 1.4, ticket: 1.45, quality: 3.5, talent: 1.1, domestic: 0.72, wages: 0.81, debt: 0.3, divisions: ['esp1', 'esp2'] },
+  eng: { id: 'eng', name: 'Inglaterra', country: 'Inglaterra', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', wealth: 1.6, tv: 2.3, tvSplit: 0.25, commercial: 1.6, ticket: 1.9, quality: 4, talent: 1.0, domestic: 0.58, wages: 1.0, debt: 0.15, divisions: ['eng1', 'eng2'] },
+  ita: { id: 'ita', name: 'Itália', country: 'Itália', flag: '🇮🇹', wealth: 1.25, tv: 1.25, tvSplit: 0.45, commercial: 1.2, ticket: 1.2, quality: 2.5, talent: 1.0, domestic: 0.65, wages: 0.77, debt: 0.4, divisions: ['ita1', 'ita2'] },
+  ger: { id: 'ger', name: 'Alemanha', country: 'Alemanha', flag: '🇩🇪', wealth: 1.45, tv: 1.65, tvSplit: 0.35, commercial: 1.5, ticket: 1.55, quality: 3, talent: 1.05, domestic: 0.62, wages: 1.02, debt: 0.2, divisions: ['ger1', 'ger2'] },
+  fra: { id: 'fra', name: 'França', country: 'França', flag: '🇫🇷', wealth: 1.2, tv: 1.2, tvSplit: 0.5, commercial: 1.25, ticket: 1.2, quality: 1, talent: 1.3, domestic: 0.72, wages: 1.03, debt: 0.28, divisions: ['fra1', 'fra2'] },
+  ned: { id: 'ned', name: 'Holanda', country: 'Holanda', flag: '🇳🇱', wealth: 1.0, tv: 0.95, tvSplit: 0.55, commercial: 1.1, ticket: 1.15, quality: -1, talent: 1.2, domestic: 0.6, wages: 1.11, debt: 0.22, divisions: ['ned1', 'ned2'] },
+  bel: { id: 'bel', name: 'Bélgica', country: 'Bélgica', flag: '🇧🇪', wealth: 0.95, tv: 0.85, tvSplit: 0.55, commercial: 1.0, ticket: 1.05, quality: -2, talent: 1.15, domestic: 0.52, wages: 1.17, debt: 0.25, divisions: ['bel1', 'bel2'] },
+  tur: { id: 'tur', name: 'Turquia', country: 'Turquia', flag: '🇹🇷', wealth: 0.9, tv: 0.85, tvSplit: 0.6, commercial: 1.05, ticket: 0.9, quality: -3, talent: 1.0, domestic: 0.66, wages: 1.28, debt: 0.45, divisions: ['tur1', 'tur2'] },
+  sco: { id: 'sco', name: 'Escócia', country: 'Escócia', flag: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', wealth: 0.85, tv: 0.7, tvSplit: 0.55, commercial: 0.9, ticket: 1.1, quality: -4.5, talent: 0.9, domestic: 0.6, wages: 1.46, debt: 0.3, divisions: ['sco1', 'sco2'] },
+  gre: { id: 'gre', name: 'Grécia', country: 'Grécia', flag: '🇬🇷', wealth: 0.75, tv: 0.6, tvSplit: 0.6, commercial: 0.8, ticket: 0.8, quality: -5, talent: 0.9, domestic: 0.7, wages: 1.18, debt: 0.45, divisions: ['gre1', 'gre2'] },
 };
+
+// ---------- Qualidade e prestígio ----------
+/** Quanto da qualidade da liga vale em cada divisão (a diferença entre países é menor nas divisões de baixo). */
+const QUALITY_BY_LEVEL = [1, 0.75, 0.6];
+/** Pontos de prestígio por ponto de qualidade da liga (para comparar clubes de países diferentes). */
+export const PRESTIGE_PER_QUALITY = 2;
+
+/** Ajuste de overall dos elencos de um clube pela qualidade da liga (e da divisão em que o clube está). */
+export function qualityBonus(c: { league: LeagueId; div: DivisionId }): number {
+  const level = Number(c.div.slice(3)) || 1;
+  return LEAGUES[c.league].quality * (QUALITY_BY_LEVEL[level - 1] ?? QUALITY_BY_LEVEL[QUALITY_BY_LEVEL.length - 1]);
+}
+
+/** Overall médio esperado de um jogador do elenco de um clube (reputação + qualidade da liga). */
+export const clubBaseOvr = (c: { rep: number; league: LeagueId; div: DivisionId }): number => 48 + c.rep * 0.32 + qualityBonus(c);
+
+/**
+ * Prestígio de um clube entre países: reputação mais o peso da liga. Decide quem compra de quem,
+ * quem aceita trocar de clube e quais clubes entram na Copa dos Campeões.
+ */
+export const prestigeOf = (c: { rep: number; league: LeagueId }): number => c.rep + LEAGUES[c.league].quality * PRESTIGE_PER_QUALITY;
 
 const DIV_NAMES: Record<DivisionId, string> = {
   bra1: 'Série A', bra2: 'Série B', bra3: 'Série C',

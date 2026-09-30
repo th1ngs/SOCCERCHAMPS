@@ -132,6 +132,15 @@ export interface LeagueInfo {
   commercial: number;
   /** Preço médio do ingresso relativo ao Brasil. */
   ticket: number;
+  /**
+   * Qualidade do futebol da liga, em pontos de overall sobre o que a reputação do clube sugere
+   * (0 = média do mundo). Liga forte tem elencos mais fortes para o mesmo prestígio.
+   */
+  quality: number;
+  /** Formação de talentos (1 = média): garotos da base com mais ou menos potencial e mais exportação de craques. */
+  talent: number;
+  /** Fração de jogadores do próprio país nos elencos (o resto é importado). */
+  domestic: number;
   /** Nível salarial relativo ao Brasil. */
   wages: number;
   /** Chance de um clube começar endividado (empréstimo bancário). */

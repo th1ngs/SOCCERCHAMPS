@@ -3,7 +3,7 @@
 import { wageVeto } from './finance';
 import { clubWage } from './gen';
 import { teamRating } from './squad';
-import { isKnockout } from './leagues';
+import { isKnockout, prestigeOf } from './leagues';
 import type { Match, Message, Player, TalkKind, TalkOption, TeamTalk, TeamTalkKey, World } from './types';
 import { chance, clamp, formatMoney, pick } from './util';
 import { clubPlayers, isDerby, pushMessage, user } from './world';
@@ -69,7 +69,7 @@ export function generateTalks(w: World): void {
   // 1. Quer sair: moral muito baixo, ou craque cobiçado por um clube bem maior.
   for (const p of squad) {
     if (coolingDown(w, p) || p.listed) continue;
-    const bigger = Object.values(w.clubs).filter((c) => c.id !== u.id && c.rep >= u.rep + 10);
+    const bigger = Object.values(w.clubs).filter((c) => c.id !== u.id && prestigeOf(c) >= prestigeOf(u) + 10);
     const coveted = rank(p) < 5 && bigger.length > 0 && chance(0.012);
     if (p.morale < 28 || coveted) {
       const club = bigger.length ? pick(bigger) : null;
@@ -182,7 +182,7 @@ export function answerTalk(w: World, msgId: number, key: string): TalkAnswer {
   } else {
     if (key === 'convencer') {
       const rival = t.club ? w.clubs[t.club] : null;
-      const odds = clamp(0.5 + (u.rep - (rival?.rep ?? u.rep)) / 40 + (p.morale - 40) / 100 + (w.board.conf - 50) / 200, 0.1, 0.9);
+      const odds = clamp(0.5 + (prestigeOf(u) - (rival ? prestigeOf(rival) : prestigeOf(u))) / 40 + (p.morale - 40) / 100 + (w.board.conf - 50) / 200, 0.1, 0.9);
       if (Math.random() < odds) {
         mor(10);
         text = `Deu certo: ${p.name} decidiu ficar e está motivado (moral +10).`;

@@ -1,5 +1,5 @@
 // Competições do usuário, status nas copas e classificação para a Copa dos Campeões.
-import { CONT_SIZE, CONT_SPOTS, cupId, firstDivisions } from './leagues';
+import { CONT_SIZE, CONT_SPOTS, cupId, firstDivisions, prestigeOf } from './leagues';
 import type { Club, Competition, Cup, DivisionId, KnockoutId, LeagueId, TableRow, World } from './types';
 import { table, user } from './world';
 
@@ -9,15 +9,14 @@ export type KnockoutStatus = 'out' | 'alive' | 'eliminated' | 'champion';
 /** Clubes de uma liga (objetos do World). */
 export const leagueClubsOf = (w: World, league: LeagueId): Club[] => Object.values(w.clubs).filter((c) => c.league === league);
 
-/** Corta para CONT_SIZE descartando os de menor reputação. */
 /**
  * Corta a lista para CONT_SIZE clubes. `ids` vem em grupos de CONT_SPOTS por primeira divisão,
- * com o campeão (ou o de maior reputação) primeiro: esses nunca são cortados; o corte recai
- * sobre os demais de menor reputação.
+ * com o campeão (ou o de maior reputação) primeiro: esses nunca são cortados; o vaga extra fica com os
+ * demais de maior prestígio (reputação + peso da liga), então as ligas fortes ganham mais vagas.
  */
 function cutByRep(w: World, ids: string[]): string[] {
   const leaders = ids.filter((_, i) => i % CONT_SPOTS === 0);
-  const rest = ids.filter((_, i) => i % CONT_SPOTS !== 0).sort((a, b) => w.clubs[b].rep - w.clubs[a].rep);
+  const rest = ids.filter((_, i) => i % CONT_SPOTS !== 0).sort((a, b) => prestigeOf(w.clubs[b]) - prestigeOf(w.clubs[a]));
   return [...leaders, ...rest].slice(0, CONT_SIZE);
 }
 

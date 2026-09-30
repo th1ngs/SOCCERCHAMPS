@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import { CalendarDays, Flag as FlagIcon, Goal, History, Trophy } from "lucide-react";
-import { cupId, divisionName, DIVISIONS, LEAGUE_IDS, LEAGUES, PROMOTION_SPOTS, user } from "@/game";
+import { CalendarDays, ChartNoAxesColumn, Flag as FlagIcon, Goal, History, Trophy } from "lucide-react";
+import { cupId, divisionName, DIVISIONS, LEAGUE_IDS, LEAGUES, PROMOTION_SPOTS, leagueRanking, leagueStars, leagueTier, user } from "@/game";
 import type { DivisionId, LeagueId } from "@/game/types";
 import { PageHeader } from "@/components/ui/primitives";
 import { Flag } from "@/components/ui/Flag";
@@ -17,8 +17,9 @@ const ScorersView = dynamic(() => import("./ScorersView").then((m) => m.ScorersV
 const FixturesView = dynamic(() => import("./FixturesView").then((m) => m.FixturesView));
 const HistoryView = dynamic(() => import("./HistoryView").then((m) => m.HistoryView));
 const NationsView = dynamic(() => import("./NationsView").then((m) => m.NationsView));
+const LeaguesRankingView = dynamic(() => import("./LeaguesRankingView").then((m) => m.LeaguesRankingView));
 
-type GlobalTab = "cont" | "nations" | "scorers" | "fixtures" | "history";
+type GlobalTab = "cont" | "ranking" | "nations" | "scorers" | "fixtures" | "history";
 /** Escopo da tela: uma liga (com sub-abas) ou uma aba global. */
 export type CompScope = LeagueId | GlobalTab;
 /** Sub-aba de uma liga: uma divisão ou a Copa Nacional. */
@@ -26,6 +27,7 @@ type LeagueSub = DivisionId | "cup";
 
 const GLOBAL_SUBTITLE: Record<GlobalTab, string> = {
   cont: "Os 13 campeões nacionais e mais três classificados por reputação em mata-mata de jogo único. Empate vai para os pênaltis; final em campo neutro.",
+  ranking: "Qual liga tem os melhores elencos hoje: o nível do futebol muda o jogo, dos elencos às transferências.",
   nations: "Seleções de todos os países em todos contra todos, com final entre os dois primeiros.",
   scorers: "Os goleadores da temporada por divisão. Toque em um jogador para ver a ficha.",
   fixtures: "Seus jogos em todas as competições, semana a semana.",
@@ -63,6 +65,7 @@ export function CompetitionsScreen() {
       ),
     })),
     { value: "cont", group: true, label: <><Trophy aria-hidden /> Copa dos Campeões</> },
+    { value: "ranking", label: <><ChartNoAxesColumn aria-hidden /> Ranking das ligas</> },
     { value: "nations", label: <><FlagIcon aria-hidden /> Copa das Nações</> },
     { value: "scorers", label: <><Goal aria-hidden /> Artilharia</> },
     { value: "fixtures", label: <><CalendarDays aria-hidden /> Calendário</> },
@@ -88,10 +91,15 @@ export function CompetitionsScreen() {
   ) : (
     "Competições"
   );
+  // Nível do futebol da liga e posição no ranking (só aparece nas ligas).
+  const level = league ? (() => {
+    const rank = leagueRanking(w).find((r) => r.id === league)?.rank;
+    return `Nível ${leagueTier(league).toLowerCase()} (${leagueStars(league).toFixed(1).replace(".", ",")} de 5)${rank ? `, ${rank}ª do ranking das ligas` : ""}.`;
+  })() : "";
   const subtitle = league
     ? sub === "cup"
       ? `${LEAGUES[league].name} • mata-mata em jogo único com os 32 clubes das duas primeiras divisões. Empate vai para os pênaltis.`
-      : divisionSubtitle(sub as DivisionId)
+      : `${divisionSubtitle(sub as DivisionId)} ${level}`
     : scope === 'cont' && activeLeagues.length < LEAGUE_IDS.length
       ? `Os 16 melhores das ligas atuais em mata-mata de jogo único. As novas ligas entram na próxima temporada.`
       : GLOBAL_SUBTITLE[scope as GlobalTab];
@@ -117,6 +125,8 @@ export function CompetitionsScreen() {
           sub === "cup" ? <CupView key={league} comp={cupId(league)} /> : <LeagueTable key={sub} div={sub} />
         ) : scope === "cont" ? (
           <ContView />
+        ) : scope === "ranking" ? (
+          <LeaguesRankingView />
         ) : scope === "nations" ? (
           <NationsView />
         ) : scope === "scorers" ? (

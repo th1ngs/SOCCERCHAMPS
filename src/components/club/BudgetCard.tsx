@@ -28,7 +28,8 @@ function leagueNote(id: keyof typeof LEAGUES): string {
   const tv = L.tv >= 2 ? "o maior contrato de TV do mundo" : L.tv >= 1.2 ? "um contrato de TV forte" : L.tv >= 0.9 ? "um contrato de TV médio" : "um contrato de TV modesto";
   const split = L.tvSplit >= 0.6 ? "concentrado nos grandes" : L.tvSplit <= 0.3 ? "dividido de forma igualitária" : "dividido em parte pelo tamanho do clube";
   const wages = L.wages >= 1.3 ? "salários altos" : L.wages <= 0.8 ? "salários baixos" : "salários médios";
-  return `${L.name}: ${tv}, ${split}, e ${wages}.`;
+  const q = L.quality >= 3 ? "elencos entre os melhores do mundo" : L.quality >= 0 ? "elencos fortes" : L.quality >= -2.5 ? "elencos de nível médio" : "elencos mais modestos";
+  return `${L.name}: ${q}, ${tv}, ${split}, e ${wages}.`;
 }
 
 /** Orçamento semanal estimado: de onde vem e para onde vai o dinheiro, e o teto salarial da diretoria. */

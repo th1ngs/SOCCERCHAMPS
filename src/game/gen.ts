@@ -1,6 +1,6 @@
 // Geração do mundo: clubes, elencos, jogadores, base e agentes livres.
 import { ACADEMY_FOCUS, ATTR_INDEX, fit, ATTR_KEYS, ATTR_PROFILE, CLUBS, FOCUS_WEIGHT, NAMES_BY_NAT, POS, STAR_CHANCE, TRAIT_ATTR, TRAIT_WEIGHTS } from './data';
-import { LEAGUES, LEAGUE_IDS } from './leagues';
+import { LEAGUES, LEAGUE_IDS, clubBaseOvr, qualityBonus } from './leagues';
 import { initClubFinances } from './finance';
 import { DEFAULT_INSTRUCTIONS } from './tactics';
 import { pickCaptain, pickFkTaker, pickPenTaker } from './squad';
@@ -34,10 +34,15 @@ export const DOMESTIC_SHARE = 0.85;
 export const FREE_MIN = 100;
 export const FREE_MAX = 200;
 
-/** Nacionalidade para um jogador de um clube da liga `league` (85% do país, 15% estrangeiros). */
-export function rollNat(league: LeagueId, domestic = DOMESTIC_SHARE): LeagueId {
+/**
+ * Nacionalidade para um jogador de um clube da liga `league`: a parcela de locais varia por liga
+ * (Brasil quase só local; Inglaterra e Portugal importam muito). Os estrangeiros vêm, em maior número,
+ * dos países que mais formam talentos (Brasil, Argentina, França…).
+ */
+export function rollNat(league: LeagueId, domestic = LEAGUES[league].domestic): LeagueId {
   if (chance(domestic)) return league;
-  return pick(LEAGUE_IDS.filter((l) => l !== league));
+  const abroad = LEAGUE_IDS.filter((l) => l !== league);
+  return weighted(abroad, (l) => Math.pow(LEAGUES[l].talent, 4)) ?? pick(abroad);
 }
 
 export const valueOf = (p: Pick<Player, 'pot' | 'ovr' | 'age' | 'contract'> & { star?: boolean }): number => {
@@ -140,7 +145,7 @@ export function makeName(nat: LeagueId = 'bra'): string {
 
 export function newPlayer(w: World, o: NewPlayerOptions): Player {
   const id = 'p' + w.nextId++;
-  const nat: LeagueId = o.nat || (o.clubId && w.clubs[o.clubId] ? rollNat(w.clubs[o.clubId].league) : pick(LEAGUE_IDS));
+  const nat: LeagueId = o.nat || (o.clubId && w.clubs[o.clubId] ? rollNat(w.clubs[o.clubId].league) : rollNat(pick(LEAGUE_IDS), 0));
   const p: Player = {
     id,
     name: o.name || makeName(nat),
@@ -195,6 +200,8 @@ function seniorFor(w: World, club: Club, pos: Position, base: number, age: numbe
   return newPlayer(w, { pos, age, ovr, pot, clubId: club.id });
 }
 
+/** Quanto da qualidade da liga vai para o potencial médio dos garotos da base. */
+const YOUTH_QUALITY_SHARE = 0.9;
 const YOUTH_POS_W: Record<Position, number> = { GOL: 1, ZAG: 2, LAT: 2, VOL: 2, MEI: 2.5, ATA: 2.5 };
 
 /** Opções de geração de um garoto (peneira regional/por posição). */
@@ -205,8 +212,10 @@ export interface YouthOptions {
 
 export function makeYouth(w: World, club: Club, age?: number, opts: YouthOptions = {}): Player {
   const lvl = club.academy;
-  let pot = 48 + lvl * 6 + rand(-6, 18);
-  if (chance(0.04 + lvl * 0.01)) pot += rand(8, 14); // joia da base
+  // O potencial médio da base acompanha o nível da liga (mantém a diferença entre países ao longo dos anos);
+  // países que formam mais talentos (Brasil, Argentina, França…) produzem mais joias, que depois são exportadas.
+  let pot = 48 + lvl * 6 + rand(-6, 18) + qualityBonus(club) * YOUTH_QUALITY_SHARE;
+  if (chance(0.04 + lvl * 0.01 + (LEAGUES[club.league].talent - 1) * 0.12)) pot += rand(8, 14); // joia da base
   pot = clamp(pot, 45, 96);
   age = age || randi(15, 17);
   const ovr = clamp(pot * rand(0.52, 0.64) + (age - 15) * 2, 30, 70);
@@ -260,7 +269,7 @@ export function seedMissingClubs(w: World): number {
       academyFocus: 'balanced',
     };
     w.clubs[c.id] = club;
-    const base = 48 + c.rep * 0.32;
+    const base = clubBaseOvr(club);
     for (const pos of Object.keys(SQUAD_TEMPLATE) as Position[]) {
       for (let k = 0; k < SQUAD_TEMPLATE[pos]; k++) {
         const p = seniorFor(w, club, pos, base, randomAge());
@@ -333,7 +342,7 @@ export function makeFreeAgent(w: World): Player {
   const age = randi(21, 34);
   const pos = pick(POS);
   const ovr = clamp(55 + gauss() * 7, 42, 80);
-  const p = newPlayer(w, { pos, age, ovr, pot: ovr + (age < 24 ? rand(2, 8) : 0), contract: 0, nat: pick(LEAGUE_IDS) });
+  const p = newPlayer(w, { pos, age, ovr, pot: ovr + (age < 24 ? rand(2, 8) : 0), contract: 0, nat: rollNat(pick(LEAGUE_IDS), 0) });
   w.free.push(p.id);
   return p;
 }

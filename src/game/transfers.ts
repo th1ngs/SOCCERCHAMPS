@@ -1,6 +1,6 @@
 // Negociações (clube e jogador), multa rescisória, parcelas, empréstimos de jogadores,
 // contrapropostas às ofertas da CPU, lista de observação, histórico de transferências e dia do fechamento.
-import { TOTAL_WEEKS, divisionLevel } from './leagues';
+import { LEAGUES, TOTAL_WEEKS, divisionLevel, prestigeOf } from './leagues';
 import { assignNumbers, releaseClauseFor, valueOf } from './gen';
 import { wageVeto } from './finance';
 import { onTransfer } from './career';
@@ -108,8 +108,8 @@ function blockReason(w: World, p: Player | undefined): ClubResponse | null {
   if (p.loan) return { status: 'refused', patience: pat(), text: `${p.name} está emprestado e não pode ser negociado agora.` };
   if (p.youth) return { status: 'refused', patience: pat(), text: 'O clube não negocia garotos da base.' };
   if (u.squad.length >= SQUAD_MAX) return { status: 'full', patience: pat(), text: `Seu elenco já tem ${SQUAD_MAX} jogadores. Venda, empreste ou dispense alguém antes.` };
-  if (p.clubId && w.clubs[p.clubId].rep - u.rep > 18) {
-    return { status: 'refused', patience: pat(), text: `${p.name} não quer trocar o ${w.clubs[p.clubId].name} por um clube de menor expressão.` };
+  if (p.clubId && prestigeOf(w.clubs[p.clubId]) - prestigeOf(u) > 18) {
+    return { status: 'refused', patience: pat(), text: `${p.name} não quer trocar o ${w.clubs[p.clubId].name} por ${LEAGUES[w.clubs[p.clubId].league].quality - LEAGUES[u.league].quality > 2 ? 'um clube de uma liga de nível inferior' : 'um clube de menor expressão'}.` };
   }
   return null;
 }
@@ -377,7 +377,7 @@ export function loanOutOffers(w: World, pid: string): LoanOutOffer[] {
   for (const c of Object.values(w.clubs)) {
     // Clubes menores, de nível parecido ou de divisão abaixo aceitam o empréstimo.
     const lowerDiv = c.league === u.league && divisionLevel(c.div) > divisionLevel(u.div);
-    if (c.id === u.id || (c.rep >= u.rep + 3 && !lowerDiv) || c.squad.length >= 30) continue;
+    if (c.id === u.id || (prestigeOf(c) >= prestigeOf(u) + 3 && !lowerDiv) || c.squad.length >= 30) continue;
     const ovrs = c.squad.map((id) => w.players[id].ovr).sort((a, b) => b - a);
     const better = ovrs.filter((o) => o > p.ovr).length;
     if (better >= 16) continue;

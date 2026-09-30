@@ -17,3 +17,4 @@ export * from './tactics';
 export * from './talks';
 export * from './career';
 export * from './nations';
+export * from './leaguestrength';

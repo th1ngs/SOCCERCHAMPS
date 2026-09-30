@@ -2,13 +2,14 @@
 import { LOAN_INTEREST, LOAN_OPTIONS, LOAN_WEEKS, POS } from './data';
 import { assignNumbers, clubWage, makeYouth, releaseClauseFor, valueOf } from './gen';
 import { clubWages, financeProfile } from './finance';
+import { LEAGUES, prestigeOf } from './leagues';
 import { hash01 } from './scouting';
 import { endLoan, recordTransfer } from './transfers';
 import type {
   BidResult, Club, LeagueId, Message, Player, Position, TransferKind, TrialOptions, UpgradeKey, Upgrade, World,
 } from './types';
 import { avg, chance, clamp, formatMoney, pick, rand, randi, shuffle, weighted } from './util';
-import { addMoney, clubPlayers, detach, neededPos, pushMessage, removePlayer, toFree, user, windowOpen } from './world';
+import { addMoney, clubPlayers, detach, freeAgentFor, neededPos, pushMessage, removePlayer, toFree, user, windowOpen } from './world';
 
 export const SQUAD_MAX = 32;
 /** Fração das buscas da CPU feitas fora da própria liga. */
@@ -95,8 +96,8 @@ export function askingPrice(w: World, p: Player): number {
 }
 
 export function wageDemand(w: World, p: Player, club: Club): number {
-  const fromRep = p.clubId ? w.clubs[p.clubId].rep : club.rep;
-  const f = 1.1 + Math.max(0, fromRep - club.rep) / 60;
+  const fromRep = p.clubId ? prestigeOf(w.clubs[p.clubId]) : prestigeOf(club);
+  const f = 1.1 + Math.max(0, fromRep - prestigeOf(club)) / 60;
   return Math.round((clubWage(w, club.id, p.ovr) * f) / 100) * 100;
 }
 
@@ -107,8 +108,8 @@ export function evaluateBid(w: World, pid: string, fee: number): BidResult {
   if (!windowOpen(w)) return { status: 'closed', text: 'A janela de transferências está fechada.' };
   if (u.squad.length >= SQUAD_MAX) return { status: 'full', text: `Seu elenco já tem ${SQUAD_MAX} jogadores. Venda ou dispense alguém antes.` };
   if (fee > u.money) return { status: 'money', text: 'Você não tem dinheiro suficiente em caixa.' };
-  const fromRep = p.clubId ? w.clubs[p.clubId].rep : 0;
-  if (p.clubId && fromRep - u.rep > 18) return { status: 'refused', text: `${p.name} não quer trocar o ${w.clubs[p.clubId].name} por um clube de menor expressão.` };
+  const fromRep = p.clubId ? prestigeOf(w.clubs[p.clubId]) : 0;
+  if (p.clubId && fromRep - prestigeOf(u) > 18) return { status: 'refused', text: `${p.name} não quer trocar o ${w.clubs[p.clubId].name} por ${LEAGUES[w.clubs[p.clubId].league].quality - LEAGUES[u.league].quality > 2 ? 'um clube de uma liga de nível inferior' : 'um clube de menor expressão'}.` };
   const wage = wageDemand(w, p, u);
   if (!p.clubId) return { status: 'accepted', wage, text: `${p.name} aceita assinar sem custo de transferência. Salário pedido: ${formatMoney(wage)}/sem.` };
   const seller = w.clubs[p.clubId];
@@ -290,6 +291,19 @@ export function repayLoan(w: World): boolean {
 }
 
 // ---------- CPU ----------
+/** Diferença mínima de qualidade entre ligas (em pontos) a partir da qual um jovem hesita em ir para a mais fraca. */
+const MOVE_TOLERANCE = 1.5;
+
+/**
+ * Um jogador de até 30 anos evita trocar uma liga forte por uma bem mais fraca (Premier League → Brasil, por exemplo);
+ * veteranos aceitam (fim de carreira). Quanto maior a diferença, menor a chance.
+ */
+export function willingToMove(p: Player, from: Club, to: Club): boolean {
+  const gap = LEAGUES[from.league].quality - LEAGUES[to.league].quality;
+  if (gap <= MOVE_TOLERANCE || p.age >= 31) return true;
+  return chance(clamp(1 - (gap - MOVE_TOLERANCE) * 0.3, 0.04, 1));
+}
+
 export function aiTransfers(w: World): void {
   const clubs = Object.values(w.clubs).filter((c) => c.id !== w.userClub);
   const all = Object.values(w.players).filter((p) => p.clubId && p.clubId !== w.userClub && !p.youth && !p.loan);
@@ -310,7 +324,7 @@ export function aiTransfers(w: World): void {
     const cands = all.filter((p) => {
       const from = w.clubs[p.clubId as string];
       return p.pos === pos && from.id !== buyer.id && p.ovr > bar && (intl || from.league === buyer.league) &&
-        from.rep <= buyer.rep + 8 && from.squad.length > 20 &&
+        prestigeOf(from) <= prestigeOf(buyer) + 8 && from.squad.length > 20 && willingToMove(p, from, buyer) &&
         // No mercado internacional o olheiro já descarta quem o clube não pode pagar.
         (!intl || valueOf(p) <= buyer.money * 0.6);
     });
@@ -331,7 +345,7 @@ export function aiTransfers(w: World): void {
   for (const c of clubs) {
     if (c.squad.length >= 22 || !chance(0.4)) continue;
     const pos = neededPos(w, c);
-    const fa = w.free.map((id) => w.players[id]).filter((p) => p && p.pos === pos).sort((a, b) => b.ovr - a.ovr)[0];
+    const fa = freeAgentFor(w, c, pos);
     if (fa) transfer(w, fa.id, c.id, 0, true);
   }
 }
@@ -349,7 +363,7 @@ function distressedSales(w: World, clubs: Club[]): void {
     const sale = ranked.slice(5).sort((a, b) => valueOf(b) - valueOf(a))[0];
     if (!sale) continue;
     const fee = Math.round((valueOf(sale) * rand(0.85, 1.1)) / 10000) * 10000;
-    const buyers = clubs.filter((b) => b.id !== seller.id && b.money > fee * 1.5 && b.squad.length < 30 && b.rep >= seller.rep - 12 &&
+    const buyers = clubs.filter((b) => b.id !== seller.id && b.money > fee * 1.5 && b.squad.length < 30 && prestigeOf(b) >= prestigeOf(seller) - 12 && willingToMove(sale, seller, b) &&
       (!b.wageCap || clubWages(w, b) + clubWage(w, b.id, sale.ovr) <= b.wageCap));
     if (!buyers.length) continue;
     const buyer = pick(buyers);
@@ -389,7 +403,7 @@ export function aiOffersToUser(w: World): void {
     if (made >= 1 || p.pot < 74 || w.inbox.some((m) => m.offer && !m.offer.done && m.offer.pid === p.id)) continue;
     if (!chance(p.pot >= 80 ? 0.06 : 0.03)) continue;
     const fee = Math.round((valueOf(p) * rand(1.2, 1.8)) / 10000) * 10000;
-    const buyers = Object.values(w.clubs).filter((c) => c.id !== u.id && c.rep >= u.rep - 10 && c.money > fee * 1.2);
+    const buyers = Object.values(w.clubs).filter((c) => c.id !== u.id && prestigeOf(c) >= prestigeOf(u) - 10 && c.money > fee * 1.2);
     if (!buyers.length) continue;
     const b = pick(buyers);
     pushMessage(w, {
@@ -406,7 +420,7 @@ export function aiOffersToUser(w: World): void {
     const prob = p.listed ? 0.35 : p.ovr >= average + 5 ? 0.04 : 0.01;
     if (!chance(prob)) continue;
     const fee = Math.round((valueOf(p) * (p.listed ? rand(0.75, 1.05) : rand(0.95, 1.45))) / 10000) * 10000;
-    const buyers = Object.values(w.clubs).filter((c) => c.id !== u.id && c.rep >= u.rep - 20 && c.money > fee * 1.2 && c.squad.length < 30);
+    const buyers = Object.values(w.clubs).filter((c) => c.id !== u.id && prestigeOf(c) >= prestigeOf(u) - 20 && c.money > fee * 1.2 && c.squad.length < 30);
     if (!buyers.length) continue;
     const b = pick(buyers);
     pushMessage(w, {
