@@ -13,6 +13,7 @@ import { cn } from "@/lib/cn";
 import { useWorld } from "@/components/game/GameProvider";
 import { ClubTag } from "@/components/comps/ClubTag";
 import { CompIcon, compShortName } from "@/components/comps/labels";
+import { AwardsPanel } from "@/components/comps/AwardsPanel";
 import { JobOffers } from "./JobOffers";
 import { FiredModal } from "./FiredModal";
 import { useCareerMoves } from "./useCareerMoves";
@@ -164,14 +165,21 @@ export function SeasonEndModal() {
           </div>
         )}
 
-        {(scorers.length > 0 || ps.best) && (
+        {e.awards && (
           <div>
-            <SectionTitle className="mb-2">Prêmios</SectionTitle>
+            <SectionTitle className="mb-2">Gala dos melhores de {e.season}</SectionTitle>
+            <AwardsPanel awards={e.awards} clubs={w.clubs} userClub={u.id} />
+          </div>
+        )}
+
+        {(scorers.length > 0 || (!e.awards && ps.best)) && (
+          <div>
+            <SectionTitle className="mb-2">Artilheiros por divisão</SectionTitle>
             <ul className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
               {scorers.map(({ div, p }) => (
                 <Award key={div} icon={<Goal />} label={`Artilheiro da ${divisionName(div)}`}>{scorerLine(p, w.clubs)}</Award>
               ))}
-              {ps.best && (
+              {!e.awards && ps.best && (
                 <Award icon={<Star />} label="Craque da temporada">
                   <b>{ps.best.name}</b> {ps.best.clubId && w.clubs[ps.best.clubId] ? `(${w.clubs[ps.best.clubId].name})` : ""} • nota{" "}
                   {(ps.best.s.rsum / Math.max(1, ps.best.s.apps)).toFixed(2)}

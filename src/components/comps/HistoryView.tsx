@@ -9,6 +9,7 @@ import { Flag } from "@/components/ui/Flag";
 import { useWorld } from "@/components/game/GameProvider";
 import { ClubTag } from "./ClubTag";
 import { CompName, LeagueName } from "./labels";
+import { AwardsPanel } from "./AwardsPanel";
 
 function Row({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -88,7 +89,7 @@ function SeasonCard({ h }: { h: HistoryEntry }) {
           "—"
         )}
       </Row>
-      <Row label={<span className="inline-flex items-center gap-1.5"><Star className="size-3.5" aria-hidden /> Craque da temporada</span>}>
+      {!h.awards && <Row label={<span className="inline-flex items-center gap-1.5"><Star className="size-3.5" aria-hidden /> Craque da temporada</span>}>
         {h.best ? (
           <span className="flex min-w-0 items-center gap-1.5">
             <b className="truncate">{h.best.name}</b>
@@ -97,7 +98,14 @@ function SeasonCard({ h }: { h: HistoryEntry }) {
         ) : (
           "—"
         )}
-      </Row>
+      </Row>}
+
+      {h.awards && (
+        <div className="mt-4">
+          <SectionTitle className="mb-2">Prêmios da temporada</SectionTitle>
+          <AwardsPanel awards={h.awards} clubs={w.clubs} userClub={h.user.club} />
+        </div>
+      )}
 
       <details className="group mt-3">
         <summary className="flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-lg text-sm font-semibold text-gold-400 hover:underline [&::-webkit-details-marker]:hidden">

@@ -74,6 +74,13 @@ function runSeasons(): void {
   for (let season = 0; season < SEASONS; season++) {
     t0 = performance.now();
     const { ps, stats } = playSeason(w);
+    const awards = ps.entry.awards;
+    assert(awards?.player && awards.player.apps >= 8, 'melhor jogador com jogos registrados');
+    assert(awards.young && awards.young.age <= 21, 'melhor jovem sub-21');
+    assert(awards.goalkeeper?.pos === 'GOL', 'melhor goleiro');
+    assert(awards.goldenBoot && awards.goldenBoot.goals > 0, 'chuteira de ouro');
+    assert(awards.club && awards.manager && awards.team.length === 11, 'clube, manager e seleção do ano');
+    assert(new Set(awards.team.map((p) => p.id)).size === 11, 'seleção sem jogadores repetidos');
     const tPlay = (performance.now() - t0) / 1000;
     const u = user(w);
     console.log(`season ${w.season} (${tPlay.toFixed(2)} s): user ${u.id} ${divisionFullName(u.div)} pos ${ps.userPos}, conf ${Math.round(w.board.conf)}, fired ${!!w.fired}`);

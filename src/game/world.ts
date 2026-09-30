@@ -1,5 +1,6 @@
 // Temporada: calendário de todas as ligas, resultados, tabelas, copas, semana a semana e virada de ano.
 import { ACADEMY_FOCUS, FOCUS_DEV, TICKET_PRICES, TRAINING, TRAITS, injuryLabel, injuryPhrase, weeksText } from './data';
+import { seasonAwards } from './awards';
 import { contByRep, contQualifiers } from './competitions';
 import { Sim, isDerbyClubs } from './engine';
 import { FREE_MAX, FREE_MIN, assignNumbers, attr, clubWage, hasTrait, learnTrait, makeFreeAgent, meanSquadOvr, makeYouth, newPlayer, releaseClauseFor, rollNat, rollTrait, traitCap, valueOf } from './gen';
@@ -646,12 +647,14 @@ export function seasonEnd(w: World): SeasonSummary {
   for (const [comp, cup] of Object.entries(w.cups)) cups[comp] = cup ? cup.champion : null;
   const entryScorers: HistoryEntry['scorers'] = {};
   for (const div of firstDivisions()) entryScorers[div] = scorerEntry(scorers[div] ?? null);
+  const awards = seasonAwards(w, tables);
   const entry: HistoryEntry = {
     season: w.season,
     champions,
     cups,
     scorers: entryScorers,
     best: best ? { name: best.name, club: best.clubId || '', avg: best.s.rsum / best.s.apps } : null,
+    awards,
     user: { club: u.id, league: u.league, div: u.div, pos: userPos, objective: w.board.label, success },
   };
   w.history.push(entry);
@@ -676,6 +679,21 @@ export function seasonEnd(w: World): SeasonSummary {
   const titles = seasonTitles(summary);
   recordSeasonHistory(w, titles);
   seasonAchievements(w, summary, titles);
+  const awardClub = (id: string | null | undefined) => id ? w.clubs[id]?.name ?? 'sem clube' : 'sem clube';
+  pushMessage(w, {
+    kind: 'award',
+    pid: awards.player?.id,
+    title: `Gala dos melhores de ${w.season}`,
+    body: [
+      awards.player && `Jogador do ano: ${awards.player.name} (${awardClub(awards.player.club)})`,
+      awards.young && `Jovem sub-21: ${awards.young.name} (${awardClub(awards.young.club)})`,
+      awards.goalkeeper && `Goleiro do ano: ${awards.goalkeeper.name} (${awardClub(awards.goalkeeper.club)})`,
+      awards.goldenBoot && `Chuteira de Ouro: ${awards.goldenBoot.name}, ${awards.goldenBoot.goals} gols`,
+      awards.club && `Time do ano: ${awardClub(awards.club)}`,
+      awards.manager && `Manager do ano: ${awards.manager.name} (${awardClub(awards.manager.club)})`,
+      'A seleção de 11 jogadores está no histórico das competições.',
+    ].filter(Boolean).join('\n'),
+  });
   w.pendingSeason = summary;
   return summary;
 }

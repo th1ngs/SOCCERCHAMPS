@@ -1,5 +1,5 @@
 // Aparência de cada tipo de mensagem.
-import { ArrowLeftRight, HandCoins, Info, Landmark, Newspaper, Sprout, Stethoscope, Trophy, type LucideIcon } from "lucide-react";
+import { ArrowLeftRight, HandCoins, Info, Landmark, Medal, Newspaper, Sprout, Stethoscope, Trophy, type LucideIcon } from "lucide-react";
 import type { MessageKind } from "@/game/types";
 
 export interface KindStyle {
@@ -16,6 +16,7 @@ export const KIND: Record<MessageKind, KindStyle> = {
   board: { label: "Diretoria", icon: Landmark, text: "text-gold-400", bar: "bg-gold-400" },
   medical: { label: "Departamento médico", icon: Stethoscope, text: "text-danger-400", bar: "bg-danger-400" },
   trophy: { label: "Título", icon: Trophy, text: "text-gold-300", bar: "bg-gold-300" },
+  award: { label: "Premiação", icon: Medal, text: "text-gold-400", bar: "bg-gold-400" },
   transfer: { label: "Transferência", icon: ArrowLeftRight, text: "text-pitch-400", bar: "bg-pitch-400" },
   news: { label: "Notícia", icon: Newspaper, text: "text-mist", bar: "bg-mist" },
   offer: { label: "Proposta", icon: HandCoins, text: "text-warn-400", bar: "bg-warn-400" },

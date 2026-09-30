@@ -570,7 +570,7 @@ export interface Cup {
   champion: string | null;
 }
 
-export type MessageKind = 'info' | 'board' | 'medical' | 'trophy' | 'transfer' | 'news' | 'offer' | 'youth';
+export type MessageKind = 'info' | 'board' | 'medical' | 'trophy' | 'award' | 'transfer' | 'news' | 'offer' | 'youth';
 
 export interface Offer {
   pid: string;
@@ -675,6 +675,31 @@ export interface ScorerEntry {
   goals: number;
 }
 
+/** Retrato estatístico guardado no histórico após transferências ou aposentadoria. */
+export interface AwardPlayer {
+  id: string;
+  name: string;
+  club: string;
+  pos: Position;
+  age: number;
+  apps: number;
+  goals: number;
+  assists: number;
+  avg: number;
+}
+
+export interface SeasonAwards {
+  young: AwardPlayer | null;
+  player: AwardPlayer | null;
+  goalkeeper: AwardPlayer | null;
+  goldenBoot: AwardPlayer | null;
+  /** Clube com a melhor campanha do ano. */
+  club: string | null;
+  manager: { name: string; club: string } | null;
+  /** Seleção do ano: goleiro, defesa, meio e ataque. */
+  team: AwardPlayer[];
+}
+
 /** Histórico por temporada (Hall da Fama). */
 export interface HistoryEntry {
   season: number;
@@ -685,6 +710,7 @@ export interface HistoryEntry {
   /** Artilheiros das primeiras divisões. */
   scorers: Partial<Record<DivisionId, ScorerEntry | null>>;
   best: { name: string; club: string; avg: number } | null;
+  awards?: SeasonAwards;
   user: { club: string; league: LeagueId; div: DivisionId; pos: number; objective: string; success: boolean };
 }
 
