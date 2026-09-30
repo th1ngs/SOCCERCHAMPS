@@ -98,7 +98,7 @@ export default function MercadoPage() {
             Central de transferências
           </span>
         }
-        subtitle="Busque e observe jogadores nas seis ligas, negocie taxa e contrato, empreste e acompanhe o histórico e as notícias do mercado."
+        subtitle="Busque e observe jogadores nas 13 ligas, negocie taxa e contrato, empreste e acompanhe o histórico e as notícias do mercado."
       />
       <TransferHeader win={status.win} h={status.head} />
       {status.win.deadline && tab !== "noticias" && (

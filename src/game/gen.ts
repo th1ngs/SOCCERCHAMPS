@@ -24,7 +24,7 @@ export function meanSquadOvr(w: World): number {
 }
 
 /** Versão atual do formato do World. */
-export const WORLD_VERSION = 6;
+export const WORLD_VERSION = 7;
 /** Saves a partir desta versão podem ser migrados. */
 export const MIN_COMPATIBLE_VERSION = 3;
 
@@ -231,41 +231,11 @@ export function assignNumbers(w: World, club: Club): void {
   for (const p of players) if (!p.num) p.num = next(NUM_PREFS[p.pos]);
 }
 
-export function newWorld(managerName: string, clubId: string): World {
-  const w: World = {
-    version: WORLD_VERSION,
-    manager: { name: managerName || 'Treinador' },
-    userClub: clubId,
-    season: 2026,
-    week: 0,
-    day: 0,
-    scheduleRevision: 1,
-    clubs: {},
-    players: {},
-    free: [],
-    nextId: 1,
-    weeks: [],
-    cups: {},
-    contNext: null,
-    scouting: {},
-    scoutQueue: [],
-    negotiations: {},
-    payables: [],
-    watchlist: [],
-    watchState: {},
-    transfers: [],
-    inbox: [],
-    nextMsg: 1,
-    history: [],
-    board: { conf: 60, target: 0, label: '' },
-    finance: [],
-    finWeek: {},
-    finSeason: {},
-    trialUsed: false,
-    started: false,
-  };
+/** Inclui clubes novos em carreiras existentes sem alterar elencos antigos. */
+export function seedMissingClubs(w: World): number {
   const FORMATION_POOL: FormationKey[] = ['4-4-2', '4-3-3', '4-2-3-1', '4-3-3', '4-4-2', '3-5-2'];
-  CLUBS.forEach((c) => {
+  const missing = CLUBS.filter((c) => !w.clubs[c.id]);
+  missing.forEach((c) => {
     const club: Club = {
       ...c,
       colors: [c.colors[0], c.colors[1]],
@@ -315,8 +285,45 @@ export function newWorld(managerName: string, clubId: string): World {
     pickPenTaker(w, club);
     pickFkTaker(w, club);
   });
-  // Finanças depois de todos os clubes existirem (a cota de TV depende da divisão inteira).
-  for (const club of Object.values(w.clubs)) initClubFinances(w, club);
+  // Finanças depois de todos os clubes novos existirem (a cota depende da divisão inteira).
+  for (const c of missing) initClubFinances(w, w.clubs[c.id]);
+  return missing.length;
+}
+
+export function newWorld(managerName: string, clubId: string): World {
+  const w: World = {
+    version: WORLD_VERSION,
+    manager: { name: managerName || 'Treinador' },
+    userClub: clubId,
+    season: 2026,
+    week: 0,
+    day: 0,
+    scheduleRevision: 1,
+    clubs: {},
+    players: {},
+    free: [],
+    nextId: 1,
+    weeks: [],
+    cups: {},
+    contNext: null,
+    scouting: {},
+    scoutQueue: [],
+    negotiations: {},
+    payables: [],
+    watchlist: [],
+    watchState: {},
+    transfers: [],
+    inbox: [],
+    nextMsg: 1,
+    history: [],
+    board: { conf: 60, target: 0, label: '' },
+    finance: [],
+    finWeek: {},
+    finSeason: {},
+    trialUsed: false,
+    started: false,
+  };
+  seedMissingClubs(w);
   w.econ = { baseOvr: Math.round(meanSquadOvr(w) * 100) / 100, drift: 0 };
   for (let k = 0; k < FREE_MIN; k++) makeFreeAgent(w);
   return w;

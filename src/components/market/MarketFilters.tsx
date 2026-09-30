@@ -21,7 +21,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /** Sigla curta do país (rótulo do filtro no celular). */
-const LEAGUE_CODE: Record<LeagueId, string> = { bra: "BRA", arg: "ARG", por: "POR", esp: "ESP", eng: "ING", ita: "ITA" };
+const LEAGUE_CODE: Record<LeagueId, string> = { bra: "BRA", arg: "ARG", por: "POR", esp: "ESP", eng: "ING", ita: "ITA", ger: "ALE", fra: "FRA", ned: "HOL", bel: "BEL", tur: "TUR", sco: "ESC", gre: "GRE" };
 
 const LEAGUE_OPTIONS: SegmentedOption<LeagueFilter>[] = [
   { value: "", label: "Todas" },

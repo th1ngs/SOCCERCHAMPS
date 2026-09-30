@@ -17,7 +17,7 @@ export function Hero() {
       <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 pb-16 pt-12 sm:pt-20 lg:grid-cols-[1.05fr_1fr] lg:pb-24">
         <div className="animate-rise">
           <p className="flex items-center gap-2 font-display text-xs font-bold uppercase tracking-[0.3em] text-pitch-400 sm:text-sm">
-            <span className="h-px w-8 bg-pitch-400/60" aria-hidden /> Modo carreira • 6 ligas • 208 clubes
+            <span className="h-px w-8 bg-pitch-400/60" aria-hidden /> Modo carreira • 13 ligas • 432 clubes
           </p>
           <h1 className="mt-4 font-display font-extrabold uppercase italic leading-[0.82] tracking-tight">
             <span className="block text-[clamp(3.2rem,9vw,6.8rem)] text-snow">Seu clube.</span>
@@ -26,7 +26,7 @@ export function Hero() {
             </span>
           </h1>
           <p className="mt-6 max-w-xl text-lg text-mist text-pretty">
-            Comande um clube em seis países, da Série C brasileira à Premier Division. Revele craques na base, feche contratações na janela e assista a cada partida ao vivo.
+            Comande um clube em 13 países, da Série C brasileira à Bundesliga. Revele craques na base, feche contratações na janela e assista a cada partida ao vivo.
           </p>
           <div id="login" className="mt-8 scroll-mt-24">
             <HeroActions />

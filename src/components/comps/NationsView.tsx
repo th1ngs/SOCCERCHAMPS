@@ -59,9 +59,9 @@ function SquadList({ ids }: { ids: string[] }) {
 function EditionView({ e }: { e: NationsEdition }) {
   const { world: w } = useWorld();
   const u = user(w);
-  const [nat, setNat] = useState<LeagueId>(u.league);
+  const [nat, setNat] = useState<LeagueId>(() => e.table.some((row) => row.id === u.league) ? u.league : e.table[0].id);
   const final = e.matches.find((m) => m.round === 0);
-  const rounds = [1, 2, 3, 4, 5].map((r) => e.matches.filter((m) => m.round === r));
+  const rounds = Array.from({ length: Math.max(0, ...e.matches.map((m) => m.round)) }, (_, i) => e.matches.filter((m) => m.round === i + 1));
   return (
     <div className="grid items-start gap-4 lg:grid-cols-2">
       <Card tone="highlight" className="lg:col-span-2">
@@ -126,7 +126,7 @@ function EditionView({ e }: { e: NationsEdition }) {
         </div>
       </Card>
       <Card title="Convocados" className="lg:col-span-2">
-        <Segmented ariaLabel="Seleção" value={nat} onChange={setNat} className="mb-3 w-full max-sm:grid max-sm:grid-cols-3" options={LEAGUE_IDS.map((l) => ({ value: l, label: <><Flag code={l} decorative /> {nationName(l)}</> }))} />
+        <Segmented ariaLabel="Seleção" value={nat} onChange={setNat} className="mb-3 w-full max-sm:grid max-sm:grid-cols-3" options={e.table.map((row) => ({ value: row.id, label: <><Flag code={row.id} decorative /> {nationName(row.id)}</> }))} />
         <SquadList ids={e.squads[nat] ?? []} />
       </Card>
     </div>
@@ -151,7 +151,7 @@ export function NationsView() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-mist">
-        As seleções das seis nacionalidades se enfrentam entre uma temporada e outra, a cada {NATIONS_EVERY} anos. A convocação é automática com os 23 melhores de cada país. Próxima edição: fim da temporada {next}.
+        As seleções das {LEAGUE_IDS.length} nacionalidades se enfrentam entre uma temporada e outra, a cada {NATIONS_EVERY} anos. A convocação é automática com os 23 melhores de cada país. Próxima edição: fim da temporada {next}.
       </p>
       {editions.length > 1 && (
         <Segmented ariaLabel="Edição" value={String(e?.season)} onChange={(v) => setPick(Number(v))} options={editions.map((x) => ({ value: String(x.season), label: String(x.season) }))} />

@@ -22,14 +22,16 @@ export interface InstructionOption {
   desc: string;
 }
 export type TrainingKey = 'low' | 'mid' | 'high';
-export type LeagueId = 'bra' | 'arg' | 'por' | 'esp' | 'eng' | 'ita';
+export type LeagueId = 'bra' | 'arg' | 'por' | 'esp' | 'eng' | 'ita' | 'ger' | 'fra' | 'ned' | 'bel' | 'tur' | 'sco' | 'gre';
 export type DivisionId =
   | 'bra1' | 'bra2' | 'bra3'
   | 'arg1' | 'arg2'
   | 'por1' | 'por2'
   | 'esp1' | 'esp2'
   | 'eng1' | 'eng2'
-  | 'ita1' | 'ita2';
+  | 'ita1' | 'ita2'
+  | 'ger1' | 'ger2' | 'fra1' | 'fra2' | 'ned1' | 'ned2' | 'bel1' | 'bel2'
+  | 'tur1' | 'tur2' | 'sco1' | 'sco2' | 'gre1' | 'gre2';
 /** @deprecated use DivisionId. */
 export type Division = DivisionId;
 /** Copa Nacional de uma liga. */
@@ -339,7 +341,7 @@ export interface NationMatch {
   /** Gols: [pid, lado]. */
   goals: [string, number][];
 }
-/** Uma edição da Copa das Nações (seleções das seis nacionalidades, entre temporadas). */
+/** Uma edição da Copa das Nações (seleções disponíveis, entre temporadas). */
 export interface NationsEdition {
   season: number;
   squads: Record<LeagueId, string[]>;

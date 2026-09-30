@@ -96,7 +96,7 @@ export function FeatureBento() {
         </div>
       </Tile>
       <Tile icon={<Sprout />} title="Categorias de base" text="Uma nova safra a cada temporada. Faça peneiras e promova a próxima joia." className="md:col-span-2" />
-      <Tile icon={<ArrowLeftRight />} title="Mercado" text="Janelas, contrapropostas e ofertas de clubes de seis países." className="md:col-span-2" />
+      <Tile icon={<ArrowLeftRight />} title="Mercado" text="Janelas, contrapropostas e ofertas de clubes de 13 países." className="md:col-span-2" />
       <Tile icon={<Flame />} title="Clássicos" text="Estádio lotado, renda maior e a torcida cobrando o dobro." className="md:col-span-2" />
       <Tile icon={<Landmark />} title="Diretoria" text="Metas a cada temporada. Resultados ruins custam o emprego; campanhas fortes atraem gigantes." className="md:col-span-2" />
       <Tile icon={<Cloud />} title="Na nuvem" text="Salve a carreira e continue em outro aparelho com um código." className="md:col-span-2" />

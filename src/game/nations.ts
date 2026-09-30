@@ -1,4 +1,4 @@
-// Copa das Nações (v6): as seleções das seis nacionalidades se enfrentam entre uma temporada e outra,
+// Copa das Nações: todas as nacionalidades se enfrentam entre uma temporada e outra,
 // a cada 4 anos (2026, 2030, …). Convocação automática dos 23 melhores de cada país, todos contra todos
 // em jogo único e final entre os dois primeiros. Os jogos não contam para os clubes.
 import { addTitle, unlock } from './career';
@@ -25,6 +25,13 @@ export const NATION_KITS: Record<LeagueId, { short: string; colors: [string, str
   esp: { short: 'ESP', colors: ['#C60B1E', '#FFC400'], pattern: 'solid' },
   eng: { short: 'ING', colors: ['#FFFFFF', '#CE1124'], pattern: 'solid' },
   ita: { short: 'ITA', colors: ['#0066B3', '#FFFFFF'], pattern: 'solid' },
+  ger: { short: 'ALE', colors: ['#FFFFFF', '#111111'], pattern: 'solid' },
+  fra: { short: 'FRA', colors: ['#1D4ED8', '#FFFFFF'], pattern: 'solid' },
+  ned: { short: 'HOL', colors: ['#EA580C', '#FFFFFF'], pattern: 'solid' },
+  bel: { short: 'BEL', colors: ['#DC2626', '#111111'], pattern: 'solid' },
+  tur: { short: 'TUR', colors: ['#DC2626', '#FFFFFF'], pattern: 'solid' },
+  sco: { short: 'ESC', colors: ['#1D4ED8', '#FFFFFF'], pattern: 'solid' },
+  gre: { short: 'GRE', colors: ['#1D4ED8', '#FFFFFF'], pattern: 'solid' },
 };
 
 export const isNationsSeason = (season: number): boolean => season >= FIRST_SEASON && (season - FIRST_SEASON) % NATIONS_EVERY === 0;
@@ -65,15 +72,18 @@ function nationClub(w: World, lg: LeagueId, squad: string[]): Club {
   };
 }
 
-/** Todos contra todos (6 seleções, 5 rodadas). */
+/** Todos contra todos; um país folga a cada rodada quando o total é ímpar. */
 function roundRobin(ids: LeagueId[]): [LeagueId, LeagueId][][] {
-  const t = ids.slice();
+  const t: (LeagueId | null)[] = ids.length % 2 ? [...ids, null] : ids.slice();
   const rounds: [LeagueId, LeagueId][][] = [];
   for (let r = 0; r < t.length - 1; r++) {
     const games: [LeagueId, LeagueId][] = [];
-    for (let i = 0; i < t.length / 2; i++) games.push(r % 2 ? [t[t.length - 1 - i], t[i]] : [t[i], t[t.length - 1 - i]]);
+    for (let i = 0; i < t.length / 2; i++) {
+      const a = t[i], b = t[t.length - 1 - i];
+      if (a && b) games.push(r % 2 ? [b, a] : [a, b]);
+    }
     rounds.push(games);
-    t.splice(1, 0, t.pop() as LeagueId);
+    t.splice(1, 0, t.pop() as LeagueId | null);
   }
   return rounds;
 }
@@ -83,10 +93,11 @@ export function runNationsCup(w: World): NationsEdition | null {
   if (!isNationsSeason(w.season) || w.nations?.some((e) => e.season === w.season)) return null;
   const squads = {} as Record<LeagueId, string[]>;
   for (const lg of LEAGUE_IDS) squads[lg] = callUp(w, lg);
-  if (LEAGUE_IDS.some((lg) => squads[lg].length < 16)) return null;
+  const active = LEAGUE_IDS.filter((lg) => squads[lg].length >= 16);
+  if (active.length < 2) return null;
   // Seleções entram no mundo só durante o torneio.
-  for (const lg of LEAGUE_IDS) w.clubs[nationId(lg)] = nationClub(w, lg, squads[lg]);
-  const table = new Map<LeagueId, NationRow>(LEAGUE_IDS.map((id) => [id, { id, p: 0, j: 0, v: 0, e: 0, d: 0, gf: 0, ga: 0 }]));
+  for (const lg of active) w.clubs[nationId(lg)] = nationClub(w, lg, squads[lg]);
+  const table = new Map<LeagueId, NationRow>(active.map((id) => [id, { id, p: 0, j: 0, v: 0, e: 0, d: 0, gf: 0, ga: 0 }]));
   const matches: NationMatch[] = [];
   const goals = new Map<string, number>();
   const intl = new Map<string, [number, number]>();
@@ -101,7 +112,7 @@ export function runNationsCup(w: World): NationsEdition | null {
     matches.push(m);
     return m;
   };
-  roundRobin(LEAGUE_IDS.slice()).forEach((games, r) => {
+  roundRobin(active).forEach((games, r) => {
     for (const [h, a] of games) {
       const m = play(h, a, r + 1);
       const th = table.get(h) as NationRow, ta = table.get(a) as NationRow;
@@ -113,7 +124,7 @@ export function runNationsCup(w: World): NationsEdition | null {
   const final = play(rows[0].id, rows[1].id, 0);
   const homeWon = final.hs > final.as || (final.hs === final.as && !!final.pens && final.pens[0] > final.pens[1]);
   const champion = homeWon ? final.h : final.a, runnerUp = homeWon ? final.a : final.h;
-  for (const lg of LEAGUE_IDS) delete w.clubs[nationId(lg)];
+  for (const lg of active) delete w.clubs[nationId(lg)];
 
   // Jogos pela seleção, título no histórico e moral dos campeões.
   for (const [pid, c] of intl) {

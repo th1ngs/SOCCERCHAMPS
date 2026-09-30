@@ -11,7 +11,7 @@ import { ChoiceGroup } from "./ChoiceGroup";
 import { countryName, type PosFilter } from "./derive";
 
 /** Preposição + artigo antes do nome do país ("da Argentina", "de Portugal"). */
-const OF: Record<LeagueId, string> = { bra: "do", arg: "da", por: "de", esp: "da", eng: "da", ita: "da" };
+const OF: Record<LeagueId, string> = { bra: "do", arg: "da", por: "de", esp: "da", eng: "da", ita: "da", ger: "da", fra: "da", ned: "da", bel: "da", tur: "da", sco: "da", gre: "da" };
 
 export interface TrialCardProps {
   homeLeague: LeagueId;

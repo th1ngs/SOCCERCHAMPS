@@ -6,6 +6,7 @@ import { NAMES as ENG } from './eng';
 import { NAMES as ESP } from './esp';
 import { NAMES as ITA } from './ita';
 import { NAMES as POR } from './por';
+import { EXPANDED_NAMES } from './expanded';
 
 export interface NameLists {
   FIRST: string[];
@@ -13,4 +14,4 @@ export interface NameLists {
   NICK: string[];
 }
 
-export const NAMES_BY_NAT: Record<LeagueId, NameLists> = { bra: BRA, arg: ARG, por: POR, esp: ESP, eng: ENG, ita: ITA };
+export const NAMES_BY_NAT: Record<LeagueId, NameLists> = { bra: BRA, arg: ARG, por: POR, esp: ESP, eng: ENG, ita: ITA, ...EXPANDED_NAMES };

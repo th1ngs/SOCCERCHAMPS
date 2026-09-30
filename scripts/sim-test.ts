@@ -1,4 +1,4 @@
-// Teste de balanceamento headless do motor do Manager (6 ligas, World v6).
+// Teste de balanceamento headless do motor do Manager (13 ligas, World v7).
 //   npx tsx scripts/sim-test.ts [clubId] [--seasons N] [--checks]
 // Sem --checks: simula N temporadas (padrão 3) com todos os clubes no automático e imprime
 // campeões, gols por jogo e artilheiros por liga, tempo por temporada e tamanho do JSON.
@@ -286,7 +286,7 @@ const adhoc = (w: World, h: string, a: string): Match => ({ id: 'chk' + h + a, h
 
 function runV2Checks(w: World): void {
   const u = user(w);
-  assert(w.version === WORLD_VERSION && WORLD_VERSION === 6, 'World v6');
+  assert(w.version === WORLD_VERSION && WORLD_VERSION === 7, 'World v7');
 
   // Características e Craque
   const all = Object.values(w.players);
@@ -376,7 +376,7 @@ function runV2Checks(w: World): void {
   }
   delete (old as Record<string, unknown>).finWeek;
   const mig = migrateWorld(old);
-  assert(mig.version === 6, 'migrateWorld -> v6');
+  assert(mig.version === 7, 'migrateWorld -> v7');
   assert(Object.values(mig.clubs).every((c) => c.fans === 60 && c.ticketPrice === 'normal' && c.loan === null && !!c.captain && !!c.penTaker && typeof c.rival === 'string'), 'clubes migrados');
   assert(Object.values(mig.players).every((p) => Array.isArray(p.traits) && typeof p.star === 'boolean' && !!p.nat && (p.inj > 0 ? !!p.injType : p.injType === null)), 'jogadores migrados');
   const once = JSON.stringify(mig);
@@ -399,7 +399,7 @@ function runV2Checks(w: World): void {
 function runLeagueChecks(w: World): void {
   // Estrutura
   for (const div of DIVISION_IDS) assert(Object.values(w.clubs).filter((c) => c.div === div).length === DIVISION_SIZE, `${div} com 16 clubes`);
-  assert(CLUBS.length === 208 && new Set(CLUBS.map((c) => c.id)).size === 208, '208 clubes com ids únicos');
+  assert(CLUBS.length === 432 && new Set(CLUBS.map((c) => c.id)).size === 432, '432 clubes com ids únicos');
   for (const c of CLUBS) assert(w.clubs[c.rival] && w.clubs[c.rival].league === c.league && c.rival !== c.id, `rival de ${c.id} na mesma liga`);
   const comps = userCompetitions(w);
   assert(comps[0] === user(w).div, 'userCompetitions começa pela divisão');
@@ -436,7 +436,7 @@ function runLeagueChecks(w: World): void {
   const h = w.history[w.history.length - 1];
   assert(Object.keys(h).sort().join() === 'awards,best,champions,cups,scorers,season,user', 'chaves do HistoryEntry');
   assert(DIVISION_IDS.every((d) => typeof h.champions[d] === 'string'), 'champions de todas as divisões');
-  assert(Object.keys(h.cups).length === 7 && Object.values(h.cups).every((x) => typeof x === 'string'), 'cups: 6 nacionais + cont');
+  assert(Object.keys(h.cups).length === LEAGUE_IDS.length + 1 && Object.values(h.cups).every((x) => typeof x === 'string'), 'cups: 13 nacionais + cont');
   assert(Object.keys(h.scorers).sort().join() === firstDivisions().slice().sort().join(), 'scorers das primeiras divisões');
   assert(Object.keys(h.user).sort().join() === 'club,div,league,objective,pos,success', 'chaves de user');
   assert(!h.best || (typeof h.best.name === 'string' && typeof h.best.club === 'string' && typeof h.best.avg === 'number'), 'best');
@@ -722,7 +722,7 @@ function runV4Checks(): void {
   }
   assert(isCompatible(v3), 'v3 é compatível');
   const m4 = migrateWorld(v3);
-  assert(m4.version === 6 && Array.isArray(m4.transfers) && Array.isArray(m4.scoutQueue) && m4.negotiations && m4.scouting, 'campos de World v4');
+  assert(m4.version === 7 && Array.isArray(m4.transfers) && Array.isArray(m4.scoutQueue) && m4.negotiations && m4.scouting, 'campos de World v4');
   assert(Object.values(m4.clubs).every((c) => c.scouting >= 1 && c.scouting <= 5 && c.academyFocus === 'balanced'), 'clubes v4');
   assert(Object.values(m4.players).every((p) => p.start && p.loan === null && typeof p.releaseClause === 'number'), 'jogadores v4');
   const j4 = JSON.stringify(m4);
@@ -873,7 +873,9 @@ function runV6Checks(): void {
   const before = Object.keys(w.clubs).length;
   G.newSeason(w);
   const e = w.nations?.[0];
-  assert(e && e.season === w.season - 1 && e.table.length === 6 && e.matches.length === 16, 'Copa das Nações: 15 jogos + final');
+  assert(e && e.season === w.season - 1 && e.table.length === LEAGUE_IDS.length && e.matches.length === LEAGUE_IDS.length * (LEAGUE_IDS.length - 1) / 2 + 1, 'Copa das Nações: todos contra todos + final');
+  const group = e.matches.filter((m) => m.round > 0);
+  assert(new Set(group.map((m) => [m.h, m.a].sort().join('|'))).size === group.length && e.table.every((r) => r.j === LEAGUE_IDS.length - 1), 'Copa das Nações: cada seleção enfrenta todas as outras uma vez');
   assert(Object.keys(w.clubs).length === before && !Object.keys(w.clubs).some((id) => id.startsWith('nat:')), 'seleções temporárias removidas');
   assert(e.squads[e.champion].some((pid) => w.players[pid]?.hist?.some((r) => r[6]?.includes(G.NATIONS_NAME))), 'título da Copa das Nações no histórico');
   assert(Object.values(w.players).some((x) => (x.intl?.[0] ?? 0) > 0), 'jogos pela seleção');
@@ -882,6 +884,6 @@ function runV6Checks(): void {
   assert(car[0].current && car.some((r) => !r.current), 'carreira do jogador: atual + passadas');
   assert(G.clubIdols(w, u.id, 5).length > 0, 'ídolos do clube');
   const json = JSON.stringify(w);
-  assert(JSON.stringify(G.migrateWorld(JSON.parse(json))) === json, 'migrateWorld v6 idempotente');
-  console.log(`v6 ok: cruzamentos ${crosses}, conversas ${talks}, histórico ${withHist}, Copa das Nações ${e.season}: ${e.champion}`);
+  assert(JSON.stringify(G.migrateWorld(JSON.parse(json))) === json, 'migrateWorld v7 idempotente');
+  console.log(`v7 ok: cruzamentos ${crosses}, conversas ${talks}, histórico ${withHist}, Copa das Nações ${e.season}: ${e.champion}`);
 }

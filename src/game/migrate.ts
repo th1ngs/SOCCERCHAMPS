@@ -7,11 +7,12 @@
 import { CLUBS, TICKET_PRICES, injuryLabel } from './data';
 import { ATTR_KEYS } from './data';
 import { clubWages, sponsorValue, wageCapFor } from './finance';
-import { MIN_COMPATIBLE_VERSION, WORLD_VERSION, meanSquadOvr, rollAttrs, rollStar, rollTraits, valueOf } from './gen';
+import { MIN_COMPATIBLE_VERSION, WORLD_VERSION, meanSquadOvr, rollAttrs, rollStar, rollTraits, seedMissingClubs, valueOf } from './gen';
 import { DIVISIONS, LEAGUES } from './leagues';
 import { pickCaptain, pickFkTaker, pickPenTaker } from './squad';
 import { DEFAULT_INSTRUCTIONS } from './tactics';
 import type { Club, Player, World } from './types';
+import { pushMessage, startSeason } from './world';
 
 /** Save de uma versão antiga (sem ligas) ou malformado. */
 export class IncompatibleSaveError extends Error {
@@ -152,6 +153,15 @@ export function migrateWorld(w: World): World {
   for (const p of Object.values(w.players)) migratePlayer(w, p);
   for (const c of Object.values(w.clubs)) migrateClub(w, c);
   if (!lw.econ) w.econ = { baseOvr: Math.round(meanSquadOvr(w) * 100) / 100, drift: 0 };
+  if ((lw.version ?? 0) < 7 && Object.keys(w.clubs).length < CLUBS.length) {
+    if (w.week === 0) {
+      seedMissingClubs(w);
+      startSeason(w);
+      pushMessage(w, { kind: 'info', title: 'Sete novas ligas disponíveis', body: 'Alemanha, França, Holanda, Bélgica, Turquia, Escócia e Grécia já fazem parte da temporada.' });
+    } else {
+      pushMessage(w, { kind: 'info', title: 'Sete novas ligas a caminho', body: 'Alemanha, França, Holanda, Bélgica, Turquia, Escócia e Grécia entram no calendário quando começar a próxima temporada. Sua carreira atual continua normalmente.' });
+    }
+  }
   if (!(typeof lw.version === 'number' && lw.version >= WORLD_VERSION)) w.version = WORLD_VERSION;
   return w;
 }

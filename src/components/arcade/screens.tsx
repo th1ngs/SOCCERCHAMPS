@@ -150,7 +150,7 @@ export function SelectScreen({
   const sub =
     mode === "cup"
       ? settings.cupScope === "mixed"
-        ? "16 times das primeiras divisões das seis ligas, mata-mata até a final."
+        ? "16 times das primeiras divisões das 13 ligas, mata-mata até a final."
         : "Os 16 times da divisão do seu clube, mata-mata até a final."
       : mode === "pvp"
         ? "Os dois jogadores jogam no mesmo aparelho, alternando os turnos."

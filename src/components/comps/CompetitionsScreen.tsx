@@ -25,8 +25,8 @@ export type CompScope = LeagueId | GlobalTab;
 type LeagueSub = DivisionId | "cup";
 
 const GLOBAL_SUBTITLE: Record<GlobalTab, string> = {
-  cont: "Os 16 melhores das seis ligas em mata-mata de jogo único. Empate vai para os pênaltis; final em campo neutro.",
-  nations: "Brasil, Argentina, Portugal, Espanha, Inglaterra e Itália em todos contra todos, com final entre os dois primeiros.",
+  cont: "Os 13 campeões nacionais e mais três classificados por reputação em mata-mata de jogo único. Empate vai para os pênaltis; final em campo neutro.",
+  nations: "Seleções de todos os países em todos contra todos, com final entre os dois primeiros.",
   scorers: "Os goleadores da temporada por divisão. Toque em um jogador para ver a ficha.",
   fixtures: "Seus jogos em todas as competições, semana a semana.",
   history: "Títulos do clube e campeões de cada temporada.",
@@ -35,7 +35,7 @@ const GLOBAL_SUBTITLE: Record<GlobalTab, string> = {
 function divisionSubtitle(div: DivisionId): string {
   const info = DIVISIONS[div];
   const parts = [`${LEAGUES[info.league].name} • 16 clubes em turno e returno.`];
-  if (info.level === 1) parts.push("Os 3 primeiros vão à Copa dos Campeões.");
+  if (info.level === 1) parts.push("O campeão vai à Copa dos Campeões; vice e terceiro disputam as vagas restantes.");
   if (info.up) parts.push(`Os ${PROMOTION_SPOTS} primeiros sobem para a ${divisionName(info.up)}.`);
   if (info.down) parts.push(`Os ${PROMOTION_SPOTS} últimos caem para a ${divisionName(info.down)}.`);
   else if (info.up) parts.push("Ninguém cai.");
@@ -46,12 +46,14 @@ function divisionSubtitle(div: DivisionId): string {
 export function CompetitionsScreen() {
   const { world: w } = useWorld();
   const u = user(w);
+  const availableLeagues = new Set(Object.values(w.clubs).map((club) => club.league));
+  const activeLeagues = LEAGUE_IDS.filter((league) => availableLeagues.has(league));
   const [scope, setScope] = useState<CompScope>(u.league);
   // Sub-aba escolhida em cada liga; na liga do usuário começa na divisão dele.
   const [subs, setSubs] = useState<Partial<Record<LeagueId, LeagueSub>>>(() => ({ [u.league]: u.div }));
 
   const scopeItems: TabItem<CompScope>[] = [
-    ...LEAGUE_IDS.map((l) => ({
+    ...activeLeagues.map((l) => ({
       value: l as CompScope,
       mark: l === u.league,
       label: (
@@ -67,7 +69,7 @@ export function CompetitionsScreen() {
     { value: "history", label: <><History aria-hidden /> Histórico</> },
   ];
 
-  const isLeague = (LEAGUE_IDS as string[]).includes(scope);
+  const isLeague = (activeLeagues as string[]).includes(scope);
   const league = isLeague ? (scope as LeagueId) : null;
   const sub: LeagueSub | null = league ? (subs[league] ?? LEAGUES[league].divisions[0]) : null;
 
@@ -90,7 +92,9 @@ export function CompetitionsScreen() {
     ? sub === "cup"
       ? `${LEAGUES[league].name} • mata-mata em jogo único com os 32 clubes das duas primeiras divisões. Empate vai para os pênaltis.`
       : divisionSubtitle(sub as DivisionId)
-    : GLOBAL_SUBTITLE[scope as GlobalTab];
+    : scope === 'cont' && activeLeagues.length < LEAGUE_IDS.length
+      ? `Os 16 melhores das ligas atuais em mata-mata de jogo único. As novas ligas entram na próxima temporada.`
+      : GLOBAL_SUBTITLE[scope as GlobalTab];
 
   return (
     <>

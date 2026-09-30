@@ -87,7 +87,7 @@ export function StartScreen() {
           Nova carreira
         </h1>
         <p className="mt-2 max-w-prose text-sm text-mist">
-          Seis países, 208 clubes. Clubes menores começam com pouco dinheiro e metas modestas; os grandes cobram títulos.
+          Treze países, 432 clubes. Clubes menores começam com pouco dinheiro e metas modestas; os grandes cobram títulos.
         </p>
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <span className="mr-2 text-sm text-mist">Salvar em:</span>

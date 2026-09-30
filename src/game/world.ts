@@ -3,7 +3,7 @@ import { ACADEMY_FOCUS, FOCUS_DEV, TICKET_PRICES, TRAINING, TRAITS, injuryLabel,
 import { seasonAwards } from './awards';
 import { contByRep, contQualifiers } from './competitions';
 import { Sim, isDerbyClubs } from './engine';
-import { FREE_MAX, FREE_MIN, assignNumbers, attr, clubWage, hasTrait, learnTrait, makeFreeAgent, meanSquadOvr, makeYouth, newPlayer, releaseClauseFor, rollNat, rollTrait, traitCap, valueOf } from './gen';
+import { FREE_MAX, FREE_MIN, assignNumbers, attr, clubWage, hasTrait, learnTrait, makeFreeAgent, meanSquadOvr, makeYouth, newPlayer, releaseClauseFor, rollNat, rollTrait, seedMissingClubs, traitCap, valueOf } from './gen';
 import { clubWages, commercialWeekly, renewClubFinances, ticketBase, tvShare, upkeepWeekly } from './finance';
 
 /** Piso da multa rescisória em relação ao valor de mercado. */
@@ -852,6 +852,8 @@ export function newSeason(w: World): void {
 
   w.season++;
   w.week = 0;
+  const added = seedMissingClubs(w);
+  if (added) pushMessage(w, { kind: 'info', title: 'Sete novas ligas chegaram', body: 'Alemanha, França, Holanda, Bélgica, Turquia, Escócia e Grécia entram no calendário desta temporada com duas divisões e Copa Nacional cada.' });
   processScoutQueue(w);
   // Limpeza de referências a jogadores que saíram do mundo.
   for (const pid of Object.keys(w.scouting)) if (!w.players[pid]) delete w.scouting[pid];

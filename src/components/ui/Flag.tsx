@@ -1,7 +1,8 @@
 import { cn } from "@/lib/cn";
+import type { LeagueId } from "@/game/types";
 
 /** Bandeiras simplificadas (SVG) das ligas do jogo (códigos = LeagueId). */
-export type FlagCode = "bra" | "arg" | "por" | "esp" | "eng" | "ita";
+export type FlagCode = LeagueId;
 
 /**
  * Bandeira de uma liga. Sem `className`, ocupa ~1em de altura ao lado do texto;
@@ -31,6 +32,13 @@ export const FLAG_NAMES: Record<FlagCode, string> = {
   esp: "Espanha",
   eng: "Inglaterra",
   ita: "Itália",
+  ger: "Alemanha",
+  fra: "França",
+  ned: "Holanda",
+  bel: "Bélgica",
+  tur: "Turquia",
+  sco: "Escócia",
+  gre: "Grécia",
 };
 
 const FLAGS: Record<FlagCode, React.ReactNode> = {
@@ -77,4 +85,11 @@ const FLAGS: Record<FlagCode, React.ReactNode> = {
       <rect width="10" height="20" fill="#009246" />
     </>
   ),
+  ger: <><rect width="30" height="20" fill="#ffce00" /><rect width="30" height="6.67" fill="#111" /><rect y="6.67" width="30" height="6.67" fill="#dd0000" /></>,
+  fra: <><rect width="30" height="20" fill="#ed2939" /><rect width="20" height="20" fill="#fff" /><rect width="10" height="20" fill="#002395" /></>,
+  ned: <><rect width="30" height="20" fill="#21468b" /><rect width="30" height="13.33" fill="#fff" /><rect width="30" height="6.67" fill="#ae1c28" /></>,
+  bel: <><rect width="30" height="20" fill="#ef3340" /><rect width="20" height="20" fill="#fdda24" /><rect width="10" height="20" fill="#111" /></>,
+  tur: <><rect width="30" height="20" fill="#e30a17" /><circle cx="12" cy="10" r="5" fill="#fff" /><circle cx="13.5" cy="10" r="4" fill="#e30a17" /><path d="m19 6.7.8 2.1 2.3.1-1.8 1.4.7 2.1-2-1.3-1.9 1.3.6-2.1-1.7-1.4 2.2-.1Z" fill="#fff" /></>,
+  sco: <><rect width="30" height="20" fill="#0065bd" /><path d="M0 0 30 20M30 0 0 20" stroke="#fff" strokeWidth="4" /></>,
+  gre: <><rect width="30" height="20" fill="#0d5eaf" />{[2, 6, 10, 14, 18].map((y) => <rect key={y} y={y} width="30" height="2" fill="#fff" />)}<rect width="12" height="11" fill="#0d5eaf" /><path d="M0 5.5h12M6 0v11" stroke="#fff" strokeWidth="2" /></>,
 };

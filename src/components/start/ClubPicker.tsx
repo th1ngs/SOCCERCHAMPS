@@ -36,10 +36,10 @@ function WealthBars({ league }: { league: LeagueId }) {
   );
 }
 
-/** Seis ligas em cartões (radiogroup). */
+/** Ligas em cartões (radiogroup). */
 export function LeaguePicker({ value, onChange }: { value: LeagueId; onChange: (l: LeagueId) => void }) {
   return (
-    <div role="radiogroup" aria-label="Liga" data-group className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+    <div role="radiogroup" aria-label="Liga" data-group className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
       {LEAGUE_IDS.map((id) => {
         const lg = LEAGUES[id];
         const on = id === value;

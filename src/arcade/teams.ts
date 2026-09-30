@@ -41,7 +41,7 @@ export const firstDivisionTeams = (): ArcadeTeam[] => ARCADE_TEAMS.filter((t) =>
 export const ARCADE_LEAGUES: LeagueId[] = LEAGUE_IDS;
 
 /** Sigla curta do país (rótulos compactos no celular). */
-export const LEAGUE_CODE: Record<LeagueId, string> = { bra: "BRA", arg: "ARG", por: "POR", esp: "ESP", eng: "ING", ita: "ITA" };
+export const LEAGUE_CODE: Record<LeagueId, string> = { bra: "BRA", arg: "ARG", por: "POR", esp: "ESP", eng: "ING", ita: "ITA", ger: "ALE", fra: "FRA", ned: "HOL", bel: "BEL", tur: "TUR", sco: "ESC", gre: "GRE" };
 
 export const teamById = (id: string | null | undefined): ArcadeTeam | undefined => (id ? ARCADE_TEAMS.find((t) => t.id === id) : undefined);
 
