@@ -700,6 +700,14 @@ export interface SeasonAwards {
   manager: { name: string; club: string } | null;
   /** Seleção do ano: goleiro, defesa, meio e ataque. */
   team: AwardPlayer[];
+  /** Dez candidatos elegíveis à Bola de Ouro, com parcelas da pontuação. */
+  ranking?: AwardRankingEntry[];
+}
+
+export interface AwardRankingEntry {
+  player: AwardPlayer;
+  points: number;
+  breakdown: { rating: number; goals: number; assists: number; games: number; campaign: number };
 }
 
 /** Histórico por temporada (Hall da Fama). */
@@ -973,6 +981,8 @@ export interface MatchResult {
   stats: MatchStats | null;
   /** 0 = mandante, 1 = visitante, -1 = empate. */
   winner: number;
+  substitutions?: { side: number; min: number; out: string; player: string }[];
+  tactics?: { side: number; min: number; tactic: TacticKey }[];
 }
 
 // ---------- Mercado ----------

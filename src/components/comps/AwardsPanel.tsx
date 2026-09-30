@@ -20,7 +20,9 @@ function PlayerPrize({ label, icon: Icon, player, detail, clubs, userClub }: { l
   );
 }
 
-/** Prêmios anuais persistidos no histórico: seis vencedores e a seleção de 11. */
+const points = (n: number) => n.toFixed(1).replace('.', ',');
+
+/** Prêmios anuais persistidos no histórico. */
 export function AwardsPanel({ awards, clubs, userClub }: { awards: SeasonAwards; clubs: Record<string, Club>; userClub?: string }) {
   const bestClub = awards.club ? clubs[awards.club] : null;
   const managerClub = awards.manager ? clubs[awards.manager.club] : null;
@@ -45,6 +47,33 @@ export function AwardsPanel({ awards, clubs, userClub }: { awards: SeasonAwards;
         )}
       </ul>
       <p className="text-xs leading-relaxed text-mist">Bola de Ouro: nota, gols, assistências, jogos, força da liga e dos adversários, fases decisivas e campanha do clube. Chuteira de Ouro: gols ponderados pela importância das partidas.</p>
+      {!!awards.ranking?.length && (
+        <details className="group rounded-xl bg-ink-900/55 p-3 ring-1 ring-inset ring-white/10">
+          <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 font-display text-sm font-bold uppercase tracking-wide text-gold-400 [&::-webkit-details-marker]:hidden">
+            <Star className="size-4" aria-hidden /> Top 10 da Bola de Ouro <ChevronDown className="ml-auto size-4 transition-transform group-open:rotate-180" aria-hidden />
+          </summary>
+          <p className="mt-1 text-xs text-mist">Pontos por nota, gols, assistências, jogos e campanha. A força da liga e os adversários já entram nas parcelas.</p>
+          <ol className="mt-3 space-y-2">
+            {awards.ranking.map(({ player: p, points: total, breakdown: b }, index) => (
+              <li key={p.id} className={cn("rounded-lg bg-white/5 p-2", p.club === userClub && "ring-1 ring-gold-400/60")}>
+                <div className="flex min-w-0 items-center gap-2">
+                  <b className="w-5 shrink-0 text-center font-display text-gold-400">{index + 1}</b>
+                  <PlayerAvatar player={p} size={32} />
+                  <span className="min-w-0 flex-1"><b className="block truncate text-sm">{p.name}</b><span className="block truncate text-xs text-mist">{clubName(clubs, p.club)} • {p.apps} jogos • {p.goals} gols • {p.assists} assist.</span></span>
+                  <b className="font-display text-lg tabular text-gold-300">{points(total)}</b>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 pl-7 text-[11px] text-mist sm:pl-9">
+                  <span>Nota <b className="text-snow">{points(b.rating)}</b></span>
+                  <span>Gols <b className="text-snow">{points(b.goals)}</b></span>
+                  <span>Assist. <b className="text-snow">{points(b.assists)}</b></span>
+                  <span>Jogos <b className="text-snow">{points(b.games)}</b></span>
+                  <span>Campanha <b className="text-snow">{points(b.campaign)}</b></span>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
       {awards.team.length > 0 && (
         <details className="group rounded-xl bg-ink-900/55 p-3 ring-1 ring-inset ring-white/10">
           <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 font-display text-sm font-bold uppercase tracking-wide text-gold-400 [&::-webkit-details-marker]:hidden">

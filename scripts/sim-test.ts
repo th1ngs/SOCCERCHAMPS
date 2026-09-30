@@ -9,6 +9,7 @@
 // e as da v6 (instruções táticas, conversas, histórico, recordes, conquistas e Copa das Nações).
 import { gzipSync } from 'node:zlib';
 import { seasonAwards } from '../src/game/awards';
+import { postMatchInsights } from '../src/components/match/postMatch';
 import * as G from '../src/game';
 import {
   CLUBS, DIVISIONS, DIVISION_IDS, DIVISION_SIZE, IncompatibleSaveError, LEAGUES, LEAGUE_IDS, LOAN_OPTIONS, Sim, TRAITS,
@@ -79,6 +80,8 @@ function checkAwardWeights(): void {
   const tables = Object.fromEntries(DIVISION_IDS.map((div) => [div, table(w, div)])) as Record<DivisionId, TableRow[]>;
   let awards = seasonAwards(w, tables);
   assert(awards.player?.id === top.id, 'Bola de Ouro considera a dificuldade da liga');
+  assert(awards.ranking?.[0]?.player.id === top.id, 'ranking acompanha vencedor da Bola de Ouro');
+  assert(awards.ranking?.[0]?.breakdown.goals && awards.ranking[0].breakdown.goals > 0, 'ranking explica pontos dos gols');
   assert(awards.goldenBoot?.id === top.id, 'Chuteira de Ouro pondera gols pela competição');
   low.s.goals = 65;
   awards = seasonAwards(w, tables);
@@ -100,6 +103,9 @@ function runSeasons(): void {
     assert(awards.goldenBoot && awards.goldenBoot.goals > 0, 'chuteira de ouro');
     assert(awards.goldenBootPoints && awards.goldenBootPoints > 0, 'chuteira de ouro ponderada por competição');
     assert(awards.club && awards.manager && awards.team.length === 11, 'clube, manager e seleção do ano');
+    assert(awards.ranking?.length === 10 && awards.ranking[0].player.id === awards.player.id, 'top 10 corresponde ao vencedor');
+    assert(awards.ranking.every((row, i) => i === 0 || awards.ranking![i - 1].points >= row.points), 'top 10 em ordem de pontos');
+    assert(awards.ranking.every((row) => Math.abs(Object.values(row.breakdown).reduce((sum, value) => sum + value, 0) - row.points) <= 0.3), 'parcelas explicam pontuação');
     assert(new Set(awards.team.map((p) => p.id)).size === 11, 'seleção sem jogadores repetidos');
     const tPlay = (performance.now() - t0) / 1000;
     const u = user(w);
@@ -199,6 +205,11 @@ function runChecks(): void {
   // sub() fora de step() registra o evento em events (a UI lê events.slice(-1)), não no retorno de step().
   assert(sim.events.length === evs + 1, 'step() devolve todos os eventos novos');
   const res = sim.result();
+  assert(res.substitutions?.some((sub) => sub.side === s && sub.min === 60), 'resultado registra substituição');
+  assert(res.tactics?.some((change) => change.side === s && change.min === 30 && change.tactic === 'att'), 'resultado registra mudança tática');
+  const insights = postMatchInsights(w, res, s);
+  assert(insights.some((item) => item.title === 'Leitura tática'), 'pós-jogo interpreta estatísticas');
+  assert(insights.some((item) => item.title === 'Substituições' || item.title === 'Impacto da substituição'), 'pós-jogo analisa substituição');
   applyResult(w, m, res);
   simulateWeek(w);
   endWeek(w);
@@ -366,7 +377,7 @@ function runLeagueChecks(w: World): void {
   }
   // Histórico
   const h = w.history[w.history.length - 1];
-  assert(Object.keys(h).sort().join() === 'best,champions,cups,scorers,season,user', 'chaves do HistoryEntry');
+  assert(Object.keys(h).sort().join() === 'awards,best,champions,cups,scorers,season,user', 'chaves do HistoryEntry');
   assert(DIVISION_IDS.every((d) => typeof h.champions[d] === 'string'), 'champions de todas as divisões');
   assert(Object.keys(h.cups).length === 7 && Object.values(h.cups).every((x) => typeof x === 'string'), 'cups: 6 nacionais + cont');
   assert(Object.keys(h.scorers).sort().join() === firstDivisions().slice().sort().join(), 'scorers das primeiras divisões');

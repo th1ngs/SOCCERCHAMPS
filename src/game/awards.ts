@@ -1,6 +1,6 @@
 import { DIVISIONS, DIVISION_IDS, LEAGUES, isDivision } from './leagues';
 import { NAMES_BY_NAT } from './names';
-import type { AwardPlayer, Competition, DivisionId, Player, Position, SeasonAwards, TableRow, World } from './types';
+import type { AwardPlayer, AwardRankingEntry, Competition, DivisionId, Player, Position, SeasonAwards, TableRow, World } from './types';
 
 const avg = (p: Player): number => p.s.apps ? p.s.rsum / p.s.apps : 0;
 const DIVISION_WEIGHT = [1, 0.72, 0.52];
@@ -75,16 +75,19 @@ function clubResults(w: World, tables: Record<DivisionId, TableRow[]>): Map<stri
 }
 
 /** Pontuação da Bola de Ouro: rendimento, produção, frequência, liga e títulos. */
-function playerScore(w: World, p: Player, impact: Map<string, Contribution>, results: Map<string, number>): number {
+function playerScore(w: World, p: Player, impact: Map<string, Contribution>, results: Map<string, number>): AwardRankingEntry['breakdown'] {
   const league = p.clubId && w.clubs[p.clubId] ? divisionWeight(w.clubs[p.clubId].div) : 1;
   const c = impact.get(p.id) ?? emptyContribution();
   const attendance = Math.min(1, p.s.apps / 28);
   const rating = Math.max(0, avg(p) - 6) * 9 * league * Math.sqrt(attendance);
   const games = Math.min(p.s.apps, 40) * 0.22 * league;
-  const output = c.goalPoints * 1.15 + c.assistPoints * 0.75;
+  const goals = c.goalPoints * 1.15;
+  const assists = c.assistPoints * 0.75;
   const campaign = (results.get(p.clubId ?? '') ?? 0) * attendance;
-  return rating + games + output + campaign;
+  return { rating, games, goals, assists, campaign };
 }
+const totalScore = (parts: AwardRankingEntry['breakdown']): number => Object.values(parts).reduce((sum, points) => sum + points, 0);
+const roundScore = (value: number): number => Math.round(value * 10) / 10;
 const snapshot = (p: Player): AwardPlayer => ({
   id: p.id, name: p.name, club: p.clubId || '', pos: p.pos, age: p.age,
   apps: p.s.apps, goals: p.s.goals, assists: p.s.assists,
@@ -105,9 +108,17 @@ export function seasonAwards(w: World, tables: Record<DivisionId, TableRow[]>): 
   const results = clubResults(w, tables);
   const played = Object.values(w.players).filter((p) => p.clubId && w.clubs[p.clubId] && p.s.apps >= 8);
   const scores = new Map(played.map((p) => [p.id, playerScore(w, p, impact, results)]));
-  const ranked = played.slice().sort((a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0) || b.s.apps - a.s.apps || a.id.localeCompare(b.id));
+  const ranked = played.slice().sort((a, b) => totalScore(scores.get(b.id)!) - totalScore(scores.get(a.id)!) || b.s.apps - a.s.apps || a.id.localeCompare(b.id));
   const young = ranked.find((p) => p.age <= 21) ?? null;
   const player = ranked.find((p) => p.s.apps >= 15) ?? ranked[0] ?? null;
+  const ranking = ranked.filter((p) => p.s.apps >= 15 || p.id === player?.id).slice(0, 10).map((p): AwardRankingEntry => {
+    const raw = scores.get(p.id)!;
+    const breakdown = {
+      rating: roundScore(raw.rating), goals: roundScore(raw.goals), assists: roundScore(raw.assists),
+      games: roundScore(raw.games), campaign: roundScore(raw.campaign),
+    };
+    return { player: snapshot(p), points: roundScore(totalScore(raw)), breakdown };
+  });
   const goalkeeper = ranked.find((p) => p.pos === 'GOL' && p.s.apps >= 12) ?? ranked.find((p) => p.pos === 'GOL') ?? null;
   const goldenBoot = played.filter((p) => p.s.goals > 0).sort((a, b) =>
     (impact.get(b.id)?.goalPoints ?? 0) - (impact.get(a.id)?.goalPoints ?? 0)
@@ -155,5 +166,6 @@ export function seasonAwards(w: World, tables: Record<DivisionId, TableRow[]>): 
     club,
     manager: managerClub ? { name: coachName(w, managerClub), club: managerClub } : null,
     team,
+    ranking,
   };
 }

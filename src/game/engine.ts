@@ -94,6 +94,8 @@ export class Sim {
   goals: SimGoal[] = [];
   cards: SimCard[] = [];
   injuries: SimInjury[] = [];
+  substitutions: NonNullable<MatchResult['substitutions']> = [];
+  tactics: NonNullable<MatchResult['tactics']> = [];
   ratings: Record<string, number> = {};
   /** Fadiga final de quem saiu de campo (substituído ou expulso). */
   endFat: Record<string, number> = {};
@@ -116,6 +118,7 @@ export class Sim {
     this.w = w;
     this.opts = opts;
     this.sides = [this.makeSide(homeId), this.makeSide(awayId)];
+    this.tactics = this.sides.map((side, index) => ({ side: index, min: 0, tactic: side.tactic }));
     this.stoppage = randi(1, 5);
     this.derby = isDerbyClubs(w, homeId, awayId);
     for (const s of this.sides) for (const o of s.on) this.ratings[o.pid] = 6.2;
@@ -615,6 +618,7 @@ export class Sim {
     side.mods = null;
     side.subs++;
     side.played.push(inPid);
+    this.substitutions.push({ side: s, min: this.minute, out: outPid, player: inPid });
     if (this.ratings[inPid] == null) this.ratings[inPid] = 6.2;
     this.log('sub', s, say('sub', { t: side.club.name, o: this.P(outPid).name, p: this.P(inPid).name }));
     return true;
@@ -630,7 +634,9 @@ export class Sim {
       }
       if (this.minute >= 70) {
         const diff = this.score[s] - this.score[1 - s];
-        side.tactic = diff < 0 ? 'att' : diff > 0 && this.minute >= 78 ? 'def' : side.baseTactic;
+        const next = diff < 0 ? 'att' : diff > 0 && this.minute >= 78 ? 'def' : side.baseTactic;
+        if (side.tactic !== next) this.tactics.push({ side: s, min: this.minute, tactic: next });
+        side.tactic = next;
       }
     });
   }
@@ -648,7 +654,12 @@ export class Sim {
   // ---------- Controles do usuário ----------
   userSide(): number { return this.sides.findIndex((s) => s.user); }
   sub(outPid: string, inPid: string): boolean { return this.doSub(this.userSide(), outPid, inPid); }
-  setTactic(t: TacticKey): void { const s = this.sides[this.userSide()]; s.tactic = t; s.baseTactic = t; }
+  setTactic(t: TacticKey): void {
+    const side = this.userSide();
+    const s = this.sides[side];
+    if (s.tactic !== t) this.tactics.push({ side, min: this.minute, tactic: t });
+    s.tactic = t; s.baseTactic = t;
+  }
   setInstructions(instr: Partial<Instructions>): void { const s = this.sides[this.userSide()]; s.instr = { ...s.instr, ...instr }; s.mods = null; }
   setFormation(f: FormationKey): void {
     const side = this.sides[this.userSide()];
@@ -728,7 +739,7 @@ export class Sim {
       hs: this.score[0], as: this.score[1], pens: this.pens,
       goals: this.goals, cards: this.cards, injuries: this.injuries,
       played: [this.sides[0].played, this.sides[1].played], ratings: this.ratings,
-      stats: this.stats, winner: this.winner(),
+      stats: this.stats, winner: this.winner(), substitutions: this.substitutions, tactics: this.tactics,
     };
   }
 }

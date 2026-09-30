@@ -14,6 +14,7 @@ import { Alert, Badge, PosBadge, SectionTitle } from "@/components/ui/primitives
 import { cn } from "@/lib/cn";
 import { StatBar } from "./StatBars";
 import { clearStored, compName, findMatch, resultKey, statRows, type StoredResult } from "./matchUtils";
+import { postMatchInsights } from "./postMatch";
 
 interface SummaryData {
   goals: SimGoal[];
@@ -86,6 +87,7 @@ export function SummaryModal({ matchId }: { matchId: string }) {
     : [];
   const motm = ratings[0]?.p;
   const injuries = res ? res.injuries.filter((i) => w.players[i.pid]?.clubId === uid) : [];
+  const insights = res ? postMatchInsights(w, res, s) : [];
 
   return (
     <Modal
@@ -151,6 +153,20 @@ export function SummaryModal({ matchId }: { matchId: string }) {
           </section>
         )}
 
+        {insights.length > 0 && (
+          <section>
+            <SectionTitle className="mb-2">Análise da partida</SectionTitle>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {insights.map((item, index) => (
+                <div key={`${item.title}-${index}`} className="rounded-xl bg-ink-900/70 p-3 ring-1 ring-inset ring-white/10">
+                  <b className="font-display text-sm uppercase tracking-wide text-gold-400">{item.title}</b>
+                  <p className="mt-1 text-sm leading-relaxed text-mist">{item.text}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {injuries.length > 0 && (
           <div className="space-y-2">
             {injuries.map((i) => {
@@ -181,7 +197,7 @@ export function SummaryModal({ matchId }: { matchId: string }) {
                     <span className="min-w-0 flex-1 truncate">{p.name}</span>
                     {p === motm && (
                       <Badge tone="gold" className="gap-1">
-                        <Star className="size-3 fill-current" aria-hidden /> Craque do jogo
+                        <Star className="size-3 fill-current" aria-hidden /> Destaque do time
                       </Badge>
                     )}
                     <b className={cn("w-9 text-right font-display text-base tabular", r >= 7.5 ? "text-pitch-400" : r < 6 ? "text-danger-400" : "text-snow")}>
