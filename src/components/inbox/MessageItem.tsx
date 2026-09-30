@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 import { kindStyle } from "./kinds";
 import { OfferActions } from "@/components/market/OfferActions";
 import { offerState } from "./offers";
+import { TalkActions } from "./TalkActions";
 
 export interface MessageItemProps {
   m: Message;
@@ -45,6 +46,7 @@ export function MessageItem({ m, open, onToggle }: MessageItemProps) {
             <span aria-hidden>•</span>
             <span>Temporada {m.season}, semana {m.week}</span>
             {state === "pending" && <Badge tone="orange">Aguardando resposta</Badge>}
+            {m.talk && !m.talk.answer && <Badge tone="orange">Responder</Badge>}
           </span>
         </span>
         {!m.read && <span className="size-2.5 shrink-0 rounded-full bg-danger-500" aria-label="Não lida" />}
@@ -59,6 +61,7 @@ export function MessageItem({ m, open, onToggle }: MessageItemProps) {
               <OfferActions msgId={m.id} />
             </div>
           )}
+          {m.talk && <TalkActions msgId={m.id} talk={m.talk} />}
           {linked && !m.offer && (
             <Button variant="ghost" size="sm" icon={<UserRound />} className="mt-3" onClick={() => setOverlay({ kind: "player", pid: linked })}>
               Ver ficha do jogador

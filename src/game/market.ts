@@ -180,6 +180,7 @@ export function promoteYouth(w: World, pid: string, silent?: boolean): void {
   c.youth = c.youth.filter((id) => id !== pid);
   c.squad.push(pid);
   p.youth = false;
+  if (c.id === w.userClub) p.cria = c.id;
   p.contract = 3;
   p.wage = Math.round((clubWage(w, c.id, p.ovr) * 0.6) / 100) * 100;
   assignNumbers(w, c);

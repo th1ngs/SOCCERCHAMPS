@@ -14,6 +14,9 @@ import {
 } from './leagues';
 import { aiInvest, aiListPlayers, aiOffersToUser, aiTransfers, promoteYouth, transfer } from './market';
 import { potentialRange, processScoutQueue } from './scouting';
+import { checkChancePromises, expireTalks, generateTalks } from './talks';
+import { runNationsCup } from './nations';
+import { onUserMatch, recordSeasonHistory, rememberLegend, seasonAchievements, seasonTitles, weeklyAchievements } from './career';
 import {
   biggestDeals, checkPromises, checkWatchlist, isDeadlineDay, payDue, returnLoans, trimTransfers,
 } from './transfers';
@@ -307,6 +310,7 @@ export function setTicketPrice(w: World, price: TicketPrice): void {
 // ---------- Resultados ----------
 export function applyResult(w: World, m: Match, res: MatchResult): void {
   m.hs = res.hs; m.as = res.as; m.pens = res.pens; m.played = true;
+  if (m.h === w.userClub || m.a === w.userClub) onUserMatch(w, m);
   m.goals = res.goals.map((g) => [g.pid, g.side, g.min, g.assist || 0, g.pen ? 1 : 0]);
   const clubsIds = [m.h, m.a];
   const winner = res.winner;
@@ -555,6 +559,10 @@ export function endWeek(w: World): WeekReport {
   }
   payDue(w);
   if (w.week === PROMISE_CHECK_WEEK) checkPromises(w);
+  expireTalks(w);
+  checkChancePromises(w);
+  generateTalks(w);
+  weeklyAchievements(w);
   checkWatchlist(w);
   // Propostas expiradas
   for (const m of w.inbox) {
@@ -665,6 +673,9 @@ export function seasonEnd(w: World): SeasonSummary {
     const pool = near.length ? near : bigger;
     if (pool.length && chance(0.6)) summary.offer = pick(pool).id;
   }
+  const titles = seasonTitles(summary);
+  recordSeasonHistory(w, titles);
+  seasonAchievements(w, summary, titles);
   w.pendingSeason = summary;
   return summary;
 }
@@ -692,6 +703,8 @@ export function newSeason(w: World): void {
   }
   // Empréstimos voltam antes de contratos e aposentadorias.
   returnLoans(w);
+  // Copa das Nações entre as temporadas (a cada 4 anos), com os elencos ainda no fim da temporada.
+  runNationsCup(w);
   // Envelhecimento e aposentadoria
   const learned: string[] = [];
   for (const p of Object.values(w.players)) {
@@ -708,6 +721,7 @@ export function newSeason(w: World): void {
     const retireP = p.age >= 38 ? 1 : p.age >= 34 ? (p.age - 33) * 0.22 : 0;
     if (!p.youth && chance(retireP)) {
       if (p.clubId === u.id) news.push(`${p.name} (${p.age} anos) se aposentou.`);
+      rememberLegend(w, p);
       removePlayer(w, p);
     }
   }

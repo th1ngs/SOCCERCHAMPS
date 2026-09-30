@@ -2,6 +2,7 @@
 import { ACADEMY_FOCUS, ATTR_INDEX, fit, ATTR_KEYS, ATTR_PROFILE, CLUBS, FOCUS_WEIGHT, NAMES_BY_NAT, POS, STAR_CHANCE, TRAIT_ATTR, TRAIT_WEIGHTS } from './data';
 import { LEAGUES, LEAGUE_IDS } from './leagues';
 import { initClubFinances } from './finance';
+import { DEFAULT_INSTRUCTIONS } from './tactics';
 import { pickCaptain, pickFkTaker, pickPenTaker } from './squad';
 import type { AttrKey, Club, FormationKey, LeagueId, NewPlayerOptions, Player, Position, TraitKey, World } from './types';
 import { chance, clamp, gauss, pick, rand, randi, weighted } from './util';
@@ -23,7 +24,7 @@ export function meanSquadOvr(w: World): number {
 }
 
 /** Versão atual do formato do World. */
-export const WORLD_VERSION = 5;
+export const WORLD_VERSION = 6;
 /** Saves a partir desta versão podem ser migrados. */
 export const MIN_COMPATIBLE_VERSION = 3;
 
@@ -281,6 +282,7 @@ export function newWorld(managerName: string, clubId: string): World {
       captain: null,
       penTaker: null,
       fkTaker: null,
+      instr: { ...DEFAULT_INSTRUCTIONS },
       loan: null,
       scouting: clamp(Math.round(c.rep / 25 + rand(-0.5, 0.8)), 1, 5),
       academyFocus: 'balanced',

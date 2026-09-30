@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, Goal, History, Trophy } from "lucide-react";
+import { CalendarDays, Flag as FlagIcon, Goal, History, Trophy } from "lucide-react";
 import { cupId, divisionName, DIVISIONS, LEAGUE_IDS, LEAGUES, PROMOTION_SPOTS, user } from "@/game";
 import type { DivisionId, LeagueId } from "@/game/types";
 import { PageHeader } from "@/components/ui/primitives";
@@ -12,9 +12,10 @@ import { ContView, CupView } from "./CupView";
 import { ScorersView } from "./ScorersView";
 import { FixturesView } from "./FixturesView";
 import { HistoryView } from "./HistoryView";
+import { NationsView } from "./NationsView";
 import { TabStrip, type TabItem } from "./TabStrip";
 
-type GlobalTab = "cont" | "scorers" | "fixtures" | "history";
+type GlobalTab = "cont" | "nations" | "scorers" | "fixtures" | "history";
 /** Escopo da tela: uma liga (com sub-abas) ou uma aba global. */
 export type CompScope = LeagueId | GlobalTab;
 /** Sub-aba de uma liga: uma divisão ou a Copa Nacional. */
@@ -22,6 +23,7 @@ type LeagueSub = DivisionId | "cup";
 
 const GLOBAL_SUBTITLE: Record<GlobalTab, string> = {
   cont: "Os 16 melhores das seis ligas em mata-mata de jogo único. Empate vai para os pênaltis; final em campo neutro.",
+  nations: "Brasil, Argentina, Portugal, Espanha, Inglaterra e Itália em todos contra todos, com final entre os dois primeiros.",
   scorers: "Os goleadores da temporada por divisão. Toque em um jogador para ver a ficha.",
   fixtures: "Seus jogos em todas as competições, semana a semana.",
   history: "Títulos do clube e campeões de cada temporada.",
@@ -56,6 +58,7 @@ export function CompetitionsScreen() {
       ),
     })),
     { value: "cont", group: true, label: <><Trophy aria-hidden /> Copa dos Campeões</> },
+    { value: "nations", label: <><FlagIcon aria-hidden /> Copa das Nações</> },
     { value: "scorers", label: <><Goal aria-hidden /> Artilharia</> },
     { value: "fixtures", label: <><CalendarDays aria-hidden /> Calendário</> },
     { value: "history", label: <><History aria-hidden /> Histórico</> },
@@ -107,6 +110,8 @@ export function CompetitionsScreen() {
           sub === "cup" ? <CupView key={league} comp={cupId(league)} /> : <LeagueTable key={sub} div={sub} />
         ) : scope === "cont" ? (
           <ContView />
+        ) : scope === "nations" ? (
+          <NationsView />
         ) : scope === "scorers" ? (
           <ScorersView />
         ) : scope === "fixtures" ? (

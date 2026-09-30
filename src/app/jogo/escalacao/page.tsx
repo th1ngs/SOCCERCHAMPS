@@ -12,6 +12,7 @@ import { Pitch } from "@/components/lineup/Pitch";
 import { PlayerPicker } from "@/components/lineup/PlayerPicker";
 import { SectorCard } from "@/components/lineup/SectorCard";
 import { TacticsCard } from "@/components/lineup/TacticsCard";
+import { InstructionsCard } from "@/components/lineup/InstructionsCard";
 import { assignBench, assignSlot, candidates, lineupNeedsFix } from "@/components/lineup/lineupLogic";
 
 type Picking = { kind: "slot" | "bench"; index: number } | null;
@@ -125,6 +126,7 @@ export default function EscalacaoPage() {
 
         <div className="min-w-0 space-y-5">
           <TacticsCard formation={u.formation} tactic={u.tactic} onFormation={setFormation} onTactic={setTactic} onAuto={auto} />
+          <InstructionsCard />
           <LeadersCard
             starters={starters}
             captain={captain}

@@ -13,3 +13,7 @@ export * from './migrate';
 export * from './scouting';
 export * from './transfers';
 export * from './finance';
+export * from './tactics';
+export * from './talks';
+export * from './career';
+export * from './nations';

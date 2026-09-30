@@ -11,6 +11,7 @@ import { Alert, EmptyState, Meter, OvrBadge, PosBadge, SectionTitle } from "@/co
 import { cn } from "@/lib/cn";
 import type { LiveController } from "./controller";
 import { CardGlyph } from "./FeedIcon";
+import { InstructionPicker } from "@/components/lineup/InstructionPicker";
 
 function PickRow({
   p,
@@ -153,6 +154,10 @@ export function SubsModal({ ctrl, note }: { ctrl: LiveController; note: string |
             onChange={(t) => ctrl.setTactic(t)}
             options={(Object.keys(TACTICS) as TacticKey[]).map((k) => ({ value: k, label: TACTICS[k].name }))}
           />
+        </section>
+        <section>
+          <SectionTitle className="mb-2">Instruções</SectionTitle>
+          <InstructionPicker value={side.instr} onChange={(patch) => ctrl.setInstructions(patch)} />
         </section>
       </div>
     </Modal>

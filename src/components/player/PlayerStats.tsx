@@ -44,9 +44,6 @@ export function PlayerStats({ player: p }: { player: Player }) {
           {p.s.goals} / {p.s.assists}
         </KV>
         <KV label="Nota média">{avgRating(p)}</KV>
-        <KV label="Carreira">
-          {gamesText(p.c.apps)}, {p.c.goals} gols
-        </KV>
         <KV label="Cartões amarelos">
           <span className="inline-flex items-center gap-2">
             {p.yc}

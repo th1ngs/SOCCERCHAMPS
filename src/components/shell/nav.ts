@@ -1,4 +1,4 @@
-import { ArrowLeftRight, ClipboardList, House, Landmark, Mail, Shirt, Sprout, Trophy, type LucideIcon } from "lucide-react";
+import { ArrowLeftRight, Award, ClipboardList, House, Landmark, Mail, Shirt, Sprout, Trophy, type LucideIcon } from "lucide-react";
 
 export interface NavItem {
   href: string;
@@ -21,6 +21,7 @@ export const NAV: NavItem[] = [
   { href: "/jogo/mercado", label: "Mercado", icon: ArrowLeftRight, hint: "Compras, vendas e empréstimos", dock: true },
   { href: "/jogo/competicoes", label: "Competições", short: "Tabelas", icon: Trophy, hint: "Tabelas, copas e artilharia" },
   { href: "/jogo/clube", label: "Clube", icon: Landmark, hint: "Finanças, estrutura e nuvem" },
+  { href: "/jogo/carreira", label: "Carreira", icon: Award, hint: "Conquistas, recordes e ídolos" },
   { href: "/jogo/mensagens", label: "Mensagens", icon: Mail, hint: "Propostas e notícias" },
 ];
 

@@ -2,6 +2,7 @@
 import { FORMATIONS, SECTOR } from './data';
 import { assignNumbers, attr, hasTrait, newPlayer, playerFit } from './gen';
 import { promoteYouth } from './market';
+import { aiInstructions } from './tactics';
 import type { Club, Player, Position, SectorStrength, World } from './types';
 import { avg, rand, randi } from './util';
 import { neededPos, pushMessage, user } from './world';
@@ -74,6 +75,8 @@ export function autoLineup(w: World, club: Club): void {
   pickCaptain(w, club);
   pickPenTaker(w, club);
   pickFkTaker(w, club);
+  // A CPU ajusta as instruções ao perfil do time escalado; as do usuário são dele.
+  if (club.id !== w.userClub) club.instr = aiInstructions(w, club);
 }
 
 // ---------- Capitão e batedor ----------

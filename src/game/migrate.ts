@@ -10,6 +10,7 @@ import { clubWages, sponsorValue, wageCapFor } from './finance';
 import { MIN_COMPATIBLE_VERSION, WORLD_VERSION, meanSquadOvr, rollAttrs, rollStar, rollTraits, valueOf } from './gen';
 import { DIVISIONS, LEAGUES } from './leagues';
 import { pickCaptain, pickFkTaker, pickPenTaker } from './squad';
+import { DEFAULT_INSTRUCTIONS } from './tactics';
 import type { Club, Player, World } from './types';
 
 /** Save de uma versão antiga (sem ligas) ou malformado. */
@@ -57,6 +58,7 @@ function migrateClub(w: World, c: Club): void {
   if (!c.penTaker && c.squad.length) pickPenTaker(w, c);
   if (lc.fkTaker === undefined || (c.fkTaker && !c.squad.includes(c.fkTaker))) c.fkTaker = null;
   if (!c.fkTaker && c.squad.length) pickFkTaker(w, c);
+  if (!lc.instr) c.instr = { ...DEFAULT_INSTRUCTIONS };
   // Finanças v5: o caixa é mantido; patrocínio e teto salarial passam a existir.
   if (typeof lc.sponsor !== 'number' || !(lc.sponsor > 0)) c.sponsor = sponsorValue(c);
   if (typeof lc.wageCap !== 'number' || !(lc.wageCap > 0)) c.wageCap = Math.max(wageCapFor(w, c), Math.round((clubWages(w, c) * 1.08) / 10000) * 10000);

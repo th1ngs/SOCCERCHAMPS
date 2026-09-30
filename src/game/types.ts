@@ -6,6 +6,21 @@
 export type Position = 'GOL' | 'ZAG' | 'LAT' | 'VOL' | 'MEI' | 'ATA';
 export type FormationKey = '4-4-2' | '4-3-3' | '4-2-3-1' | '3-5-2' | '5-3-2' | '4-5-1';
 export type TacticKey = 'def' | 'bal' | 'att' | 'press';
+/** Instruções táticas (v6): por onde atacar, como passar, altura da linha e tipo de marcação. */
+export type WidthKey = 'meio' | 'misto' | 'pontas';
+export type PassKey = 'curto' | 'misto' | 'longo';
+export type LineKey = 'baixa' | 'media' | 'alta';
+export type MarkKey = 'zona' | 'individual';
+export interface Instructions {
+  width: WidthKey;
+  pass: PassKey;
+  line: LineKey;
+  mark: MarkKey;
+}
+export interface InstructionOption {
+  name: string;
+  desc: string;
+}
 export type TrainingKey = 'low' | 'mid' | 'high';
 export type LeagueId = 'bra' | 'arg' | 'por' | 'esp' | 'eng' | 'ita';
 export type DivisionId =
@@ -205,6 +220,8 @@ export interface Club extends ClubStatic {
   penTaker: string | null;
   /** Batedor de faltas (v5). */
   fkTaker: string | null;
+  /** Instruções táticas (v6). */
+  instr: Instructions;
   loan: Loan | null;
   /** Patrocínio master semanal, renegociado a cada temporada (v5). */
   sponsor: number;
@@ -281,9 +298,102 @@ export interface Player {
   promise?: Role | null;
   /** Temporada em que a promessa já foi cobrada. */
   promiseChecked?: number;
+  /**
+   * Histórico por temporada (v6), do mais antigo ao mais recente, no máximo HIST_MAX linhas:
+   * [temporada, clube no fim da temporada, jogos, gols, assistências, nota média × 100, títulos].
+   */
+  hist?: HistRow[];
+  /** Revelado pela base deste clube (promovido ao profissional). */
+  cria?: string;
+  /** Jogos e gols pela seleção (Copa das Nações). */
+  intl?: [apps: number, goals: number];
+  /** Última conversa (temporada × 100 + semana), para não repetir cobranças (v6). */
+  talkedAt?: number;
+  /** Promessa de mais chances feita numa conversa: quando e quantos jogos o time e ele tinham. */
+  chance?: { season: number; week: number; apps: number; games: number } | null;
 }
 
 export type Role = 'titular' | 'rotacao' | 'reserva';
+
+/** Linha do histórico de um jogador (compacta para o save). */
+export type HistRow = [season: number, club: string, apps: number, goals: number, assists: number, rating: number, titles?: string[]];
+
+export interface NationRow {
+  id: LeagueId;
+  p: number;
+  j: number;
+  v: number;
+  e: number;
+  d: number;
+  gf: number;
+  ga: number;
+}
+export interface NationMatch {
+  h: LeagueId;
+  a: LeagueId;
+  hs: number;
+  as: number;
+  pens: [number, number] | null;
+  /** Rodada (1-5) ou 0 = final. */
+  round: number;
+  /** Gols: [pid, lado]. */
+  goals: [string, number][];
+}
+/** Uma edição da Copa das Nações (seleções das seis nacionalidades, entre temporadas). */
+export interface NationsEdition {
+  season: number;
+  squads: Record<LeagueId, string[]>;
+  table: NationRow[];
+  matches: NationMatch[];
+  champion: LeagueId;
+  runnerUp: LeagueId;
+  scorers: { pid: string; name: string; nat: LeagueId; goals: number }[];
+}
+
+/** Lenda: jogador aposentado que marcou época num clube. */
+export interface Legend {
+  club: string;
+  name: string;
+  pos: Position;
+  apps: number;
+  goals: number;
+  from: number;
+  to: number;
+}
+
+export interface MatchRecord {
+  season: number;
+  opp: string;
+  gf: number;
+  ga: number;
+  comp: string;
+}
+export interface DealRecord {
+  season: number;
+  name: string;
+  club: string | null;
+  fee: number;
+}
+/** Recordes da carreira do treinador (v6). */
+export interface Records {
+  biggestWin: MatchRecord | null;
+  worstLoss: MatchRecord | null;
+  biggestSale: DealRecord | null;
+  biggestBuy: DealRecord | null;
+  topScorer: { season: number; name: string; goals: number } | null;
+  unbeaten: { current: number; best: number };
+  wins: { current: number; best: number };
+  matches: { played: number; won: number; drawn: number; lost: number; gf: number; ga: number };
+  titles: { season: number; comp: string; club: string }[];
+}
+export type AchievementKey =
+  | 'primeira_vitoria' | 'goleada' | 'classico' | 'sequencia5' | 'invicto10' | 'titulo' | 'liga' | 'acesso' | 'copa'
+  | 'continental' | 'triplice' | 'venda50' | 'contratacao30' | 'cria' | 'artilheiro' | 'caixa100' | 'meta3' | 'veterano' | 'nacoes';
+export interface Achievement {
+  key: AchievementKey;
+  season: number;
+  week: number;
+}
 export type AcademyFocus = 'balanced' | 'attack' | 'midfield' | 'defense' | 'goalkeepers';
 
 export interface PlayerLoan {
@@ -491,6 +601,41 @@ export interface Message {
   offer?: Offer;
   /** Jogador relacionado (relatório de olheiro, lista de observação, promessa…). */
   pid?: string;
+  /** Conversa com um jogador, com opções de resposta (v6). */
+  talk?: Talk;
+}
+
+export type TalkKind = 'bench' | 'raise' | 'leave';
+export interface TalkOption {
+  key: string;
+  label: string;
+  /** Efeito resumido mostrado no botão. */
+  hint: string;
+}
+export interface Talk {
+  kind: TalkKind;
+  pid: string;
+  options: TalkOption[];
+  /** Semana (e temporada da mensagem) em que o jogador cansa de esperar. */
+  expires: number;
+  /** Aumento pedido (R$/sem), só em 'raise'. */
+  amount?: number;
+  /** Clube interessado, só em 'leave'. */
+  club?: string;
+  /** Resposta dada (ou 'ignored') e o resultado. */
+  answer?: string;
+  result?: string;
+}
+
+/** Conversa no vestiário antes de um jogo (v6). */
+export type TeamTalkKey = 'motivar' | 'tranquilizar' | 'cobrar';
+export interface TeamTalk {
+  season: number;
+  week: number;
+  key: TeamTalkKey;
+  /** Multiplicador de rendimento do time na partida. */
+  mult: number;
+  text: string;
 }
 
 /** Dados que o chamador fornece a pushMessage (id/season/week/read são preenchidos). */
@@ -500,6 +645,7 @@ export interface MessageInput {
   body: string;
   offer?: Offer;
   pid?: string;
+  talk?: Talk;
   read?: boolean;
 }
 
@@ -632,6 +778,14 @@ export interface World {
    * Os salários de mercado descontam o desvio, para a folha não disparar com a evolução geral.
    */
   econ?: { baseOvr: number; drift: number };
+  /** Edições da Copa das Nações (v6). */
+  nations?: NationsEdition[];
+  /** Recordes, conquistas e lendas da carreira (v6). */
+  records?: Records;
+  achievements?: Achievement[];
+  legends?: Legend[];
+  /** Conversa no vestiário escolhida para o jogo desta semana (v6). */
+  teamTalk?: TeamTalk | null;
 }
 
 export interface WeekReport {
@@ -727,10 +881,30 @@ export interface SimSide {
   formation: FormationKey;
   tactic: TacticKey;
   baseTactic: TacticKey;
+  instr: Instructions;
+  /** Efeito da conversa no vestiário (1 = neutro). */
+  talk?: number;
+  /** Efeitos das instruções (recalculados quando o time ou as instruções mudam). */
+  mods?: InstructionMods | null;
   on: OnField[];
   bench: string[];
   subs: number;
   played: string[];
+}
+
+/** Multiplicadores das instruções táticas aplicados pelo Sim. */
+export interface InstructionMods {
+  att: number;
+  mid: number;
+  def: number;
+  /** Chance de contra-ataque a favor. */
+  counterFor: number;
+  /** Chance de contra-ataque sofrido. */
+  counterAgainst: number;
+  /** Faltas cometidas. */
+  foul: number;
+  /** Cruzamentos para a área (chance extra de cabeçada). */
+  cross: number;
 }
 
 export interface SimOptions {

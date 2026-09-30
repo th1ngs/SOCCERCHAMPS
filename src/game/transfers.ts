@@ -3,6 +3,7 @@
 import { TOTAL_WEEKS, divisionLevel } from './leagues';
 import { assignNumbers, releaseClauseFor, valueOf } from './gen';
 import { wageVeto } from './finance';
+import { onTransfer } from './career';
 import { SQUAD_MAX, acceptOffer, askingPrice, offerCeiling, renewDemand, transfer, wageDemand } from './market';
 import { hash01, isOwnPlayer, weeksSince } from './scouting';
 import type {
@@ -35,6 +36,7 @@ export function recordTransfer(w: World, r: Omit<TransferRecord, 'season' | 'wee
   if (!w.transfers) w.transfers = [];
   const mine = r.from === w.userClub || r.to === w.userClub;
   w.transfers.push({ season: w.season, week: w.week, ...r, ...(mine ? { user: true } : {}) });
+  if (mine) onTransfer(w, r);
   if (w.transfers.length > CPU_HISTORY_MAX + 200) trimTransfers(w);
 }
 

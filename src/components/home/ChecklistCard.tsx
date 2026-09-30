@@ -2,7 +2,7 @@
 
 import { useMemo, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowLeftRight, BatteryLow, ChevronRight, CircleCheck, ClipboardList, FileClock, HandCoins, Lightbulb, Mail, Sprout, TriangleAlert, Wallet } from "lucide-react";
+import { ArrowLeftRight, BatteryLow, ChevronRight, CircleCheck, ClipboardList, FileClock, HandCoins, Lightbulb, Mail, MessageCircle, Sprout, TriangleAlert, Wallet } from "lucide-react";
 import { formatMoney, nextWindow, user, WINDOWS, windowOpen } from "@/game";
 import type { World } from "@/game/types";
 import { Card } from "@/components/ui/primitives";
@@ -44,6 +44,19 @@ function checklist(w: World): Item[] {
     });
   } else {
     items.push({ key: "lineup-ok", tone: "ok", icon: <CircleCheck />, title: "Time escalado", detail: `${u.formation} • ${a.size} jogadores no elenco`, href: "/jogo/escalacao" });
+  }
+
+  const talks = w.inbox.filter((m) => m.talk && !m.talk.answer && m.season === w.season);
+  if (talks.length) {
+    const who = talks[0].talk ? w.players[talks[0].talk.pid]?.name : undefined;
+    items.push({
+      key: "talks",
+      tone: "warn",
+      icon: <MessageCircle />,
+      title: talks.length > 1 ? `${talks.length} jogadores querem conversar` : `${who ?? "Um jogador"} quer conversar`,
+      detail: "Responda antes que ele se sinta ignorado (moral −8).",
+      href: "/jogo/mensagens",
+    });
   }
 
   if (offers) {

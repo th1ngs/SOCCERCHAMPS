@@ -1,7 +1,7 @@
 // Controlador da partida ao vivo: guarda o Sim, roda o laço rAF e expõe um snapshot
 // (atualizado por minuto de jogo) para a interface via useSyncExternalStore.
 import { Sim } from "@/game";
-import type { FormationKey, Match, MatchResult, MatchStats, SimEvent, TacticKey, World } from "@/game/types";
+import type { FormationKey, Match, MatchResult, MatchStats, SimEvent, Instructions, TacticKey, World } from "@/game/types";
 import { Audio } from "@/arcade/audio";
 import { kits, pct, simOptions, type Kit } from "../matchUtils";
 import { PITCH_RATIO, drawLivePitch, type PitchAnim, type PitchScale } from "./drawPitch";
@@ -285,6 +285,11 @@ export class LiveController {
 
   setTactic(t: TacticKey): void {
     this.sim.setTactic(t);
+    this.emit();
+  }
+
+  setInstructions(instr: Partial<Instructions>): void {
+    this.sim.setInstructions(instr);
     this.emit();
   }
 

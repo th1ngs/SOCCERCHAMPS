@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Flame, Gamepad2, MapPin, Play, SlidersHorizontal, Star, Ticket, Trophy, TriangleAlert, Users, Zap } from "lucide-react";
-import { FORMATIONS, LEAGUES, Sim, TACTICS, autoLineup, competitionName, ensureLineup, expectedGate, formatMoney, isDerby, isNationalCup, sectors } from "@/game";
-import type { Club, World } from "@/game/types";
+import { Flame, Gamepad2, MapPin, Megaphone, Play, SlidersHorizontal, Star, Ticket, Trophy, TriangleAlert, Users, Zap } from "lucide-react";
+import { FORMATIONS, LEAGUES, Sim, TACTICS, TEAM_TALKS, autoLineup, giveTeamTalk, talkContext, competitionName, ensureLineup, expectedGate, formatMoney, isDerby, isNationalCup, sectors } from "@/game";
+import type { Club, Match, TeamTalkKey, World } from "@/game/types";
+import { cn } from "@/lib/cn";
 import { useWorld } from "@/components/game/GameProvider";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -45,6 +46,46 @@ function ClubLeague({ club }: { club: Club }) {
       <Flag code={club.league} decorative />
       {LEAGUES[club.league].name}
     </span>
+  );
+}
+
+/** Conversa no vestiário: uma escolha por jogo, com o efeito explicado depois. */
+function TeamTalkPicker({ w, m, onTalk }: { w: World; m: Match; onTalk: (k: TeamTalkKey) => void }) {
+  const done = w.teamTalk && w.teamTalk.season === w.season && w.teamTalk.week === w.week ? w.teamTalk : null;
+  const cx = talkContext(w, m);
+  const hint = cx.big ? "Jogo grande: pressão alta no vestiário." : cx.underdog ? "Vocês são a zebra hoje." : cx.favorite ? "Vocês são favoritos." : "Jogo equilibrado.";
+  return (
+    <section className="rounded-2xl bg-ink-900/60 p-3 ring-1 ring-inset ring-white/6">
+      <SectionTitle className="mb-1 flex items-center gap-2">
+        <Megaphone className="size-4" aria-hidden /> Conversa no vestiário
+      </SectionTitle>
+      <p className="mb-3 text-sm text-mist">
+        {hint} Moral médio dos titulares: {Math.round(cx.morale)}.
+      </p>
+      {done ? (
+        <Alert tone={done.mult > 1.02 ? "good" : done.mult < 1 ? "bad" : "info"}>
+          <span>
+            <b>{TEAM_TALKS[done.key].name}:</b> {done.text}
+          </span>
+        </Alert>
+      ) : (
+        <div className="grid gap-2 sm:grid-cols-3">
+          {(Object.keys(TEAM_TALKS) as TeamTalkKey[]).map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => onTalk(k)}
+              className={cn(
+                "min-h-14 rounded-xl bg-ink-700 px-3 py-2 text-left ring-1 ring-inset ring-white/10 transition-colors hover:bg-ink-600 focus-visible:outline-2 focus-visible:outline-gold-400",
+              )}
+            >
+              <b className="block font-display text-base font-bold uppercase tracking-wide">{TEAM_TALKS[k].name}</b>
+              <span className="block text-xs leading-snug text-mist">{TEAM_TALKS[k].desc}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -117,6 +158,10 @@ export function PrematchModal({ matchId }: { matchId: string }) {
   const button = () => {
     setOverlay(null);
     setMatchMode({ kind: "button", matchId });
+  };
+  const talk = (k: TeamTalkKey) => {
+    giveTeamTalk(w, m, k);
+    commit();
   };
   const adjust = () => {
     setOverlay(null);
@@ -224,6 +269,8 @@ export function PrematchModal({ matchId }: { matchId: string }) {
             <span>Fora deste jogo (lesão/suspensão), substituídos automaticamente: {changes.join(", ")}.</span>
           </Alert>
         )}
+
+        <TeamTalkPicker w={w} m={m} onTalk={talk} />
 
         {/* Setores */}
         <section>

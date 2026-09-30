@@ -58,6 +58,7 @@ import { loanMark, promiseStatus, ROLE_SHORT } from "@/components/squad/transfer
 import { LoanInDialog, LoanOutDialog } from "./LoanDialogs";
 import { NegotiationDialog, type NegotiationMode } from "./NegotiationDialog";
 import { PlayerAttributes } from "./PlayerAttributes";
+import { PlayerCareer } from "./PlayerCareer";
 import { PlayerHeader } from "./PlayerHeader";
 import { PlayerStats } from "./PlayerStats";
 import { RenewDialog } from "./RenewDialog";
@@ -443,6 +444,7 @@ export function PlayerModal({ pid, onClose }: { pid: string; onClose: () => void
           {marketPanel}
           {contractPanel}
           <PlayerStats player={p} />
+          <PlayerCareer w={world} player={p} />
           {inSquad && !p.youth && (
             <Panel title="Funções em campo">
               <div className="flex flex-wrap items-center gap-2 pt-1">

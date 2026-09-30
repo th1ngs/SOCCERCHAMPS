@@ -2,8 +2,9 @@
 import { ATTR_INDEX, ATTR_KEYS, ATTR_PROFILE, FORMATIONS, SECTOR, TACTICS, fit, injuryLabel, injuryPhrase, say } from './data';
 import { attr, hasTrait, playerFit } from './gen';
 import { autoLineup, available, ensureLineup } from './squad';
+import { DEFAULT_INSTRUCTIONS, instructionMods, squadProfile } from './tactics';
 import type {
-  AttrKey, Ball, BallKind, FormationKey, MatchResult, MatchStats, OnField, Player, Position, SectorWeights, SideStrength,
+  AttrKey, Ball, InstructionMods, Instructions, BallKind, FormationKey, MatchResult, MatchStats, OnField, Player, Position, SectorWeights, SideStrength,
   SimCard, SimEvent, SimEventType, SimGoal, SimInjury, SimOptions, SimPhase, SimSide, TacticKey, World,
 } from './types';
 import { clamp, gauss, pick, rand, randi, weighted } from './util';
@@ -38,6 +39,8 @@ const LONG_TRAIT_CHANCE = 0.025;
 const LONG_XG = 0.035;
 const COUNTER_CHANCE = 0.014;
 const PEN_BASE = 0.7;
+// Cruzamentos (instrução "pelas pontas"): chance por ataque sem finalização.
+const CROSS_CHANCE = 0.025;
 const CAPTAIN_BONUS = 0.015;
 const CAPTAIN_LEADER_BONUS = 0.03;
 // Cabeceio: chance de uma cabeçada perigosa após escanteio, se houver cabeceador em campo.
@@ -128,6 +131,8 @@ export class Sim {
       clubId, club, user,
       auto: !(user && this.opts.interactive),
       formation: club.formation, tactic: club.tactic, baseTactic: club.tactic,
+      instr: { ...(club.instr ?? DEFAULT_INSTRUCTIONS) }, mods: null,
+      talk: user && w.teamTalk && w.teamTalk.season === w.season && w.teamTalk.week === w.week ? w.teamTalk.mult : 1,
       on, bench: club.bench.slice(), subs: 0, played: on.map((o) => o.pid),
     };
   }
@@ -140,7 +145,8 @@ export class Sim {
     const p = this.P(o.pid);
     const sp = FORMATIONS[side.formation][o.slot].pos;
     o.sp = sp;
-    o.k = matchOvr(p) * playerFit(p, sp) * (0.95 + (0.1 * p.morale) / 100);
+    // Moral pesa de verdade: 30 → −2,8%; 90 → +5,6%.
+    o.k = matchOvr(p) * playerFit(p, sp) * (0.93 + (0.14 * p.morale) / 100);
     const motor = hasTrait(p, 'motorzinho') && (sp === 'LAT' || sp === 'VOL' || sp === 'MEI') ? MOTOR_SECTOR : 0;
     o.dm = (1 + (hasTrait(p, 'marcacao') ? TRAIT_SECTOR : 0) + (hasTrait(p, 'desarme') ? TRAIT_SECTOR : 0) + motor) * (1 + ATTR_SECTOR * devAvg(p, ['mar', 'cab', 'vel']));
     o.mm = (1 + (hasTrait(p, 'passe') ? TRAIT_PASS_MID : 0)) * (1 + ATTR_SECTOR * devAvg(p, ['pas', 'fol']));
@@ -184,7 +190,9 @@ export class Sim {
       if (wt.a) { a += eff * (o.am as number) * wt.a; aw += wt.a; }
     }
     const t = TACTICS[s.tactic];
-    let D = vol(d, dw, B.d) * t.def, Mi = vol(m, mw, B.m) * (t.mid || 1), A = vol(a, aw, B.a) * t.att;
+    const im = this.mods(i);
+    const tk = s.talk ?? 1;
+    let D = vol(d, dw, B.d) * t.def * im.def * tk, Mi = vol(m, mw, B.m) * (t.mid || 1) * im.mid * tk, A = vol(a, aw, B.a) * t.att * im.att * tk;
     if (!this.opts.neutral && i === 0) { A *= 1.04; D *= 1.03; Mi *= 1.03; }
     const cap = this.captainOn(i);
     if (cap) {
@@ -192,6 +200,16 @@ export class Sim {
       A *= b; D *= b; Mi *= b;
     }
     return { A, D, M: Mi, G: g };
+  }
+
+  /** Efeitos das instruções táticas do lado i (cache até o time ou as instruções mudarem). */
+  mods(i: number): InstructionMods {
+    const s = this.sides[i];
+    if (!s.mods) {
+      const slots = FORMATIONS[s.formation];
+      s.mods = instructionMods(s.instr, squadProfile(s.on.map((o) => ({ p: this.P(o.pid), slot: slots[o.slot] }))));
+    }
+    return s.mods;
   }
 
   /** Capitão do lado i, se estiver em campo. */
@@ -224,7 +242,7 @@ export class Sim {
     let kind: BallKind = 'mid';
     this.ballSide = s;
     if (Math.random() < 0.52) kind = this.attack(s);
-    if (Math.random() < 0.11) { this.ballSide = s; const k = this.foul(1 - s, s); if (k) kind = k; }
+    if (Math.random() < 0.11 * this.mods(1 - s).foul) { this.ballSide = s; const k = this.foul(1 - s, s); if (k) kind = k; }
     if (Math.random() < 0.004) this.injury();
     this.autoManage();
     this.setBall(this.ballSide, kind);
@@ -254,6 +272,9 @@ export class Sim {
       // Chute de longe: mais comum com quem tem a habilidade.
       const longers = this.outfield(side).filter((o) => hasTrait(this.P(o.pid), 'chuteLonge')).length;
       if (Math.random() < LONG_CHANCE + LONG_TRAIT_CHANCE * Math.min(2, longers)) return this.longShot(s);
+      // Jogo pelas pontas: cruzamento para os bons de cabeça.
+      const cross = this.mods(s).cross;
+      if (cross && Math.random() < CROSS_CHANCE * cross) return this.cross(s);
       // Contra-ataque do adversário: velocidade dele contra a marcação de quem atacou.
       if (Math.random() < this.counterChance(1 - s)) return this.counter(1 - s);
       if (Math.random() < 0.15) {
@@ -282,7 +303,18 @@ export class Sim {
       if (sp === 'ZAG' || sp === 'VOL') { mark += (this.A(opp, o, 'mar') + this.A(opp, o, 'vel')) / 2; m++; }
     }
     const r = (n ? speed / n : 60) / (m ? mark / m : 60);
-    return clamp(COUNTER_CHANCE * Math.pow(r, 3) + Math.min(0.01, bonus), 0.004, 0.05);
+    const base = clamp(COUNTER_CHANCE * Math.pow(r, 3) + Math.min(0.01, bonus), 0.004, 0.05);
+    return clamp(base * this.mods(s).counterFor * this.mods(1 - s).counterAgainst, 0.002, 0.09);
+  }
+
+  /** Cruzamento para a área (instrução pelas pontas): cabeçada de quem é bom no alto. */
+  cross(s: number): BallKind {
+    const side = this.sides[s];
+    const field = this.outfield(side);
+    const target = weighted(field, (o) => Math.pow(this.A(side, o, 'cab') / 70, 4) * (hasTrait(this.P(o.pid), 'cabeceio') ? 2 : 1)) as OnField | undefined;
+    if (!target) return 'attack';
+    this.log('build', s, say('cross', { p: this.P(target.pid).name }));
+    return this.header(s, target);
   }
 
   counter(s: number): BallKind {
@@ -522,6 +554,7 @@ export class Sim {
     const wasGK = this.slotPos(side, o) === 'GOL';
     this.endFat[o.pid] = o.fat;
     side.on = side.on.filter((x) => x !== o);
+    side.mods = null;
     if (wasGK && side.subs < MAX_SUBS) {
       const gk = side.bench.map((id) => this.P(id)).find((p) => p.pos === 'GOL');
       const out = this.outfield(side).sort((a, b) => a.fat - b.fat)[0];
@@ -579,6 +612,7 @@ export class Sim {
     o.fat = this.P(inPid).fitness;
     o.yc = 0;
     this.dirty(o);
+    side.mods = null;
     side.subs++;
     side.played.push(inPid);
     if (this.ratings[inPid] == null) this.ratings[inPid] = 6.2;
@@ -615,9 +649,11 @@ export class Sim {
   userSide(): number { return this.sides.findIndex((s) => s.user); }
   sub(outPid: string, inPid: string): boolean { return this.doSub(this.userSide(), outPid, inPid); }
   setTactic(t: TacticKey): void { const s = this.sides[this.userSide()]; s.tactic = t; s.baseTactic = t; }
+  setInstructions(instr: Partial<Instructions>): void { const s = this.sides[this.userSide()]; s.instr = { ...s.instr, ...instr }; s.mods = null; }
   setFormation(f: FormationKey): void {
     const side = this.sides[this.userSide()];
     side.formation = f;
+    side.mods = null;
     const slots = FORMATIONS[f];
     const free = slots.map((sl, i) => i);
     const players = side.on.slice().sort((a, b) => (this.P(a.pid).pos === 'GOL' ? -1 : 0) - (this.P(b.pid).pos === 'GOL' ? -1 : 0));

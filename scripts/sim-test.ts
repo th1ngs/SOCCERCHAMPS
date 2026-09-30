@@ -1,11 +1,12 @@
-// Teste de balanceamento headless do motor do Manager (6 ligas, World v5).
+// Teste de balanceamento headless do motor do Manager (6 ligas, World v6).
 //   npx tsx scripts/sim-test.ts [clubId] [--seasons N] [--checks]
 // Sem --checks: simula N temporadas (padrão 3) com todos os clubes no automático e imprime
 // campeões, gols por jogo e artilheiros por liga, tempo por temporada e tamanho do JSON.
 // Com --checks: exercita a API de mercado/base, uma partida ao vivo interativa, as novidades da v2
 // (capitão/batedor, ingresso, empréstimo, clássico, DM), as da v3 (ligas, copas, acesso, histórico)
 // as da v4 (olheiros, base, empréstimos de jogadores, negociação, histórico de transferências)
-// e as da v5 (atributos, habilidades, batedor de faltas, finanças por clube e teto salarial).
+// as da v5 (atributos, habilidades, batedor de faltas, finanças por clube e teto salarial)
+// e as da v6 (instruções táticas, conversas, histórico, recordes, conquistas e Copa das Nações).
 import { gzipSync } from 'node:zlib';
 import * as G from '../src/game';
 import {
@@ -189,7 +190,7 @@ const adhoc = (w: World, h: string, a: string): Match => ({ id: 'chk' + h + a, h
 
 function runV2Checks(w: World): void {
   const u = user(w);
-  assert(w.version === WORLD_VERSION && WORLD_VERSION === 5, 'World v5');
+  assert(w.version === WORLD_VERSION && WORLD_VERSION === 6, 'World v6');
 
   // Características e Craque
   const all = Object.values(w.players);
@@ -279,7 +280,7 @@ function runV2Checks(w: World): void {
   }
   delete (old as Record<string, unknown>).finWeek;
   const mig = migrateWorld(old);
-  assert(mig.version === 5, 'migrateWorld -> v5');
+  assert(mig.version === 6, 'migrateWorld -> v6');
   assert(Object.values(mig.clubs).every((c) => c.fans === 60 && c.ticketPrice === 'normal' && c.loan === null && !!c.captain && !!c.penTaker && typeof c.rival === 'string'), 'clubes migrados');
   assert(Object.values(mig.players).every((p) => Array.isArray(p.traits) && typeof p.star === 'boolean' && !!p.nat && (p.inj > 0 ? !!p.injType : p.injType === null)), 'jogadores migrados');
   const once = JSON.stringify(mig);
@@ -567,7 +568,8 @@ function runV4Checks(): void {
   assert(w.scouting[target.id]?.level === 2 && G.potentialRange(w, target).exact && Array.isArray(G.knownTraits(w, target)), 'relatório entregue no endWeek');
   const rep = lastMsg(w, (m) => m.title === `Relatório do olheiro: ${target.name}` && m.pid === target.id);
   assert(rep && /Veredito: /.test(rep.body), 'mensagem do olheiro com veredito');
-  assert(w.inbox.some((m) => m.id >= idBefore && m.pid === wp.id && /lista de venda/.test(m.body)), 'aviso: entrou na lista de venda');
+  // A CPU pode vender o observado na mesma semana (venda em crise): aí o aviso é de troca de clube.
+  assert(w.inbox.some((m) => m.id >= idBefore && m.pid === wp.id && /lista de venda|trocou de clube/.test(m.body)), 'aviso: entrou na lista de venda (ou trocou de clube)');
   const dest = Object.values(w.clubs).find((c) => c.id !== u.id && c.id !== wp.clubId && c.squad.length < 30) as G.Club;
   G.transfer(w, wp.id, dest.id, 0, true);
   const id2 = w.nextMsg;
@@ -624,7 +626,7 @@ function runV4Checks(): void {
   }
   assert(isCompatible(v3), 'v3 é compatível');
   const m4 = migrateWorld(v3);
-  assert(m4.version === 5 && Array.isArray(m4.transfers) && Array.isArray(m4.scoutQueue) && m4.negotiations && m4.scouting, 'campos de World v4');
+  assert(m4.version === 6 && Array.isArray(m4.transfers) && Array.isArray(m4.scoutQueue) && m4.negotiations && m4.scouting, 'campos de World v4');
   assert(Object.values(m4.clubs).every((c) => c.scouting >= 1 && c.scouting <= 5 && c.academyFocus === 'balanced'), 'clubes v4');
   assert(Object.values(m4.players).every((p) => p.start && p.loan === null && typeof p.releaseClause === 'number'), 'jogadores v4');
   const j4 = JSON.stringify(m4);
@@ -692,8 +694,98 @@ function runV5Checks(): void {
   const before = u.sponsor;
   const ren = G.renewClubFinances(w, u, true);
   assert(ren.before === before && ren.after > 0 && ren.after <= before * 1.45 + 1000 && ren.after >= before * 0.7 - 1000, 'renovação do patrocínio limitada');
+  runV6Checks();
   console.log(`finance ok: receita/sem 1ª div eng ${formatMoney(rev('eng'))}, bra ${formatMoney(rev('bra'))}, arg ${formatMoney(rev('arg'))}; teto ${formatMoney(u.wageCap)}`);
 }
 
 if (args.includes('--checks')) runChecks();
 else runSeasons();
+
+/** Instruções táticas, conversas, histórico, recordes, conquistas e Copa das Nações (World v6). */
+function runV6Checks(): void {
+  const w = freshWorld();
+  const u = user(w);
+  // Instruções: padrão no usuário, CPU escolhe pelo perfil, efeitos coerentes.
+  assert(JSON.stringify(u.instr) === JSON.stringify(G.DEFAULT_INSTRUCTIONS), 'instruções padrão do usuário');
+  const cpu = Object.values(w.clubs).filter((c) => c.id !== u.id);
+  const widths = new Set(cpu.map((c) => c.instr.width)), passes = new Set(cpu.map((c) => c.instr.pass));
+  assert(widths.size >= 2 && passes.size >= 2, 'CPU varia as instruções');
+  const flat = { wide: 0, pass: 0, speed: 0, mark: 0, defSpeed: 0, aerial: 0 };
+  const longo = G.instructionMods({ ...G.DEFAULT_INSTRUCTIONS, pass: 'longo' }, { ...flat, speed: 1 });
+  const curto = G.instructionMods({ ...G.DEFAULT_INSTRUCTIONS, pass: 'curto' }, flat);
+  assert(longo.counterFor > 1.5 && longo.mid < 1 && curto.mid > 1 && curto.counterFor < 1, 'bola longa x toque curto');
+  const alta = G.instructionMods({ ...G.DEFAULT_INSTRUCTIONS, line: 'alta' }, { ...flat, defSpeed: -1 });
+  const altaRapida = G.instructionMods({ ...G.DEFAULT_INSTRUCTIONS, line: 'alta' }, { ...flat, defSpeed: 1 });
+  assert(alta.counterAgainst > altaRapida.counterAgainst && altaRapida.counterAgainst > 1, 'linha alta pune zagueiros lentos');
+  assert(G.instructionMods({ ...G.DEFAULT_INSTRUCTIONS, mark: 'individual' }, flat).foul > 1, 'marcação individual faz mais faltas');
+  assert(G.instructionMods({ ...G.DEFAULT_INSTRUCTIONS, width: 'pontas' }, flat).cross > 0 && G.instructionMods(G.DEFAULT_INSTRUCTIONS, flat).cross === 0, 'cruzamentos só pelas pontas');
+  G.setInstructions(w, { width: 'pontas', pass: 'longo' });
+  assert(u.instr.width === 'pontas' && u.instr.pass === 'longo' && u.instr.line === 'media', 'setInstructions parcial');
+  assert(G.instructionAdvice(w, u).length > 0, 'dicas de instrução');
+  // Com pontas, cruzamentos aparecem na narração.
+  let crosses = 0;
+  for (let k = 0; k < 40; k++) {
+    const opp = cpu[k % cpu.length];
+    const sim = new Sim(w, u.id, opp.id).runToEnd();
+    crosses += sim.events.filter((e) => /cruzamento|Cruzamento|Bola alçada/.test(e.text)).length;
+  }
+  assert(crosses > 5, `cruzamentos com jogo pelas pontas (${crosses})`);
+
+  // Conversa no vestiário: efeito no Sim só na semana em que foi dada.
+  advance(w);
+  const um = userMatch(w);
+  if (um) {
+    const t = G.giveTeamTalk(w, um, 'motivar');
+    assert(t.mult >= 1 && G.teamTalkMult(w) === t.mult, 'teamTalk registrado');
+    const sim = new Sim(w, um.h, um.a);
+    const side = sim.sides.find((sd) => sd.user);
+    assert(side && side.talk === t.mult, 'teamTalk aplicado ao lado do usuário');
+  }
+
+  // Conversas com jogadores: respostas mudam moral e estado.
+  const p = w.players[u.squad[5]];
+  w.inbox.unshift({ id: w.nextMsg++, season: w.season, week: w.week, read: false, kind: 'board', title: 't', body: 'b', pid: p.id,
+    talk: { kind: 'bench', pid: p.id, options: [{ key: 'prometer', label: 'x', hint: 'y' }], expires: w.week + 2 } });
+  const m0 = p.morale;
+  const r1 = G.answerTalk(w, w.inbox[0].id, 'prometer');
+  assert(r1.ok && p.morale > m0 && !!p.chance && !G.answerTalk(w, w.inbox[0].id, 'prometer').ok, 'resposta a conversa (uma vez)');
+  w.inbox.unshift({ id: w.nextMsg++, season: w.season, week: w.week, read: false, kind: 'board', title: 't', body: 'b', pid: p.id,
+    talk: { kind: 'raise', pid: p.id, options: [], expires: w.week + 2, amount: 1e9 } });
+  assert(!G.answerTalk(w, w.inbox[0].id, 'dar').ok, 'aumento absurdo vetado pelo teto');
+  w.inbox[0].talk!.expires = w.week - 1;
+  const m1 = p.morale;
+  G.expireTalks(w);
+  assert(w.inbox[0].talk?.answer === 'ignored' && p.morale < m1, 'conversa ignorada expira com moral −8');
+
+  // Temporada completa: histórico, recordes, conquistas e Copa das Nações (2026).
+  let talks = 0;
+  for (;;) {
+    simulateWeek(w);
+    const rep = endWeek(w);
+    talks = Math.max(talks, w.inbox.filter((m) => m.talk).length);
+    if (rep.seasonEnd) break;
+  }
+  assert(w.pendingSeason, 'fim da temporada');
+  const withHist = Object.values(w.players).filter((x) => x.hist?.some((r) => r[0] === w.season)).length;
+  assert(withHist > 3000, `histórico gravado (${withHist} jogadores)`);
+  const champ = w.pendingSeason.entry.champions[u.div];
+  const champPlayer = w.clubs[champ].squad.map((id) => w.players[id]).find((x) => x.s.apps >= 3);
+  assert(champPlayer?.hist?.at(-1)?.[6]?.includes(G.competitionName(u.div)), 'título no histórico do campeão');
+  assert(w.records && w.records.matches.played >= 30 && w.records.biggestWin !== undefined, 'recordes da carreira');
+  assert((w.achievements ?? []).some((a) => a.key === 'primeira_vitoria'), 'conquista: primeira vitória');
+  assert(talks > 0, 'jogadores pedem conversas durante a temporada');
+  const before = Object.keys(w.clubs).length;
+  G.newSeason(w);
+  const e = w.nations?.[0];
+  assert(e && e.season === w.season - 1 && e.table.length === 6 && e.matches.length === 16, 'Copa das Nações: 15 jogos + final');
+  assert(Object.keys(w.clubs).length === before && !Object.keys(w.clubs).some((id) => id.startsWith('nat:')), 'seleções temporárias removidas');
+  assert(e.squads[e.champion].some((pid) => w.players[pid]?.hist?.some((r) => r[6]?.includes(G.NATIONS_NAME))), 'título da Copa das Nações no histórico');
+  assert(Object.values(w.players).some((x) => (x.intl?.[0] ?? 0) > 0), 'jogos pela seleção');
+  assert(!G.runNationsCup(w) && G.isNationsSeason(2030) && !G.isNationsSeason(2027), 'Copa das Nações a cada 4 anos');
+  const car = G.playerCareer(w, champPlayer!);
+  assert(car[0].current && car.some((r) => !r.current), 'carreira do jogador: atual + passadas');
+  assert(G.clubIdols(w, u.id, 5).length > 0, 'ídolos do clube');
+  const json = JSON.stringify(w);
+  assert(JSON.stringify(G.migrateWorld(JSON.parse(json))) === json, 'migrateWorld v6 idempotente');
+  console.log(`v6 ok: cruzamentos ${crosses}, conversas ${talks}, histórico ${withHist}, Copa das Nações ${e.season}: ${e.champion}`);
+}

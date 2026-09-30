@@ -97,6 +97,7 @@ export const TXT = {
   fkGoal: ['GOL DE FALTA! {p} coloca a bola no ângulo!', 'QUE COBRANÇA! {p} passa por cima da barreira e marca para o {t}!', 'GOLAÇO DE FALTA de {p}! {g} só olhou!'],
   fkSave: ['{p} cobra com força e {g} espalma!', 'Cobrança de {p} no canto, {g} voa e defende.'],
   fkMiss: ['A cobrança de {p} explode na barreira.', '{p} bate por cima do gol.', 'Tirou tinta! A falta de {p} passa rente à trave.'],
+  cross: ['Jogada pela ponta e cruzamento na área para {p}…', 'Cruzamento da linha de fundo, {p} sobe…', 'Bola alçada na área, {p} vai de cabeça…'],
   longShot: ['{p} arrisca de longe…', 'Lá de fora! {p} solta a bomba…', '{p} ajeita e chuta de fora da área…'],
   longGoal: ['GOLAÇO! {p} acerta um foguete de fora da área!', 'DE LONGE! {p} surpreende {g} e marca um golaço!'],
   counter: ['Contra-ataque do {t}! {p} dispara em velocidade.', 'Roubou e saiu! {p} puxa o contra-ataque do {t}.', 'Lançamento longo e {p} sai na cara do gol!'],

@@ -23,5 +23,7 @@ export function statusTags(club: Club, p: Player): StatusTag[] {
   else if (p.yc === 2) t.push({ key: "pend", label: "Pendurado", tone: "orange", title: "Pendurado: o próximo amarelo suspende" });
   if (p.listed) t.push({ key: "sale", label: "À venda", tone: "orange", title: "Na lista de transferências" });
   if (p.contract <= 1) t.push({ key: "ctr", label: "Contrato", tone: "orange", title: "Contrato acabando" });
+  if (p.morale < 40) t.push({ key: "mor", label: "Insatisfeito", tone: "red", title: `Moral ${Math.round(p.morale)}: rende menos e pode pedir para sair` });
+  else if (p.morale >= 85) t.push({ key: "mor", label: "Motivado", tone: "green", title: `Moral ${Math.round(p.morale)}: rende mais em campo` });
   return t;
 }
