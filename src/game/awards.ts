@@ -1,20 +1,95 @@
-import { DIVISIONS, DIVISION_IDS } from './leagues';
+import { DIVISIONS, DIVISION_IDS, LEAGUES, isDivision } from './leagues';
 import { NAMES_BY_NAT } from './names';
-import type { AwardPlayer, DivisionId, Player, Position, SeasonAwards, TableRow, World } from './types';
+import type { AwardPlayer, Competition, DivisionId, Player, Position, SeasonAwards, TableRow, World } from './types';
 
 const avg = (p: Player): number => p.s.apps ? p.s.rsum / p.s.apps : 0;
-const strength = (w: World, p: Player): number => {
-  const div = p.clubId ? w.clubs[p.clubId]?.div : null;
-  return div ? (3 - DIVISIONS[div].level) * 0.12 : 0;
+const DIVISION_WEIGHT = [1, 0.72, 0.52];
+/** Importância da liga: nível da divisão domina; prestígio do país só desempata ligas do mesmo nível. */
+const divisionWeight = (div: DivisionId): number => {
+  const info = DIVISIONS[div];
+  return (DIVISION_WEIGHT[info.level - 1] ?? 0.52) * (0.92 + (LEAGUES[info.league].wealth - 0.75) * 0.16);
 };
-const score = (w: World, p: Player): number =>
-  avg(p) + p.s.goals * 0.035 + p.s.assists * 0.025 + Math.min(p.s.apps, 30) * 0.006 + strength(w, p);
+
+interface Contribution { goals: number; assists: number; goalPoints: number; assistPoints: number }
+const emptyContribution = (): Contribution => ({ goals: 0, assists: 0, goalPoints: 0, assistPoints: 0 });
+
+/** Gols e assistências recebem o peso da competição, do adversário e da fase decisiva. */
+function contributions(w: World): Map<string, Contribution> {
+  const out = new Map<string, Contribution>();
+  const row = (pid: string) => {
+    let value = out.get(pid);
+    if (!value) { value = emptyContribution(); out.set(pid, value); }
+    return value;
+  };
+  const matchWeight = (comp: Competition, round: number, opponent: string, close: boolean) => {
+    const base = isDivision(comp) ? divisionWeight(comp) : comp === 'cont'
+      ? 1.45 + round * 0.12
+      : 1.05 + round * 0.08;
+    const difficulty = 0.88 + (w.clubs[opponent]?.rep ?? 60) / 300;
+    return base * difficulty * (close ? 1.08 : 1);
+  };
+  for (const week of w.weeks) {
+    if (!week) continue;
+    for (const match of week.matches) {
+      if (!match.played || !match.goals.length) continue;
+      const close = match.hs != null && match.as != null && Math.abs(match.hs - match.as) <= 1;
+      for (const [pid, side, , assist, penalty] of match.goals) {
+        const opponent = side === 0 ? match.a : match.h;
+        const weight = matchWeight(match.comp, week.round, opponent, close);
+        const scorer = row(pid);
+        scorer.goals++;
+        scorer.goalPoints += weight * (penalty ? 0.85 : 1);
+        if (assist) {
+          const maker = row(assist);
+          maker.assists++;
+          maker.assistPoints += weight;
+        }
+      }
+    }
+  }
+  // Saves antigos podem não trazer todos os lances; os totais da temporada continuam valendo.
+  for (const p of Object.values(w.players)) {
+    if (!p.s.goals && !p.s.assists) continue;
+    const value = row(p.id);
+    const weight = p.clubId && w.clubs[p.clubId] ? divisionWeight(w.clubs[p.clubId].div) : 1;
+    value.goalPoints += Math.max(0, p.s.goals - value.goals) * weight;
+    value.assistPoints += Math.max(0, p.s.assists - value.assists) * weight;
+  }
+  return out;
+}
+
+function clubResults(w: World, tables: Record<DivisionId, TableRow[]>): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const div of DIVISION_IDS) {
+    const rows = tables[div];
+    for (const [index, row] of rows.entries()) {
+      const rank = rows.length > 1 ? (rows.length - 1 - index) / (rows.length - 1) : 1;
+      out.set(row.id, rank * 2.5 * divisionWeight(div) + (index === 0 ? 3 * divisionWeight(div) : 0));
+    }
+  }
+  for (const [comp, cup] of Object.entries(w.cups)) {
+    if (!cup?.champion) continue;
+    out.set(cup.champion, (out.get(cup.champion) ?? 0) + (comp === 'cont' ? 6 : 2.5));
+  }
+  return out;
+}
+
+/** Pontuação da Bola de Ouro: rendimento, produção, frequência, liga e títulos. */
+function playerScore(w: World, p: Player, impact: Map<string, Contribution>, results: Map<string, number>): number {
+  const league = p.clubId && w.clubs[p.clubId] ? divisionWeight(w.clubs[p.clubId].div) : 1;
+  const c = impact.get(p.id) ?? emptyContribution();
+  const attendance = Math.min(1, p.s.apps / 28);
+  const rating = Math.max(0, avg(p) - 6) * 9 * league * Math.sqrt(attendance);
+  const games = Math.min(p.s.apps, 40) * 0.22 * league;
+  const output = c.goalPoints * 1.15 + c.assistPoints * 0.75;
+  const campaign = (results.get(p.clubId ?? '') ?? 0) * attendance;
+  return rating + games + output + campaign;
+}
 const snapshot = (p: Player): AwardPlayer => ({
   id: p.id, name: p.name, club: p.clubId || '', pos: p.pos, age: p.age,
   apps: p.s.apps, goals: p.s.goals, assists: p.s.assists,
   avg: Math.round(avg(p) * 100) / 100,
 });
-const byScore = (w: World, a: Player, b: Player): number => score(w, b) - score(w, a) || b.s.apps - a.s.apps || a.id.localeCompare(b.id);
 
 function coachName(w: World, clubId: string): string {
   if (clubId === w.userClub) return w.manager.name;
@@ -26,13 +101,17 @@ function coachName(w: World, clubId: string): string {
 
 /** Gala anual calculada com os jogos disputados, antes de zerar as estatísticas da temporada. */
 export function seasonAwards(w: World, tables: Record<DivisionId, TableRow[]>): SeasonAwards {
+  const impact = contributions(w);
+  const results = clubResults(w, tables);
   const played = Object.values(w.players).filter((p) => p.clubId && w.clubs[p.clubId] && p.s.apps >= 8);
-  const ranked = played.slice().sort((a, b) => byScore(w, a, b));
+  const scores = new Map(played.map((p) => [p.id, playerScore(w, p, impact, results)]));
+  const ranked = played.slice().sort((a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0) || b.s.apps - a.s.apps || a.id.localeCompare(b.id));
   const young = ranked.find((p) => p.age <= 21) ?? null;
   const player = ranked.find((p) => p.s.apps >= 15) ?? ranked[0] ?? null;
   const goalkeeper = ranked.find((p) => p.pos === 'GOL' && p.s.apps >= 12) ?? ranked.find((p) => p.pos === 'GOL') ?? null;
   const goldenBoot = played.filter((p) => p.s.goals > 0).sort((a, b) =>
-    b.s.goals - a.s.goals || b.s.assists - a.s.assists || avg(b) - avg(a) || a.id.localeCompare(b.id))[0] ?? null;
+    (impact.get(b.id)?.goalPoints ?? 0) - (impact.get(a.id)?.goalPoints ?? 0)
+    || b.s.goals - a.s.goals || b.s.assists - a.s.assists || a.id.localeCompare(b.id))[0] ?? null;
 
   const positions: Position[] = ['GOL', 'LAT', 'ZAG', 'ZAG', 'LAT', 'VOL', 'MEI', 'MEI', 'ATA', 'ATA', 'ATA'];
   const chosen = new Set<string>();
@@ -43,7 +122,9 @@ export function seasonAwards(w: World, tables: Record<DivisionId, TableRow[]>): 
   }
 
   const cupWins = new Map<string, number>();
-  for (const cup of Object.values(w.cups)) if (cup?.champion) cupWins.set(cup.champion, (cupWins.get(cup.champion) ?? 0) + 1);
+  for (const [comp, cup] of Object.entries(w.cups)) if (cup?.champion) {
+    cupWins.set(cup.champion, (cupWins.get(cup.champion) ?? 0) + (comp === 'cont' ? 0.7 : 0.3));
+  }
   const campaigns = DIVISION_IDS.flatMap((div) => {
     const rows = tables[div];
     const reps = rows.map((r) => w.clubs[r.id].rep);
@@ -51,12 +132,12 @@ export function seasonAwards(w: World, tables: Record<DivisionId, TableRow[]>): 
     return rows.map((row, index) => {
       const club = w.clubs[row.id];
       const ppg = row.j ? row.p / row.j : 0;
-      const level = DIVISIONS[div].level;
-      const cupBonus = (cupWins.get(row.id) ?? 0) * 0.35;
-      const clubScore = ppg + (row.j ? (row.gf - row.ga) / row.j * 0.12 : 0) + (3 - level) * 0.18 + cupBonus;
+      const weight = divisionWeight(div);
+      const cupBonus = cupWins.get(row.id) ?? 0;
+      const clubScore = (ppg + (row.j ? (row.gf - row.ga) / row.j * 0.12 : 0) + (index === 0 ? 0.2 : 0)) * weight + cupBonus;
       const expectation = maxRep > minRep ? (club.rep - minRep) / (maxRep - minRep) : 0.5;
       const result = rows.length > 1 ? (rows.length - 1 - index) / (rows.length - 1) : 1;
-      const managerScore = (result - expectation) * 0.9 + ppg * 0.55 + (index === 0 ? 0.35 : 0) + cupBonus + (3 - level) * 0.08;
+      const managerScore = ((result - expectation) * 0.9 + ppg * 0.55 + (index === 0 ? 0.35 : 0)) * weight + cupBonus;
       return { id: row.id, clubScore, managerScore };
     });
   });
@@ -70,6 +151,7 @@ export function seasonAwards(w: World, tables: Record<DivisionId, TableRow[]>): 
     player: player ? snapshot(player) : null,
     goalkeeper: goalkeeper ? snapshot(goalkeeper) : null,
     goldenBoot: goldenBoot ? snapshot(goldenBoot) : null,
+    goldenBootPoints: goldenBoot ? Math.round((impact.get(goldenBoot.id)?.goalPoints ?? 0) * 10) / 10 : null,
     club,
     manager: managerClub ? { name: coachName(w, managerClub), club: managerClub } : null,
     team,

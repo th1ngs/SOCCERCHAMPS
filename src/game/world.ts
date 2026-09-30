@@ -685,10 +685,10 @@ export function seasonEnd(w: World): SeasonSummary {
     pid: awards.player?.id,
     title: `Gala dos melhores de ${w.season}`,
     body: [
-      awards.player && `Jogador do ano: ${awards.player.name} (${awardClub(awards.player.club)})`,
+      awards.player && `Bola de Ouro: ${awards.player.name} (${awardClub(awards.player.club)})`,
       awards.young && `Jovem sub-21: ${awards.young.name} (${awardClub(awards.young.club)})`,
       awards.goalkeeper && `Goleiro do ano: ${awards.goalkeeper.name} (${awardClub(awards.goalkeeper.club)})`,
-      awards.goldenBoot && `Chuteira de Ouro: ${awards.goldenBoot.name}, ${awards.goldenBoot.goals} gols`,
+      awards.goldenBoot && `Chuteira de Ouro: ${awards.goldenBoot.name}, ${awards.goldenBoot.goals} gols, ${awards.goldenBootPoints?.toFixed(1) ?? '0'} pontos`,
       awards.club && `Time do ano: ${awardClub(awards.club)}`,
       awards.manager && `Manager do ano: ${awards.manager.name} (${awardClub(awards.manager.club)})`,
       'A seleção de 11 jogadores está no histórico das competições.',

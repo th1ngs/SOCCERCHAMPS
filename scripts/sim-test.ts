@@ -8,6 +8,7 @@
 // as da v5 (atributos, habilidades, batedor de faltas, finanças por clube e teto salarial)
 // e as da v6 (instruções táticas, conversas, histórico, recordes, conquistas e Copa das Nações).
 import { gzipSync } from 'node:zlib';
+import { seasonAwards } from '../src/game/awards';
 import * as G from '../src/game';
 import {
   CLUBS, DIVISIONS, DIVISION_IDS, DIVISION_SIZE, IncompatibleSaveError, LEAGUES, LEAGUE_IDS, LOAN_OPTIONS, Sim, TRAITS,
@@ -17,7 +18,7 @@ import {
   newWorld, promoteYouth, release, renew, repayLoan, runTrial, setCaptain, setPenTaker, setTicketPrice, simMatch,
   simulateWeek, startSeason, switchClub, table, takeLoan, upgrade, user, userCompetitions, userMatch,
 } from '../src/game';
-import type { DivisionId, LeagueId, Match, SeasonSummary, World } from '../src/game';
+import type { DivisionId, LeagueId, Match, SeasonSummary, TableRow, World } from '../src/game';
 
 const args = process.argv.slice(2);
 const clubId = args.find((a) => !a.startsWith('--')) || 'anhangabau';
@@ -67,7 +68,25 @@ function playSeason(w: World): { ps: SeasonSummary; stats: Record<LeagueId, Leag
 
 const kb = (n: number): string => (n / 1024).toFixed(0) + ' KB';
 
+function checkAwardWeights(): void {
+  const w = freshWorld();
+  const topClub = Object.values(w.clubs).find((c) => c.div === 'eng1')!;
+  const lowClub = Object.values(w.clubs).find((c) => c.div === 'bra3')!;
+  const top = w.players[topClub.squad.find((id) => w.players[id].pos === 'ATA')!];
+  const low = w.players[lowClub.squad.find((id) => w.players[id].pos === 'ATA')!];
+  top.s = { apps: 30, goals: 20, assists: 8, rsum: 225 };
+  low.s = { apps: 30, goals: 30, assists: 8, rsum: 225 };
+  const tables = Object.fromEntries(DIVISION_IDS.map((div) => [div, table(w, div)])) as Record<DivisionId, TableRow[]>;
+  let awards = seasonAwards(w, tables);
+  assert(awards.player?.id === top.id, 'Bola de Ouro considera a dificuldade da liga');
+  assert(awards.goldenBoot?.id === top.id, 'Chuteira de Ouro pondera gols pela competição');
+  low.s.goals = 65;
+  awards = seasonAwards(w, tables);
+  assert(awards.goldenBoot?.id === low.id, 'produção excepcional na divisão inferior ainda pode vencer');
+}
+
 function runSeasons(): void {
+  checkAwardWeights();
   let t0 = performance.now();
   const w = freshWorld();
   console.log(`newWorld+startSeason: ${((performance.now() - t0) / 1000).toFixed(2)} s, ${Object.keys(w.clubs).length} clubes, ${Object.keys(w.players).length} jogadores`);
@@ -79,11 +98,13 @@ function runSeasons(): void {
     assert(awards.young && awards.young.age <= 21, 'melhor jovem sub-21');
     assert(awards.goalkeeper?.pos === 'GOL', 'melhor goleiro');
     assert(awards.goldenBoot && awards.goldenBoot.goals > 0, 'chuteira de ouro');
+    assert(awards.goldenBootPoints && awards.goldenBootPoints > 0, 'chuteira de ouro ponderada por competição');
     assert(awards.club && awards.manager && awards.team.length === 11, 'clube, manager e seleção do ano');
     assert(new Set(awards.team.map((p) => p.id)).size === 11, 'seleção sem jogadores repetidos');
     const tPlay = (performance.now() - t0) / 1000;
     const u = user(w);
     console.log(`season ${w.season} (${tPlay.toFixed(2)} s): user ${u.id} ${divisionFullName(u.div)} pos ${ps.userPos}, conf ${Math.round(w.board.conf)}, fired ${!!w.fired}`);
+    console.log(`  prêmios: Bola de Ouro ${awards.player.name} (${w.clubs[awards.player.club]?.div}), Chuteira de Ouro ${awards.goldenBoot.name} ${awards.goldenBoot.goals} gols / ${awards.goldenBootPoints} pontos`);
     let G = 0, N = 0;
     for (const lg of LEAGUE_IDS) {
       const st = stats[lg];

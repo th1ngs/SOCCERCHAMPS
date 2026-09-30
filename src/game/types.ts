@@ -693,6 +693,8 @@ export interface SeasonAwards {
   player: AwardPlayer | null;
   goalkeeper: AwardPlayer | null;
   goldenBoot: AwardPlayer | null;
+  /** Pontos dos gols ponderados pela dificuldade e importância da partida. */
+  goldenBootPoints?: number | null;
   /** Clube com a melhor campanha do ano. */
   club: string | null;
   manager: { name: string; club: string } | null;

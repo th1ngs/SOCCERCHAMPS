@@ -14,7 +14,7 @@ function PlayerPrize({ label, icon: Icon, player, detail, clubs, userClub }: { l
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-gold-400"><Icon className="size-3.5" aria-hidden /> {label}</span>
         <b className="block truncate text-sm">{player.name}</b>
-        <span className="block truncate text-xs text-mist">{clubName(clubs, player.club)} • {detail(player)}</span>
+        <span className="block text-xs leading-snug text-mist">{clubName(clubs, player.club)} • {detail(player)}</span>
       </span>
     </li>
   );
@@ -27,10 +27,10 @@ export function AwardsPanel({ awards, clubs, userClub }: { awards: SeasonAwards;
   return (
     <div className="space-y-3">
       <ul className="grid gap-2 sm:grid-cols-2">
-        <PlayerPrize label="Melhor jogador do ano" icon={Star} player={awards.player} detail={(p) => `nota ${p.avg.toFixed(2)}`} clubs={clubs} userClub={userClub} />
-        <PlayerPrize label="Melhor jovem sub-21" icon={Medal} player={awards.young} detail={(p) => `${p.age} anos • nota ${p.avg.toFixed(2)}`} clubs={clubs} userClub={userClub} />
-        <PlayerPrize label="Melhor goleiro do ano" icon={Goal} player={awards.goalkeeper} detail={(p) => `nota ${p.avg.toFixed(2)}`} clubs={clubs} userClub={userClub} />
-        <PlayerPrize label="Chuteira de Ouro" icon={Footprints} player={awards.goldenBoot} detail={(p) => `${p.goals} gols`} clubs={clubs} userClub={userClub} />
+        <PlayerPrize label="Bola de Ouro • melhor jogador" icon={Star} player={awards.player} detail={(p) => `${p.apps} jogos • ${p.goals} gols • ${p.assists} assist. • nota ${p.avg.toFixed(2)}`} clubs={clubs} userClub={userClub} />
+        <PlayerPrize label="Melhor jovem sub-21" icon={Medal} player={awards.young} detail={(p) => `${p.age} anos • ${p.apps} jogos • nota ${p.avg.toFixed(2)}`} clubs={clubs} userClub={userClub} />
+        <PlayerPrize label="Melhor goleiro do ano" icon={Goal} player={awards.goalkeeper} detail={(p) => `${p.apps} jogos • nota ${p.avg.toFixed(2)}`} clubs={clubs} userClub={userClub} />
+        <PlayerPrize label="Chuteira de Ouro" icon={Footprints} player={awards.goldenBoot} detail={(p) => `${p.goals} gols${awards.goldenBootPoints != null ? ` • ${awards.goldenBootPoints.toFixed(1).replace(".", ",")} pontos` : ""}`} clubs={clubs} userClub={userClub} />
         {bestClub && (
           <li className={cn("flex min-w-0 items-center gap-3 rounded-xl bg-ink-900/75 p-3 ring-1 ring-inset ring-white/10", bestClub.id === userClub && "ring-gold-400/70")}>
             <Crest club={bestClub} size={44} />
@@ -44,6 +44,7 @@ export function AwardsPanel({ awards, clubs, userClub }: { awards: SeasonAwards;
           </li>
         )}
       </ul>
+      <p className="text-xs leading-relaxed text-mist">Bola de Ouro: nota, gols, assistências, jogos, força da liga e dos adversários, fases decisivas e campanha do clube. Chuteira de Ouro: gols ponderados pela importância das partidas.</p>
       {awards.team.length > 0 && (
         <details className="group rounded-xl bg-ink-900/55 p-3 ring-1 ring-inset ring-white/10">
           <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 font-display text-sm font-bold uppercase tracking-wide text-gold-400 [&::-webkit-details-marker]:hidden">
