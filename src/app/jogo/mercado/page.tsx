@@ -1,23 +1,25 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { ArrowLeftRight, Eye, Handshake, Newspaper, PlaneTakeoff, ScrollText, Search } from "lucide-react";
 import { useWorld } from "@/components/game/GameProvider";
 import { Segmented } from "@/components/ui/Segmented";
 import { EmptyState, PageHeader } from "@/components/ui/primitives";
 import { DeadlineBanner } from "@/components/market/DeadlineBanner";
-import { HistoryTab } from "@/components/market/HistoryTab";
-import { LoansTab } from "@/components/market/LoansTab";
 import { MarketCards } from "@/components/market/MarketCards";
 import { MarketFilters } from "@/components/market/MarketFilters";
 import { MarketTable } from "@/components/market/MarketTable";
-import { NegotiationsTab } from "@/components/market/NegotiationsTab";
-import { NewsTab } from "@/components/market/NewsTab";
 import { TransferHeader } from "@/components/market/TransferHeader";
-import { WatchlistTab } from "@/components/market/WatchlistTab";
 import { DEFAULT_FILTER, MARKET_LIMIT, isDefaultFilter, searchMarket, type MarketFilter } from "@/components/market/marketFilter";
 import { loanRows, marketHeader, negotiationRows, windowInfo } from "@/components/market/transferDerive";
 import { useDebounced } from "@/components/market/useDebounced";
+
+const HistoryTab = dynamic(() => import("@/components/market/HistoryTab").then((m) => m.HistoryTab));
+const LoansTab = dynamic(() => import("@/components/market/LoansTab").then((m) => m.LoansTab));
+const NegotiationsTab = dynamic(() => import("@/components/market/NegotiationsTab").then((m) => m.NegotiationsTab));
+const NewsTab = dynamic(() => import("@/components/market/NewsTab").then((m) => m.NewsTab));
+const WatchlistTab = dynamic(() => import("@/components/market/WatchlistTab").then((m) => m.WatchlistTab));
 
 type Tab = "buscar" | "observados" | "negociacoes" | "emprestimos" | "historico" | "noticias";
 const TABS: Tab[] = ["buscar", "observados", "negociacoes", "emprestimos", "historico", "noticias"];

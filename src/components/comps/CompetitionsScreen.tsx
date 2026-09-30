@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { CalendarDays, Flag as FlagIcon, Goal, History, Trophy } from "lucide-react";
 import { cupId, divisionName, DIVISIONS, LEAGUE_IDS, LEAGUES, PROMOTION_SPOTS, user } from "@/game";
 import type { DivisionId, LeagueId } from "@/game/types";
@@ -8,12 +9,14 @@ import { PageHeader } from "@/components/ui/primitives";
 import { Flag } from "@/components/ui/Flag";
 import { useWorld } from "@/components/game/GameProvider";
 import { LeagueTable } from "./LeagueTable";
-import { ContView, CupView } from "./CupView";
-import { ScorersView } from "./ScorersView";
-import { FixturesView } from "./FixturesView";
-import { HistoryView } from "./HistoryView";
-import { NationsView } from "./NationsView";
 import { TabStrip, type TabItem } from "./TabStrip";
+
+const CupView = dynamic(() => import("./CupView").then((m) => m.CupView));
+const ContView = dynamic(() => import("./CupView").then((m) => m.ContView));
+const ScorersView = dynamic(() => import("./ScorersView").then((m) => m.ScorersView));
+const FixturesView = dynamic(() => import("./FixturesView").then((m) => m.FixturesView));
+const HistoryView = dynamic(() => import("./HistoryView").then((m) => m.HistoryView));
+const NationsView = dynamic(() => import("./NationsView").then((m) => m.NationsView));
 
 type GlobalTab = "cont" | "nations" | "scorers" | "fixtures" | "history";
 /** Escopo da tela: uma liga (com sub-abas) ou uma aba global. */

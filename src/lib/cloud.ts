@@ -28,6 +28,7 @@ export interface Account { id: string; nickname: string }
 export interface SlotMeta { slot: number; managerName: string; clubName: string; season: number; week: number; updatedAt: string }
 
 export const accountApi = {
+  bootstrap: (slot: number | null) => call<{ account: Account | null; slots: SlotMeta[]; slot: number | null; data: unknown | null }>(`/api/bootstrap${slot ? `?slot=${slot}` : ""}`),
   me: () => call<{ account: Account | null }>("/api/auth"),
   auth: (action: "login" | "register", nickname: string, password: string) =>
     call<{ account: Account }>("/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, nickname, password }) }),

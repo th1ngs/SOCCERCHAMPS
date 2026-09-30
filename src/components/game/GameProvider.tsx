@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { World } from "@/game/types";
-import { migrateWorld } from "@/game";
+import { migrateWorld } from "@/game/migrate";
 import { accountApi, cloud, type Account, type SlotMeta } from "@/lib/cloud";
 import { hasLegacyLocal, readLocal } from "@/lib/storage";
 
@@ -47,6 +47,17 @@ interface GameState {
 }
 
 const Ctx = createContext<GameState | null>(null);
+const LAST_ACTIVE = "scm.active.last";
+
+function lastActive(): { accountId: string; slot: number } | null {
+  try {
+    const raw = localStorage.getItem(LAST_ACTIVE);
+    if (!raw) return null;
+    const value = JSON.parse(raw) as { accountId?: unknown; slot?: unknown };
+    return typeof value.accountId === "string" && [1, 2, 3].includes(Number(value.slot))
+      ? { accountId: value.accountId, slot: Number(value.slot) } : null;
+  } catch { return null; }
+}
 
 function toWorld(data: unknown): World | null {
   try {
@@ -87,6 +98,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setCloudStatus(slot ? "saved" : "off");
     setCloudError(null);
     if (accountId) localStorage.setItem(`scm.active.${accountId}`, slot ? String(slot) : "");
+    if (accountId && slot) localStorage.setItem(LAST_ACTIVE, JSON.stringify({ accountId, slot }));
+    else localStorage.removeItem(LAST_ACTIVE);
   }, []);
 
   const refreshSlots = useCallback(async () => { setSlots((await accountApi.slots()).slots); }, []);
@@ -101,27 +114,31 @@ export function GameProvider({ children }: { children: ReactNode }) {
     let alive = true;
     (async () => {
       try {
-        const { account: found } = await accountApi.me();
+        const hint = lastActive();
+        const { account: found, slots: listed, slot: fetchedSlot, data } = await accountApi.bootstrap(hint?.slot ?? null);
         if (!alive) return;
         setAccount(found);
         if (found) {
-          const listed = (await accountApi.slots()).slots;
-          if (!alive) return;
           setSlots(listed);
           const remembered = Number(localStorage.getItem(`scm.active.${found.id}`));
           if (listed.some((s) => s.slot === remembered)) {
-            const loaded = toWorld((await accountApi.load(remembered)).data);
+            const saved = fetchedSlot === remembered ? data : (await accountApi.load(remembered)).data;
+            const loaded = toWorld(saved);
             if (alive && loaded) showWorld(loaded, remembered, found.id);
           }
         }
-        const legacy = await readLocal();
-        if (alive) {
-          setLegacySaveAvailable(!!legacy && !!toWorld(legacy));
-          setIncompatible((!!legacy && !toWorld(legacy)) || hasLegacyLocal());
-        }
       } catch (e) {
         if (alive) setCloudError((e as Error).message);
-      } finally { if (alive) setReady(true); }
+      } finally {
+        if (alive) setReady(true);
+        // O save antigo só interessa à tela de importação e não deve bloquear a entrada no jogo.
+        void readLocal().then((legacy) => {
+          if (!alive) return;
+          const valid = legacy ? toWorld(legacy) : null;
+          setLegacySaveAvailable(!!valid);
+          setIncompatible((!!legacy && !valid) || hasLegacyLocal());
+        });
+      }
     })();
     return () => { alive = false; };
   }, [showWorld]);

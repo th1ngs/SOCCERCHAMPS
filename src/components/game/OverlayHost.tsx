@@ -1,14 +1,16 @@
 "use client";
 
 import { useGame } from "./GameProvider";
-import { PlayerModal } from "@/components/player/PlayerModal";
-import { WeekResultsModal } from "@/components/flow/WeekResultsModal";
-import { SeasonEndModal } from "@/components/flow/SeasonEndModal";
-import { FiredModal } from "@/components/flow/FiredModal";
-import { PrematchModal } from "@/components/match/PrematchModal";
-import { SummaryModal } from "@/components/match/SummaryModal";
-import { LiveMatch } from "@/components/match/LiveMatch";
-import { ButtonMatch } from "@/components/match/ButtonMatch";
+import dynamic from "next/dynamic";
+
+const PlayerModal = dynamic(() => import("@/components/player/PlayerModal").then((m) => m.PlayerModal));
+const WeekResultsModal = dynamic(() => import("@/components/flow/WeekResultsModal").then((m) => m.WeekResultsModal));
+const SeasonEndModal = dynamic(() => import("@/components/flow/SeasonEndModal").then((m) => m.SeasonEndModal));
+const FiredModal = dynamic(() => import("@/components/flow/FiredModal").then((m) => m.FiredModal));
+const PrematchModal = dynamic(() => import("@/components/match/PrematchModal").then((m) => m.PrematchModal));
+const SummaryModal = dynamic(() => import("@/components/match/SummaryModal").then((m) => m.SummaryModal));
+const LiveMatch = dynamic(() => import("@/components/match/LiveMatch").then((m) => m.LiveMatch));
+const ButtonMatch = dynamic(() => import("@/components/match/ButtonMatch").then((m) => m.ButtonMatch));
 
 /** Renderiza o diálogo global ativo e a tela de partida, se houver. */
 export function OverlayHost() {
