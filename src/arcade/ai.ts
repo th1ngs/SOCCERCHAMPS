@@ -129,7 +129,7 @@ function scoreResult(res: SimulateResult, team: number, before: Body[]): number 
   return s;
 }
 
-export function createPlanner(bodies: readonly Body[], team: number, level: Level): Planner {
+export function createPlanner(bodies: readonly Body[], team: number, level: Level, maxPower = 1): Planner {
   const cfg = LEVELS[level] || LEVELS.medium;
   const snapshot = clone(bodies);
   let cands = genCandidates(snapshot, team);
@@ -142,7 +142,7 @@ export function createPlanner(bodies: readonly Body[], team: number, level: Leve
       for (let k = 0; k < n && idx < cands.length; k++, idx++) {
         const c = cands[idx];
         const sim = clone(snapshot);
-        const sp = c.p * P.maxShot;
+        const sp = Math.min(c.p, maxPower) * P.maxShot;
         sim[c.i].vx = c.dx * sp; sim[c.i].vy = c.dy * sp;
         c.score = scoreResult(simulate(sim, 7), team, snapshot);
       }
@@ -167,7 +167,7 @@ export function createPlanner(bodies: readonly Body[], team: number, level: Leve
         pick = pool[(Math.random() * pool.length) | 0];
       }
       const ang = Math.atan2(pick.dy, pick.dx) + gauss() * cfg.noiseAng;
-      const p = Math.max(0.2, Math.min(1, pick.p * (1 + gauss() * cfg.noisePow)));
+      const p = Math.max(0.2, Math.min(maxPower, pick.p * (1 + gauss() * cfg.noisePow)));
       return { i: pick.i, dx: Math.cos(ang), dy: Math.sin(ang), p };
     },
   };

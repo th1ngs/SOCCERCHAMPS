@@ -5,6 +5,8 @@ import { Audio } from "./audio";
 import { F, P, STEP, allStopped, kickoffBodies, stepWorld, type Body, type PhysEvent } from "./physics";
 
 export const TURN_TIME = 12;
+/** A saída é uma jogada curta; a força total fica disponível depois dela. */
+export const KICKOFF_MAX_POWER = 0.65;
 const MAX_DRAG = 170;
 const nowS = (): number => (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
 
@@ -94,6 +96,7 @@ export class Match {
   bodies: Body[] = [];
   turn = 0;
   turnTimer = TURN_TIME;
+  kickoffTurn = false;
   state: MatchState = "intro";
   stateT = 0;
   lastScorer = 0;
@@ -134,8 +137,9 @@ export class Match {
     this.bodies = kickoffBodies();
     this.trail = [];
     this.turn = team;
+    this.kickoffTurn = true;
     this.setState("intro");
-    this.showBanner(this.teams[team].name, { sub: "Saída de bola", dur: 1.3 });
+    this.showBanner(this.teams[team].name, { sub: "Saída curta • construa a jogada", dur: 1.3 });
   }
 
   setState(s: MatchState): void {
@@ -149,7 +153,7 @@ export class Match {
     this.drag = null;
     this.setState("aim");
     if (this.ctrl[team] === "cpu") {
-      this.planner = createPlanner(this.bodies, team, this.opts.difficulty[team]);
+      this.planner = createPlanner(this.bodies, team, this.opts.difficulty[team], this.kickoffTurn ? KICKOFF_MAX_POWER : 1);
       this.cpuPhase = "think";
     }
   }
@@ -179,6 +183,7 @@ export class Match {
           if (this.turnTimer <= 3 && Math.ceil(this.turnTimer) !== before && this.turnTimer > 0) this.sfx("tick");
           if (this.turnTimer <= 0) {
             this.drag = null;
+            this.kickoffTurn = false;
             this.showBanner("Tempo esgotado!", { dur: 1.1, color: "#ffd23f" });
             this.startTurn(1 - this.turn);
           }
@@ -304,13 +309,15 @@ export class Match {
   }
 
   shoot(disc: Body, dx: number, dy: number, power: number): void {
-    const sp = power * P.maxShot;
+    const actualPower = Math.min(power, this.kickoffTurn ? KICKOFF_MAX_POWER : 1);
+    const sp = actualPower * P.maxShot;
     disc.vx = dx * sp;
     disc.vy = dy * sp;
+    this.kickoffTurn = false;
     this.drag = null;
     this.accum = 0;
     this.setState("moving");
-    this.sfx("kick", power);
+    this.sfx("kick", actualPower);
   }
 
   // ---------- Entrada (coordenadas lógicas) ----------
@@ -337,7 +344,7 @@ export class Match {
     const vx = d.disc.x - x, vy = d.disc.y - y;
     const len = Math.hypot(vx, vy);
     const dead = d.disc.r * 0.6;
-    d.power = Math.max(0, Math.min(1, (len - dead) / MAX_DRAG));
+    d.power = Math.max(0, Math.min(this.kickoffTurn ? KICKOFF_MAX_POWER : 1, (len - dead) / MAX_DRAG));
     if (len > 0) { d.dx = vx / len; d.dy = vy / len; }
   }
 

@@ -427,6 +427,9 @@ export function HelpScreen({ onClose }: { onClose: () => void }) {
           Os times jogam em <b>turnos</b>: um chute por vez, com <b>12 segundos</b> para decidir.
         </li>
         <li>
+          Na <b>saída de bola</b>, o primeiro chute tem força reduzida. Construa a jogada antes de finalizar.
+        </li>
+        <li>
           Use as <b>laterais</b> para fazer tabelas e desviar dos adversários.
         </li>
         <li>
