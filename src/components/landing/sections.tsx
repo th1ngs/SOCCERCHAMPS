@@ -42,7 +42,7 @@ export function LandingNav() {
             <Link href="/hall-da-fama" className={buttonClasses("ghost", "sm")}>Hall da Fama</Link>
             <Link href="/arcade" className={buttonClasses("ghost", "sm")}>Arcade</Link>
           </div>
-          <Link href="/nova-carreira" className={buttonClasses("primary", "sm")}>Jogar</Link>
+          <Link href="/#login" className={buttonClasses("primary", "sm")}>Jogar</Link>
         </div>
       </nav>
     </header>
@@ -180,7 +180,7 @@ export function FinalCta() {
         A próxima temporada começa agora
       </h2>
       <p className="mx-auto mt-4 max-w-xl text-mist">Grátis, direto no navegador, no computador ou no celular.</p>
-      <Link href="/nova-carreira" className={buttonClasses("primary", "lg", false, "mt-8")}>
+      <Link href="/#login" className={buttonClasses("primary", "lg", false, "mt-8")}>
         Escolher meu clube <ChevronRight />
       </Link>
     </section>

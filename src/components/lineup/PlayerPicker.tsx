@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Badge, EmptyState, OvrBadge, PosBadge } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
 import { fitTone, type Candidate } from "./lineupLogic";
+import { PlayerAvatar } from "@/components/player/PlayerAvatar";
 
 /** Lista de jogadores aptos para uma vaga, do mais ao menos indicado. */
 export function PlayerPicker({
@@ -43,6 +44,7 @@ export function PlayerPicker({
                     cur ? "cursor-default bg-gold-400/10 ring-gold-400/40" : "bg-ink-800 ring-white/8 hover:bg-ink-700",
                   )}
                 >
+                  <PlayerAvatar player={p} size={36} />
                   <PosBadge pos={p.pos} />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5">

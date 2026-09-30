@@ -30,17 +30,10 @@ export function divisionHint(div: DivisionId): string {
   return "Pouco dinheiro, metas modestas e o sonho do acesso: 3 sobem e ninguém cai.";
 }
 
-/** Prestígio absoluto em estrelas (1 a 5, meia estrela) a partir da reputação 0-100. */
+/** Escala global: reputação 30 ≈ 0,5 estrela; 95 = 5 estrelas. */
 export function prestigeStars(rep: number): number {
-  const v = (rep - 40) / 10;
-  return Math.max(1, Math.min(5, Math.round(v * 2) / 2));
-}
-
-/** Prestígio relativo à divisão: o mais forte tem 5 estrelas, o mais fraco 1. */
-export function relativeStars(rep: number, min: number, max: number): number {
-  if (max <= min) return 3;
-  const v = 1 + (4 * (rep - min)) / (max - min);
-  return Math.max(1, Math.min(5, Math.round(v * 2) / 2));
+  const v = 0.5 + ((rep - 30) * 4.5) / 65;
+  return Math.max(0.5, Math.min(5, Math.round(v * 2) / 2));
 }
 
 /** Poder financeiro da liga em 1-5 barras e um rótulo. */
@@ -58,10 +51,8 @@ export interface RankedClub {
   tier: Tier;
 }
 
-/** Clubes de uma divisão, do mais forte ao mais fraco, com estrelas relativas e rótulo. */
+/** Clubes de uma divisão, do mais forte ao mais fraco, com prestígio global e rótulo local. */
 export function rankDivision(clubs: ClubStatic[], div: DivisionId): RankedClub[] {
   const list = clubs.filter((c) => c.div === div).sort((a, b) => b.rep - a.rep);
-  const reps = list.map((c) => c.rep);
-  const min = Math.min(...reps), max = Math.max(...reps);
-  return list.map((club, rank) => ({ club, rank, stars: relativeStars(club.rep, min, max), tier: tierOf(div, rank, list.length) }));
+  return list.map((club, rank) => ({ club, rank, stars: prestigeStars(club.rep), tier: tierOf(div, rank, list.length) }));
 }

@@ -2,13 +2,12 @@
 
 import { useId, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { autoLineup, CLUBS, divisionFullName, LEAGUES, newWorld, startSeason } from "@/game";
 import type { DivisionId, LeagueId } from "@/game/types";
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { Alert } from "@/components/ui/primitives";
 import { useToast } from "@/components/ui/Toast";
 import { useGame } from "@/components/game/GameProvider";
 import { Flag } from "@/components/ui/Flag";
@@ -38,37 +37,45 @@ export function StartScreen() {
   const toast = useToast();
   const nameId = useId();
   // O GameProvider já carrega o save local ao montar: `world` é a carreira salva.
-  const saved = g.ready ? g.world : null;
+  const search = useSearchParams();
+  const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+  const requested = Number(search.get("slot"));
+  const slot = selectedSlot ?? ([1, 2, 3].includes(requested) ? requested : 1);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   const [name, setName] = useState<string | null>(null);
-  const shownName = name ?? saved?.manager.name ?? "";
+  const shownName = name ?? g.world?.manager.name ?? "";
   const [confirmClub, setConfirmClub] = useState<string | null>(null);
   const [league, setLeague] = useState<LeagueId>("bra");
   // Divisão escolhida em cada liga: voltar a uma liga reabre a mesma aba.
   const [divs, setDivs] = useState<Partial<Record<LeagueId, DivisionId>>>({});
   const div = divs[league] ?? LEAGUES[league].divisions[0];
   const gridId = useId();
-  const hasSave = () => !!g.world || g.hasLocalSave();
+  const hasSave = () => g.slots.some((s) => s.slot === slot);
 
-  const start = (clubId: string) => {
+  const start = async (clubId: string) => {
     const manager = shownName.trim() || DEFAULT_NAME;
     const w = newWorld(manager, clubId);
     startSeason(w);
     for (const c of Object.values(w.clubs)) autoLineup(w, c);
-    // A nova carreira não pode sobrescrever o save da nuvem da carreira anterior.
-    if (g.cloudCode) g.disconnectCloud();
-    g.setWorld(w);
-    setConfirmClub(null);
-    router.push("/jogo");
-    toast(`Bem-vindo ao ${w.clubs[clubId].name}, ${manager}!`, "good");
+    setBusy(true); setError("");
+    try {
+      await g.createSlot(slot, w);
+      setConfirmClub(null);
+      router.push("/jogo");
+      toast(`Bem-vindo ao ${w.clubs[clubId].name}, ${manager}!`, "good");
+    } catch (err) { setError((err as Error).message); }
+    finally { setBusy(false); }
   };
 
-  const pick = (clubId: string) => (hasSave() ? setConfirmClub(clubId) : start(clubId));
+  const pick = (clubId: string) => (hasSave() ? setConfirmClub(clubId) : void start(clubId));
 
-  const savedClub = saved ? saved.clubs[saved.userClub] : null;
+  const existing = g.slots.find((s) => s.slot === slot);
   const pickedClub = confirmClub ? CLUBS.find((c) => c.id === confirmClub) : null;
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
+      {!g.account ? <div className="pt-10"><p>Entre na sua conta para criar uma carreira.</p><Link href="/" className={buttonClasses("primary", "sm", false, "mt-3")}>Ir para o login</Link></div> : <>
       <div className="pt-6 sm:pt-10">
         <Link href="/" className={buttonClasses("ghost", "sm")}>
           <ArrowLeft /> Início
@@ -82,6 +89,13 @@ export function StartScreen() {
         <p className="mt-2 max-w-prose text-sm text-mist">
           Seis países, 208 clubes. Clubes menores começam com pouco dinheiro e metas modestas; os grandes cobram títulos.
         </p>
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          <span className="mr-2 text-sm text-mist">Salvar em:</span>
+          {[1, 2, 3].map((n) => <Button key={n} variant={slot === n ? "primary" : "outline"} size="sm" onClick={() => setSelectedSlot(n)}>
+            Save {n}{g.slots.some((s) => s.slot === n) ? " · ocupado" : " · vazio"}
+          </Button>)}
+        </div>
+        {error && <p role="alert" className="mt-3 text-sm text-danger-400">{error}</p>}
 
         <Step n={1} title={<label htmlFor={nameId}>Seu nome de treinador</label>}>
           <input
@@ -122,13 +136,12 @@ export function StartScreen() {
         footer={
           <>
             <Button variant="ghost" onClick={() => setConfirmClub(null)}>Cancelar</Button>
-            <Button variant="danger" onClick={() => confirmClub && start(confirmClub)}>Começar do zero</Button>
+            <Button variant="danger" loading={busy} onClick={() => confirmClub && void start(confirmClub)}>Substituir save {slot}</Button>
           </>
         }
       >
         <p className="text-sm text-mist">
-          A carreira salva será substituída
-          {savedClub && saved ? ` (${savedClub.name}, temporada ${saved.season})` : ""}. Isso não pode ser desfeito.
+          O save {slot} será substituído{existing ? ` (${existing.clubName}, temporada ${existing.season})` : ""}. Isso não pode ser desfeito.
         </p>
         {pickedClub && (
           <p className="mt-3 flex flex-wrap items-center gap-1.5 text-sm">
@@ -136,13 +149,8 @@ export function StartScreen() {
             <Flag code={pickedClub.league} /> {divisionFullName(pickedClub.div)}
           </p>
         )}
-        {g.cloudCode && (
-          <Alert tone="info" className="mt-4">
-            O código da nuvem {g.cloudCode} continua guardando a carreira antiga, mas deixa de ser atualizado neste aparelho.
-          </Alert>
-        )}
       </Modal>
-
+      </>}
     </div>
   );
 }

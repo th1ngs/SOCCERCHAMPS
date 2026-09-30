@@ -4,11 +4,12 @@ import { formatMoney } from "@/game";
 import { Flag } from "@/components/ui/Flag";
 import { Meter, OvrBadge, PosBadge } from "@/components/ui/primitives";
 import { contractText } from "@/components/player/playerInfo";
-import { StatusTags } from "./StatusTags";
+import { StatusTags } from "./StatusTagBadges";
 import type { SquadRow } from "./SquadTable";
 import { LoanBadge, PromiseBadge } from "./TransferMarkBadges";
 import { useTransferMarks } from "./transferMarks";
 import { TraitChips } from "@/components/player/TraitChips";
+import { PlayerAvatar } from "@/components/player/PlayerAvatar";
 
 /** Lista compacta do elenco para celulares (< 640 px): cada cartão abre a ficha. */
 export function SquadCards({ rows, onOpen }: { rows: SquadRow[]; onOpen: (pid: string) => void }) {
@@ -26,6 +27,7 @@ export function SquadCards({ rows, onOpen }: { rows: SquadRow[]; onOpen: (pid: s
               <PosBadge pos={p.pos} />
               <span className="text-xs tabular text-mist">{p.num || "—"}</span>
             </div>
+            <PlayerAvatar player={p} size={36} />
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex min-w-0 items-center gap-1.5">
                 <Flag code={p.nat} />

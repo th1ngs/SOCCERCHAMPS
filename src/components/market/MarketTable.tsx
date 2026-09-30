@@ -9,6 +9,7 @@ import type { MarketRow } from "./marketFilter";
 import { rangeText } from "./transferDerive";
 import { WatchButton } from "./WatchButton";
 import { TraitChips } from "@/components/player/TraitChips";
+import { PlayerAvatar } from "@/components/player/PlayerAvatar";
 
 const TH = "px-2 py-2.5 font-display text-xs font-bold uppercase tracking-wider text-mist";
 
@@ -95,6 +96,7 @@ export function MarketTable({ rows, onOpen }: { rows: MarketRow[]; onOpen: (pid:
               </td>
               <td className="px-2 py-2">
                 <span className="inline-flex items-center gap-1.5">
+                  <PlayerAvatar player={r.p} size={30} />
                   <button
                     type="button"
                     onClick={(e) => {

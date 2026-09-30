@@ -7,14 +7,14 @@ import { useGame } from "@/components/game/GameProvider";
 import { AppShell } from "@/components/shell/AppShell";
 
 export default function GameLayout({ children }: LayoutProps<"/jogo">) {
-  const { ready, world } = useGame();
+  const { ready, world, account } = useGame();
   const router = useRouter();
 
   useEffect(() => {
-    if (ready && !world) router.replace("/");
-  }, [ready, world, router]);
+    if (ready && (!world || !account)) router.replace("/");
+  }, [ready, world, account, router]);
 
-  if (!ready || !world) {
+  if (!ready || !world || !account) {
     return (
       <div className="grid min-h-dvh place-items-center text-mist">
         <LoaderCircle className="size-6 animate-spin" aria-label="Carregando" />
