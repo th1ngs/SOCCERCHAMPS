@@ -1,7 +1,7 @@
 "use client";
 
 import { BedDouble, CalendarDays, Dumbbell, FastForward, Swords } from "lucide-react";
-import { advanceCalendarDay, calendarDate, currentWeek, DAY_ACTIVITY, DAY_NAMES } from "@/game";
+import { calendarDate, currentWeek, DAY_ACTIVITY, DAY_NAMES } from "@/game";
 import { useWorld } from "@/components/game/GameProvider";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/primitives";
@@ -9,7 +9,7 @@ import { cn } from "@/lib/cn";
 
 /** Agenda visível da preparação e do jogo desta semana. */
 export function WeekCalendarCard() {
-  const { world: w, mutate } = useWorld();
+  const { world: w, setOverlay } = useWorld();
   if (w.week === 0 || w.pendingSeason) return null;
   const match = currentWeek(w)?.matches.find((m) => m.h === w.userClub || m.a === w.userClub);
   const opponent = match ? w.clubs[match.h === w.userClub ? match.a : match.h] : null;
@@ -35,8 +35,8 @@ export function WeekCalendarCard() {
         {w.day < 6 ? "Treinos desenvolvem os jogadores; descansos recuperam o condicionamento." : match ? `Dia de jogo contra ${opponent?.name ?? "o adversário"}.` : "Domingo de folga para o seu clube."}
       </p>
       {w.day < 6 && (
-        <Button variant="ghost" size="sm" icon={<FastForward />} className="mt-2" onClick={() => mutate((world) => { while (world.day < 6) advanceCalendarDay(world); })}>
-          Simular até domingo
+        <Button variant="ghost" size="sm" icon={<FastForward />} className="mt-2" onClick={() => setOverlay({ kind: "calendar" })}>
+          Passar os dias até domingo
         </Button>
       )}
     </Card>

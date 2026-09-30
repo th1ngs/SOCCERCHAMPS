@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { advanceCalendarDay, calendarDayLabel, competitionName, DAY_ACTIVITY, endWeek, simulateWeek, userMatch, weekLabel } from "@/game";
+import { calendarDayLabel, competitionName, DAY_ACTIVITY, endWeek, simulateWeek, userMatch, weekLabel } from "@/game";
 import { useToast } from "@/components/ui/Toast";
 import { useWorld } from "./GameProvider";
 
@@ -18,7 +18,7 @@ export function useFlow() {
       : w.week === 0
         ? "Iniciar temporada"
         : w.day < 6
-          ? "Avançar dia"
+          ? "Simular calendário"
         : userMatch(w)
           ? "Ir para o jogo"
           : "Simular rodada";
@@ -60,9 +60,7 @@ export function useFlow() {
       return;
     }
     if (w.day < 6) {
-      advanceCalendarDay(w);
-      commit();
-      return;
+      return setOverlay({ kind: "calendar" });
     }
     const m = userMatch(w);
     if (m) return setOverlay({ kind: "prematch", matchId: m.id });

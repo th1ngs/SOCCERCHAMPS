@@ -10,6 +10,7 @@
 import { gzipSync } from 'node:zlib';
 import { seasonAwards } from '../src/game/awards';
 import { postMatchInsights } from '../src/components/match/postMatch';
+import { calendarHighlights } from '../src/components/home/calendarEvents';
 import * as G from '../src/game';
 import {
   CLUBS, DIVISIONS, DIVISION_IDS, DIVISION_SIZE, IncompatibleSaveError, LEAGUES, LEAGUE_IDS, LOAN_OPTIONS, Sim, TRAITS,
@@ -71,6 +72,14 @@ const kb = (n: number): string => (n / 1024).toFixed(0) + ' KB';
 
 function checkCalendar(): void {
   const w = freshWorld();
+  w.week = 1;
+  w.inbox.unshift({ id: w.nextMsg++, season: w.season - 1, week: 39, kind: 'award', title: 'Gala', body: 'Bola de Ouro: Teste', read: false });
+  const highlights = calendarHighlights(w);
+  assert(highlights.events.some((event) => event.title.includes('Bola de Ouro')), 'calendário destaca premiações');
+  assert(highlights.events.some((event) => event.title.includes('Janela de transferências')), 'calendário destaca janela aberta');
+  w.calendarSeenMessageId = highlights.latestMessageId;
+  assert(!calendarHighlights(w).events.some((event) => event.title.includes('Bola de Ouro')), 'premiação não reaparece toda semana');
+  w.week = 0;
   for (const div of DIVISION_IDS) {
     const matches = w.weeks.flatMap((week) => week?.matches.filter((m) => m.comp === div) ?? []);
     for (const club of Object.values(w.clubs).filter((c) => c.div === div)) {

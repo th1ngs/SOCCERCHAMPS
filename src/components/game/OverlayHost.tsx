@@ -11,6 +11,7 @@ const PrematchModal = dynamic(() => import("@/components/match/PrematchModal").t
 const SummaryModal = dynamic(() => import("@/components/match/SummaryModal").then((m) => m.SummaryModal));
 const LiveMatch = dynamic(() => import("@/components/match/LiveMatch").then((m) => m.LiveMatch));
 const ButtonMatch = dynamic(() => import("@/components/match/ButtonMatch").then((m) => m.ButtonMatch));
+const CalendarAdvanceModal = dynamic(() => import("@/components/home/CalendarAdvanceModal").then((m) => m.CalendarAdvanceModal));
 
 /** Renderiza o diálogo global ativo e a tela de partida, se houver. */
 export function OverlayHost() {
@@ -27,6 +28,7 @@ export function OverlayHost() {
       {overlay?.kind === "fired" && <FiredModal />}
       {overlay?.kind === "prematch" && <PrematchModal matchId={overlay.matchId} />}
       {overlay?.kind === "summary" && <SummaryModal matchId={overlay.matchId} />}
+      {overlay?.kind === "calendar" && <CalendarAdvanceModal />}
     </>
   );
 }

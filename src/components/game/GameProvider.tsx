@@ -10,7 +10,8 @@ const MIN_VERSION = 3;
 export type CloudStatus = "off" | "idle" | "saving" | "saved" | "error";
 export type Overlay =
   | { kind: "player"; pid: string } | { kind: "weekResults" } | { kind: "prematch"; matchId: string }
-  | { kind: "summary"; matchId: string } | { kind: "seasonEnd" } | { kind: "fired" } | null;
+  | { kind: "summary"; matchId: string } | { kind: "seasonEnd" } | { kind: "fired" }
+  | { kind: "calendar" } | null;
 export type MatchMode = { kind: "live" | "button"; matchId: string } | null;
 
 interface GameState {

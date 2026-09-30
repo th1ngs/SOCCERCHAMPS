@@ -780,6 +780,8 @@ export interface World {
   week: number;
   /** 0 = segunda, 6 = domingo (jogo). */
   day: number;
+  /** Última notícia exibida na animação do calendário. */
+  calendarSeenMessageId?: number;
   /** Migração da orientação dos mandos no calendário de liga. */
   scheduleRevision?: number;
   clubs: Record<string, Club>;
