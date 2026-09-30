@@ -2,7 +2,7 @@
 import { LEAGUE_IDS, POS, valueOf } from "@/game";
 import type { Player } from "@/game/types";
 
-export type SortKey = "num" | "name" | "nat" | "pos" | "age" | "ovr" | "pot" | "fit" | "morale" | "goals" | "value" | "contract";
+export type SortKey = "num" | "name" | "nat" | "pos" | "age" | "ovr" | "pot" | "fit" | "morale" | "apps" | "goals" | "assists" | "value" | "contract";
 export type SortDir = "asc" | "desc";
 export interface SortState {
   key: SortKey;
@@ -20,7 +20,9 @@ const ASC: Record<SortKey, (a: Player, b: Player) => number> = {
   pot: (a, b) => a.pot - b.pot,
   fit: (a, b) => a.fitness - b.fitness,
   morale: (a, b) => a.morale - b.morale,
+  apps: (a, b) => a.s.apps - b.s.apps,
   goals: (a, b) => a.s.goals - b.s.goals || a.s.apps - b.s.apps,
+  assists: (a, b) => a.s.assists - b.s.assists || a.s.apps - b.s.apps,
   value: (a, b) => valueOf(a) - valueOf(b),
   contract: (a, b) => a.contract - b.contract,
 };
@@ -36,7 +38,9 @@ export const DEFAULT_DIR: Record<SortKey, SortDir> = {
   pot: "desc",
   fit: "desc",
   morale: "desc",
+  apps: "desc",
   goals: "desc",
+  assists: "desc",
   value: "desc",
   contract: "asc",
 };
@@ -51,7 +55,9 @@ export const SORT_LABEL: Record<SortKey, string> = {
   pot: "Potencial",
   fit: "Condição",
   morale: "Moral",
+  apps: "Jogos",
   goals: "Gols",
+  assists: "Assistências",
   value: "Valor",
   contract: "Contrato",
 };

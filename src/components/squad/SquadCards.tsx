@@ -39,6 +39,11 @@ export function SquadCards({ rows, onOpen }: { rows: SquadRow[]; onOpen: (pid: s
                 <span className="tabular">{formatMoney(value)}</span>
                 <span className={p.contract <= 1 ? "text-warn-400" : undefined}>{contractText(p.contract)}</span>
               </div>
+              <div className="flex flex-wrap gap-x-3 text-xs tabular text-mist">
+                <span>Jogos <b className="text-snow">{p.s.apps}</b></span>
+                <span>Gols <b className="text-snow">{p.s.goals}</b></span>
+                <span>Assistências <b className="text-snow">{p.s.assists}</b></span>
+              </div>
               <span className="flex flex-wrap items-center gap-1">
                 <StatusTags tags={tags} />
                 <TraitChips traits={p.traits} />

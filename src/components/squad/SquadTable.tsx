@@ -27,7 +27,7 @@ export function SquadTable({ rows, sort, onSort, onOpen }: { rows: SquadRow[]; s
   const th = (k: SortKey, label: string, align?: "left" | "right" | "center") => <SortableTh k={k} label={label} sort={sort} onSort={onSort} align={align} />;
   return (
     <div className="overflow-x-auto rounded-(--radius-card) bg-ink-800 shadow-card ring-1 ring-inset ring-white/8">
-      <table className="w-full min-w-[1080px] text-sm">
+      <table className="w-full min-w-[1160px] text-sm">
         <caption className="sr-only">Jogadores do elenco. Use os cabeçalhos para ordenar.</caption>
         <thead className="border-b border-white/8 bg-ink-900/40">
           <tr>
@@ -40,7 +40,9 @@ export function SquadTable({ rows, sort, onSort, onOpen }: { rows: SquadRow[]; s
             {th("pot", "Pot.")}
             {th("fit", "Cond.")}
             {th("morale", "Moral")}
-            {th("goals", "J / G / A", "right")}
+            {th("apps", "Jogos", "right")}
+            {th("goals", "Gols", "right")}
+            {th("assists", "Assistências", "right")}
             {th("value", "Valor", "right")}
             {th("contract", "Contrato", "right")}
             <th scope="col" className="px-2 text-left font-display text-xs font-bold uppercase tracking-wider text-mist">
@@ -101,9 +103,9 @@ export function SquadTable({ rows, sort, onSort, onOpen }: { rows: SquadRow[]; s
               <td className="px-2 py-2">
                 <Meter value={p.morale} label={`Moral ${Math.round(p.morale)}`} />
               </td>
-              <td className="px-2 py-2 text-right tabular whitespace-nowrap">
-                {p.s.apps} / {p.s.goals} / {p.s.assists}
-              </td>
+              <td className="px-2 py-2 text-right tabular">{p.s.apps}</td>
+              <td className="px-2 py-2 text-right tabular">{p.s.goals}</td>
+              <td className="px-2 py-2 text-right tabular">{p.s.assists}</td>
               <td className="px-2 py-2 text-right tabular whitespace-nowrap">{formatMoney(value)}</td>
               <td className={cn("px-2 py-2 text-right tabular whitespace-nowrap", p.contract <= 1 && "text-warn-400")}>{contractText(p.contract)}</td>
               <td className="px-2 py-2 whitespace-nowrap">
