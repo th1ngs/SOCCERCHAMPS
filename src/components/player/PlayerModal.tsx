@@ -98,7 +98,7 @@ function Panel({ title, children, action }: { title: string; children: ReactNode
 
 /** Ficha do jogador: dados, olheiros, negociação, empréstimos, renovação, venda, funções, rescisão e base. */
 export function PlayerModal({ pid, onClose }: { pid: string; onClose: () => void }) {
-  const { world, version, mutate } = useWorld();
+  const { world, version, mutate, setOverlay } = useWorld();
   const toast = useToast();
   const [view, setView] = useState<View>({ kind: "info" });
 
@@ -245,11 +245,16 @@ export function PlayerModal({ pid, onClose }: { pid: string; onClose: () => void
   const doBuy = () => {
     let ok = false;
     const price = p.loan?.buyOption ?? 0;
+    const from = p.loan?.from ?? null;
     mutate((w) => {
       ok = exerciseBuyOption(w, pid);
     });
-    toast(ok ? `${name} agora é do ${u.name} em definitivo por ${formatMoney(price)}.` : "Não foi possível exercer a opção (caixa insuficiente?).", ok ? "good" : "bad");
-    back();
+    if (!ok) {
+      toast("Não foi possível exercer a opção (caixa insuficiente?).", "bad");
+      return back();
+    }
+    close();
+    setOverlay({ kind: "signing", pid, how: "option", fee: price, from });
   };
 
   // ---------- Confirmações ----------

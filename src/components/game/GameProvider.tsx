@@ -11,7 +11,8 @@ export type CloudStatus = "off" | "idle" | "saving" | "saved" | "error";
 export type Overlay =
   | { kind: "player"; pid: string } | { kind: "weekResults" } | { kind: "prematch"; matchId: string }
   | { kind: "summary"; matchId: string } | { kind: "seasonEnd" } | { kind: "fired" }
-  | { kind: "calendar" } | null;
+  | { kind: "calendar" }
+  | { kind: "signing"; pid: string; how: "transfer" | "free" | "loan" | "option"; fee: number; from: string | null } | null;
 export type MatchMode = { kind: "live" | "button"; matchId: string } | null;
 
 interface GameState {

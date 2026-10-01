@@ -2,7 +2,8 @@
 import { FORMATIONS, autoLineup, clamp, ensureLineup, gauss, isKnockout, randi, shuffle, teamRating, weighted } from "@/game";
 import type { Club, Match as MgrMatch, MatchResult, Position, SimGoal, World } from "@/game/types";
 import { Audio } from "@/arcade/audio";
-import { Match, type MatchEnd } from "@/arcade/game";
+import { Match, type DiscPlayer, type GoalLog, type MatchEnd } from "@/arcade/game";
+import { formationLayout } from "@/arcade/physics";
 import type { Level } from "@/arcade/ai";
 import { ArcadeRunner } from "@/arcade/runner";
 import { flagOf } from "@/arcade/teams";
@@ -19,17 +20,33 @@ function scorerFor(w: World, club: Club): string {
   return pick ? pick.id : (club.lineup.find((x): x is string => !!x) ?? club.squad[0]);
 }
 
-/** Monta o MatchResult a partir do placar do botão (score = [usuário, adversário]). */
-export function buttonMatchResult(w: World, m: MgrMatch, score: [number, number]): MatchResult {
+/**
+ * Monta o MatchResult a partir do placar do botão (score = [usuário, adversário]).
+ * Com o registro dos gols, autor, garçom e minuto saem do próprio jogo; sem ele, são sorteados.
+ */
+export function buttonMatchResult(w: World, m: MgrMatch, score: [number, number], log: GoalLog[] = []): MatchResult {
   const userHome = m.h === w.userClub;
   const [su, so] = score;
   const hs = userHome ? su : so, as = userHome ? so : su;
   const home = w.clubs[m.h], away = w.clubs[m.a];
-  const mins: number[] = [];
-  for (let i = 0; i < hs + as; i++) mins.push(randi(2, 90));
-  mins.sort((a, b) => a - b);
-  const order = shuffle([...Array<number>(hs).fill(0), ...Array<number>(as).fill(1)]);
-  const goals: SimGoal[] = order.map((side, i) => ({ side, pid: scorerFor(w, side === 0 ? home : away), min: mins[i], assist: null, pen: false }));
+  // Time 0 do botão é sempre o usuário.
+  const sideOf = (team: number) => (team === 0) === userHome ? 0 : 1;
+  const clubOf = (side: number) => (side === 0 ? home : away);
+  let goals: SimGoal[];
+  if (log.length === hs + as) {
+    goals = log.map((g) => {
+      const side = sideOf(g.team), club = clubOf(side);
+      const pid = (g.slot !== null && club.lineup[g.slot]) || scorerFor(w, club);
+      const assist = g.assist !== null ? club.lineup[g.assist] ?? null : null;
+      return { side, pid, min: clamp(Math.round(g.at * 90), 1, 90), assist: assist && assist !== pid ? assist : null, pen: false };
+    });
+  } else {
+    const mins: number[] = [];
+    for (let i = 0; i < hs + as; i++) mins.push(randi(2, 90));
+    mins.sort((a, b) => a - b);
+    const order = shuffle([...Array<number>(hs).fill(0), ...Array<number>(as).fill(1)]);
+    goals = order.map((side, i) => ({ side, pid: scorerFor(w, clubOf(side)), min: mins[i], assist: null, pen: false }));
+  }
   const winner = hs > as ? 0 : hs < as ? 1 : -1;
   const played: [string[], string[]] = [
     home.lineup.filter((x): x is string => !!x),
@@ -42,8 +59,23 @@ export function buttonMatchResult(w: World, m: MgrMatch, score: [number, number]
       fat[pid] = Math.max(20, w.players[pid].fitness - 22);
     }),
   );
-  for (const g of goals) ratings[g.pid] = clamp(ratings[g.pid] + 1, 3, 10);
+  for (const g of goals) {
+    if (g.pid in ratings) ratings[g.pid] = clamp(ratings[g.pid] + 1, 3, 10);
+    if (g.assist && g.assist in ratings) ratings[g.assist] = clamp(ratings[g.assist] + 0.5, 3, 10);
+  }
   return { hs, as, pens: null, goals, cards: [], injuries: [], played, ratings, fat, stats: null, winner };
+}
+
+/** Os 11 discos de um clube: posições da formação, nomes e números dos titulares. */
+export function clubDiscs(w: World, club: Club): { layout: ReturnType<typeof formationLayout>; players: DiscPlayer[] } {
+  const slots = FORMATIONS[club.formation];
+  return {
+    layout: formationLayout(slots),
+    players: slots.map((_, i) => {
+      const p = club.lineup[i] ? w.players[club.lineup[i] as string] : undefined;
+      return { name: p?.name ?? "—", num: p?.num ?? i + 1 };
+    }),
+  };
 }
 
 export const LEVEL_LABEL: Record<Level, string> = { easy: "fácil", medium: "médio", hard: "difícil" };
@@ -68,11 +100,13 @@ export class ButtonSession {
     this.user = u;
     this.opp = opp;
     Audio.init();
+    const du = clubDiscs(w, u), dopp = clubDiscs(w, opp);
     this.match = new Match({
       teams: [
-        { id: "mgr_" + u.id, name: u.name, flag: flagOf(u) },
-        { id: "mgr_" + opp.id, name: opp.name, flag: flagOf(opp) },
+        { id: "mgr_" + u.id, name: u.name, flag: flagOf(u), players: du.players },
+        { id: "mgr_" + opp.id, name: opp.name, flag: flagOf(opp), players: dopp.players },
       ],
+      layouts: [du.layout, dopp.layout],
       controllers: ["human", "cpu"],
       difficulty: [this.level, this.level],
       duration: 180,

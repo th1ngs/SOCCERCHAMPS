@@ -66,7 +66,7 @@ export function NextMatchCard() {
 
   if (!data) {
     return (
-      <Card title="Próximo jogo" className="md:col-span-2">
+      <Card title="Próximo jogo">
         <EmptyState>Sem jogos marcados. Os confrontos das copas são sorteados a cada fase.</EmptyState>
       </Card>
     );
@@ -81,7 +81,7 @@ export function NextMatchCard() {
   return (
     <Card
       tone="highlight"
-      className="relative overflow-hidden md:col-span-2"
+      className="relative overflow-hidden"
       title={
         <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
           <span>Próximo jogo •</span>
@@ -130,7 +130,7 @@ export function NextMatchCard() {
         </Fact>
       </div>
 
-      {thisWeek && !w.fired && !w.pendingSeason && (
+      {!w.fired && !w.pendingSeason && (
         <Button variant="primary" size="lg" block className="mt-4" onClick={advance} iconRight={<ChevronRight />}>
           {label}
         </Button>

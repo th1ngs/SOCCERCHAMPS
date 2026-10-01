@@ -8,11 +8,47 @@ import { Card } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
 
 /** Agenda visível da preparação e do jogo desta semana. */
-export function WeekCalendarCard() {
+export function WeekCalendarCard({ compact = false }: { compact?: boolean }) {
   const { world: w, setOverlay } = useWorld();
   if (w.week === 0 || w.pendingSeason) return null;
   const match = currentWeek(w)?.matches.find((m) => m.h === w.userClub || m.a === w.userClub);
   const opponent = match ? w.clubs[match.h === w.userClub ? match.a : match.h] : null;
+  if (compact) {
+    return (
+      <Card
+        title={<span className="flex items-center gap-2"><CalendarDays className="size-4" /> Semana</span>}
+        action={
+          w.day < 6 ? (
+            <Button variant="ghost" size="sm" icon={<FastForward />} className="-mr-2" onClick={() => setOverlay({ kind: "calendar" })}>
+              Até domingo
+            </Button>
+          ) : null
+        }
+      >
+        <ol className="grid grid-cols-7 gap-1" aria-label="Agenda de segunda a domingo">
+          {DAY_NAMES.map((dayName, index) => {
+            const activity = index === 6 && !match ? "Folga" : DAY_ACTIVITY[index];
+            const Icon = index === 6 ? match ? Swords : BedDouble : activity === "Treino" ? Dumbbell : BedDouble;
+            const today = index === w.day;
+            return (
+              <li
+                key={dayName}
+                title={`${dayName}: ${activity}`}
+                aria-current={today ? "date" : undefined}
+                className={cn("flex flex-col items-center gap-0.5 rounded-lg py-1.5 ring-1 ring-inset", today ? "bg-gold-400/15 ring-gold-400/70" : index < w.day ? "bg-pitch-500/8 ring-pitch-500/20" : "bg-ink-900/60 ring-white/8")}
+              >
+                <span className={cn("font-display text-[11px] font-bold uppercase", today ? "text-gold-400" : "text-mist")}>{dayName.slice(0, 3)}</span>
+                <Icon className={cn("size-3.5", index === 6 && match ? "text-gold-400" : activity === "Treino" ? "text-pitch-400" : "text-sky-300")} aria-hidden />
+              </li>
+            );
+          })}
+        </ol>
+        <p className="mt-2 text-xs text-mist">
+          {w.day < 6 ? "Treinos evoluem; descansos recuperam." : match ? `Dia de jogo contra ${opponent?.name ?? "o adversário"}.` : "Domingo de folga."}
+        </p>
+      </Card>
+    );
+  }
   return (
     <Card title={<span className="flex items-center gap-2"><CalendarDays className="size-4" /> Calendário da semana</span>} className="md:col-span-2 xl:col-span-3">
       <div className="grid grid-cols-7 gap-1.5 sm:gap-2" aria-label="Agenda de segunda a domingo">

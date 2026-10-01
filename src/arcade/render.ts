@@ -1,7 +1,7 @@
 // Desenho do campo, bandeiras, discos, bola, mira e efeitos. Porta do antigo js/render.js.
 // O estado da tela (View) é uma instância passada pelo chamador, não um global.
 import type { Flag, Match, Team } from "./game";
-import { F, type Body } from "./physics";
+import { F, P, type Body } from "./physics";
 
 /** Estado da tela: escala lógica->CSS, devicePixelRatio e rotação (modo retrato). */
 export interface View {
@@ -431,14 +431,25 @@ export function draw(c: CanvasRenderingContext2D, m: Match, now: number, view: V
     const b = bodies[i];
     const spr = discSprite(m.teams[b.team], b.team);
     const size = (SPR * b.r) / SPR_R;
-    if (view.rot) {
-      // Mantém as bandeiras "em pé" quando o campo está girado (modo retrato).
-      c.save(); c.translate(b.x, b.y); c.rotate(Math.PI / 2);
-      c.drawImage(spr, -size / 2, -size / 2, size, size);
-      c.restore();
-    } else {
-      c.drawImage(spr, b.x - size / 2, b.y - size / 2, size, size);
+    // Mantém as bandeiras e os números "em pé" quando o campo está girado (modo retrato).
+    c.save(); c.translate(b.x, b.y);
+    if (view.rot) c.rotate(Math.PI / 2);
+    c.drawImage(spr, -size / 2, -size / 2, size, size);
+    const team = m.teams[b.team];
+    if (team.players || b.r < P.playerR) {
+      const num = team.players?.[b.slot]?.num ?? b.slot + 1;
+      if (b.slot === 0) {
+        // Goleiro: aro verde, como a camisa diferente do arqueiro.
+        c.beginPath(); c.arc(0, 0, b.r - 1.5, 0, Math.PI * 2);
+        c.lineWidth = 3; c.strokeStyle = "#4ade80"; c.stroke();
+      }
+      c.font = `800 ${Math.round(b.r * 0.82)}px ${displayFont()}`;
+      c.textAlign = "center"; c.textBaseline = "middle";
+      c.lineWidth = 3.5; c.strokeStyle = "rgba(0,0,0,0.8)";
+      c.strokeText(String(num), 0, 1);
+      c.fillStyle = "#fff"; c.fillText(String(num), 0, 1);
     }
+    c.restore();
   }
   drawBall(c, bodies[0]);
 

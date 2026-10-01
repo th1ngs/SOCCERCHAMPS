@@ -218,6 +218,19 @@ export function SelectScreen({
             </div>
           )}
           <div>
+            <span className="mb-1 block text-xs uppercase tracking-wider text-mist">Formato</span>
+            <Segmented
+              ariaLabel="Formato"
+              size="sm"
+              value={String(settings.format)}
+              onChange={(v) => onSetting({ format: Number(v) === 5 ? 5 : 11 })}
+              options={[
+                { value: "11", label: "11 x 11" },
+                { value: "5", label: "5 x 5" },
+              ]}
+            />
+          </div>
+          <div>
             <span className="mb-1 block text-xs uppercase tracking-wider text-mist">Duração</span>
             <Segmented
               ariaLabel="Duração"

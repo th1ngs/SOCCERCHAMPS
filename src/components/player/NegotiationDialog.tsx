@@ -74,7 +74,7 @@ function Reason({ children }: { children: ReactNode }) {
  * Multa paga e agentes livres começam direto na etapa 2.
  */
 export function NegotiationDialog({ pid, mode, onBack, onDone }: { pid: string; mode: NegotiationMode; onBack: () => void; onDone: () => void }) {
-  const { world, version, mutate } = useWorld();
+  const { world, version, mutate, setOverlay } = useWorld();
   const toast = useToast();
   const p = world.players[pid];
 
@@ -205,6 +205,7 @@ export function NegotiationDialog({ pid, mode, onBack, onDone }: { pid: string; 
     if (!deal || !terms) return;
     let ok = false;
     let msg = "";
+    const from = p.clubId;
     mutate((w) => {
       const res: unknown = completeTransfer(w, pid, { ...terms, fee: deal.fee, installments: deal.installments });
       ok = w.players[pid]?.clubId === w.userClub;
@@ -213,8 +214,8 @@ export function NegotiationDialog({ pid, mode, onBack, onDone }: { pid: string; 
       if (ok) ensureLineup(w, user(w));
     });
     if (!ok) return toast(msg || "Não foi possível fechar a contratação.", "bad");
-    toast(`${name} é o novo reforço do ${u.name}${deal.fee ? ` por ${formatMoney(deal.fee)}` : ""}!`, "good");
     onDone();
+    setOverlay({ kind: "signing", pid, how: mode === "free" ? "free" : "transfer", fee: deal.fee, from });
   };
 
   // ---------- Render ----------

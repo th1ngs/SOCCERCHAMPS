@@ -19,7 +19,7 @@ const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 /** Pedir um jogador da CPU emprestado até o fim da temporada, com opção de compra opcional. */
 export function LoanInDialog({ pid, onBack, onDone }: { pid: string; onBack: () => void; onDone: () => void }) {
-  const { world, version, mutate } = useWorld();
+  const { world, version, mutate, setOverlay } = useWorld();
   const toast = useToast();
   const [withOption, setWithOption] = useState<"no" | "yes">("no");
   const data = useMemo(() => {
@@ -40,9 +40,8 @@ export function LoanInDialog({ pid, onBack, onDone }: { pid: string; onBack: () 
       if (ok) ensureLineup(w, user(w));
     });
     if (!ok) return toast("O empréstimo não foi aceito.", "bad");
-    const share = world.players[pid]?.loan?.wageShare ?? q.wageShare;
-    toast(`${p.name} chega emprestado${club ? ` pelo ${club.name}` : ""}. Você paga ${pct(share)} do salário.`, "good");
     onDone();
+    setOverlay({ kind: "signing", pid, how: "loan", fee: 0, from: club?.id ?? null });
   };
 
   return (

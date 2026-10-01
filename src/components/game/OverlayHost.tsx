@@ -11,6 +11,7 @@ const PrematchModal = dynamic(() => import("@/components/match/PrematchModal").t
 const SummaryModal = dynamic(() => import("@/components/match/SummaryModal").then((m) => m.SummaryModal));
 const LiveMatch = dynamic(() => import("@/components/match/LiveMatch").then((m) => m.LiveMatch));
 const ButtonMatch = dynamic(() => import("@/components/match/ButtonMatch").then((m) => m.ButtonMatch));
+const SigningShowcase = dynamic(() => import("@/components/player/SigningShowcase").then((m) => m.SigningShowcase));
 const CalendarAdvanceModal = dynamic(() => import("@/components/home/CalendarAdvanceModal").then((m) => m.CalendarAdvanceModal));
 
 /** Renderiza o diálogo global ativo e a tela de partida, se houver. */
@@ -29,6 +30,17 @@ export function OverlayHost() {
       {overlay?.kind === "prematch" && <PrematchModal matchId={overlay.matchId} />}
       {overlay?.kind === "summary" && <SummaryModal matchId={overlay.matchId} />}
       {overlay?.kind === "calendar" && <CalendarAdvanceModal />}
+      {overlay?.kind === "signing" && (
+        <SigningShowcase
+          key={overlay.pid}
+          pid={overlay.pid}
+          kind={overlay.how}
+          fee={overlay.fee}
+          from={overlay.from}
+          onClose={close}
+          onProfile={() => setOverlay({ kind: "player", pid: overlay.pid })}
+        />
+      )}
     </>
   );
 }

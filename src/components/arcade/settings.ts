@@ -13,10 +13,14 @@ export interface ArcadeSettings {
   league: LeagueId;
   /** Sorteio da Copa arcade. */
   cupScope: CupScope;
+  /** Discos por time: 11 (como no Manager) ou o clássico 5. */
+  format: ArcadeFormat;
 }
 
+export type ArcadeFormat = 5 | 11;
+
 const KEY = "scm.arcade.settings";
-export const DEFAULT_SETTINGS: ArcadeSettings = { difficulty: "medium", duration: 180, sound: true, league: "bra", cupScope: "mixed" };
+export const DEFAULT_SETTINGS: ArcadeSettings = { difficulty: "medium", duration: 180, sound: true, league: "bra", cupScope: "mixed", format: 11 };
 export const LEVEL_ORDER: Level[] = ["easy", "medium", "hard"];
 export const DURATIONS = [120, 180, 300];
 
@@ -29,6 +33,7 @@ export function loadSettings(): ArcadeSettings {
     s.sound = s.sound !== false;
     if (!ARCADE_LEAGUES.includes(s.league)) s.league = DEFAULT_SETTINGS.league;
     if (s.cupScope !== "mixed" && s.cupScope !== "league") s.cupScope = DEFAULT_SETTINGS.cupScope;
+    if (s.format !== 5 && s.format !== 11) s.format = DEFAULT_SETTINGS.format;
     return s;
   } catch {
     return { ...DEFAULT_SETTINGS };

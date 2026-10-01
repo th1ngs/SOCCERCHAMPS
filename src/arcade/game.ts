@@ -2,7 +2,7 @@
 // Porta fiel do antigo js/game.js (mesma máquina de estados e mesmas opções).
 import { createPlanner, type Level, type Planner, type Shot } from "./ai";
 import { Audio } from "./audio";
-import { F, P, STEP, allStopped, kickoffBodies, stepWorld, type Body, type PhysEvent } from "./physics";
+import { F, FIVE, P, STEP, allStopped, kickoffBodies, stepWorld, type Body, type Layout, type PhysEvent } from "./physics";
 
 export const TURN_TIME = 12;
 /** A saída é uma jogada curta; a força total fica disponível depois dela. */
@@ -16,10 +16,27 @@ export type Flag =
   | { type: "cross" | "nordic" | "swiss" | "circle" | "star"; bg: string; fg: string }
   | { type: "brazil" | "usa" };
 
+/** Jogador representado por um disco (na ordem das posições da formação). */
+export interface DiscPlayer {
+  name: string;
+  num: number;
+}
+
 export interface Team {
   id: string;
   name: string;
   flag: Flag;
+  /** Nomes e números por posição (Manager); sem isso os discos usam a numeração padrão. */
+  players?: DiscPlayer[];
+}
+
+/** Gol registrado: posição do autor e do garçom na formação (null = gol contra / sem passe). */
+export interface GoalLog {
+  team: number;
+  slot: number | null;
+  assist: number | null;
+  /** Fração do tempo de jogo já decorrida (0-1; 1 na morte súbita). */
+  at: number;
 }
 
 export type Controller = "human" | "cpu";
@@ -37,6 +54,8 @@ export interface MatchOptions {
   /** Duração em segundos. */
   duration: number;
   goldenGoal: boolean;
+  /** Formato de cada time; padrão: 5 discos (1-2-2). */
+  layouts?: [Layout, Layout];
   silent?: boolean;
   onEnd?: (r: MatchEnd) => void;
 }
@@ -100,6 +119,9 @@ export class Match {
   state: MatchState = "intro";
   stateT = 0;
   lastScorer = 0;
+  goals: GoalLog[] = [];
+  /** Discos que tocaram na bola desde a última saída, em ordem. */
+  touches: number[] = [];
   planner: Planner | null = null;
   cpuPhase: "think" | "aim" = "think";
   cpuShot: Shot | null = null;
@@ -134,8 +156,9 @@ export class Match {
   }
 
   kickoff(team: number): void {
-    this.bodies = kickoffBodies();
+    this.bodies = kickoffBodies(this.opts.layouts ?? [FIVE, FIVE]);
     this.trail = [];
+    this.touches = [];
     this.turn = team;
     this.kickoffTurn = true;
     this.setState("intro");
@@ -220,7 +243,13 @@ export class Match {
       this.accum -= STEP;
       this.events.length = 0;
       const g = stepWorld(this.bodies, STEP, this.events, detect && this.state === "moving");
-      for (const ev of this.events) this.sfx("hit", ev);
+      for (const ev of this.events) {
+        this.sfx("hit", ev);
+        if (ev.type === "ball") {
+          const k = ev.i === 0 ? ev.j : ev.i;
+          if (k > 0 && this.touches[this.touches.length - 1] !== k) this.touches.push(k);
+        }
+      }
       if (g >= 0 && this.state === "moving") this.onGoal(g);
     }
     const sp = Math.hypot(ball.vx, ball.vy);
@@ -252,13 +281,33 @@ export class Match {
     this.showBanner("FIM DE JOGO", { sub: `${this.teams[0].name} ${this.score[0]} x ${this.score[1]} ${this.teams[1].name}`, dur: 2.2 });
   }
 
+  /**
+   * Autor: o último disco do time que marcou a tocar na bola desde a saída (desvio do adversário não tira o gol).
+   * Garçom: o disco anterior do mesmo time na mesma sequência, sem toque adversário no meio.
+   * Sem toque nenhum do time que marcou, é gol contra.
+   */
+  creditGoal(team: number): GoalLog {
+    const t = this.touches;
+    const mine = (k: number) => this.bodies[t[k]]?.team === team;
+    let a = t.length - 1;
+    while (a >= 0 && !mine(a)) a--;
+    let b = a - 1;
+    while (b >= 0 && mine(b) && t[b] === t[a]) b--;
+    const slotOf = (k: number) => (k >= 0 && mine(k) ? this.bodies[t[k]].slot : null);
+    const at = this.overtime ? 1 : 1 - this.clock / Math.max(1, this.opts.duration);
+    return { team, slot: slotOf(a), assist: a >= 0 ? slotOf(b) : null, at };
+  }
+
   onGoal(team: number): void {
     this.score[team]++;
     this.lastScorer = team;
     this.drag = null;
     this.setState("goal");
     this.sfx("goal");
-    this.showBanner("GOOOL!", { sub: this.teams[team].name, dur: 2.6, big: true, color: "#ffd23f" });
+    const log = this.creditGoal(team);
+    this.goals.push(log);
+    const who = log.slot === null ? "Gol contra" : this.teams[team].players?.[log.slot]?.name;
+    this.showBanner("GOOOL!", { sub: who ? `${who} • ${this.teams[team].name}` : this.teams[team].name, dur: 2.6, big: true, color: "#ffd23f" });
     this.confetti(team);
   }
 

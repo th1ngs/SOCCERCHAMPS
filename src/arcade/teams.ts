@@ -1,5 +1,7 @@
 // Times do modo arcade: os clubes do Manager, com bandeiras dos discos geradas pelo padrão da camisa.
 import { CLUBS } from "@/game/clubs";
+import { FORMATIONS } from "@/game/data";
+import { FIVE, formationLayout, type Layout } from "./physics";
 import { LEAGUE_IDS, divisionLevel } from "@/game/leagues";
 import type { ClubStatic, KitPattern, LeagueId } from "@/game/types";
 import type { Flag, Team } from "./game";
@@ -36,6 +38,10 @@ export const teamsOfLeague = (league: LeagueId): ArcadeTeam[] => ARCADE_TEAMS.fi
 
 /** Times das primeiras divisões de todas as ligas. */
 export const firstDivisionTeams = (): ArcadeTeam[] => ARCADE_TEAMS.filter((t) => divisionLevel(t.club.div) === 1);
+
+/** Formato de 11 do arcade (4-3-3) e o clássico de 5. */
+export const ELEVEN: Layout = formationLayout(FORMATIONS["4-3-3"]);
+export const layoutsFor = (format: 5 | 11): [Layout, Layout] => (format === 5 ? [FIVE, FIVE] : [ELEVEN, ELEVEN]);
 
 /** Ligas na ordem de exibição. */
 export const ARCADE_LEAGUES: LeagueId[] = LEAGUE_IDS;

@@ -4,18 +4,22 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } 
 import { FORMATIONS, POS_NAME, autoLineup, ensureLineup, sectors, setCaptain, setFkTaker, setPenTaker, user } from "@/game";
 import type { FormationKey, Player, TacticKey } from "@/game/types";
 import { useWorld } from "@/components/game/GameProvider";
+import { WandSparkles } from "lucide-react";
 import { PageHeader } from "@/components/ui/primitives";
+import { Button } from "@/components/ui/Button";
+import { Segmented } from "@/components/ui/Segmented";
 import { useToast } from "@/components/ui/Toast";
-import { BenchCard } from "@/components/lineup/BenchCard";
-import { LeadersCard } from "@/components/lineup/LeadersCard";
+import { BenchList } from "@/components/lineup/BenchList";
+import { LeadersPanel } from "@/components/lineup/LeadersPanel";
 import { Pitch } from "@/components/lineup/Pitch";
 import { PlayerPicker } from "@/components/lineup/PlayerPicker";
-import { SectorCard } from "@/components/lineup/SectorCard";
-import { TacticsCard } from "@/components/lineup/TacticsCard";
-import { InstructionsCard } from "@/components/lineup/InstructionsCard";
+import { SectorStrip } from "@/components/lineup/SectorStrip";
+import { TacticsPanel } from "@/components/lineup/TacticsPanel";
+import { InstructionsPanel } from "@/components/lineup/InstructionsPanel";
 import { assignBench, assignSlot, candidates, lineupNeedsFix } from "@/components/lineup/lineupLogic";
 import { PlayerAvatar } from "@/components/player/PlayerAvatar";
 
+type PanelTab = "bench" | "tactics" | "instr" | "leaders";
 type Picking = { kind: "slot" | "bench"; index: number } | null;
 type DragSource = { kind: "slot" | "bench"; index: number; playerId: string; x: number; y: number; pointerId: number; active: boolean };
 type DragPreview = { player: Player; x: number; y: number };
@@ -29,6 +33,7 @@ export default function EscalacaoPage() {
   const { world, version, mutate } = useWorld();
   const toast = useToast();
   const [picking, setPicking] = useState<Picking>(null);
+  const [tab, setTab] = useState<PanelTab>("bench");
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const dragRef = useRef<DragSource | null>(null);
@@ -59,6 +64,7 @@ export default function EscalacaoPage() {
       const drag = dragRef.current;
       if (!drag || drag.pointerId !== event.pointerId) return;
       if (!drag.active && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 7) return;
+      if (!drag.active) setTab("bench"); // o banco precisa estar à vista para receber o jogador
       drag.active = true;
       const player = world.players[drag.playerId];
       if (!player) return;
@@ -176,12 +182,20 @@ export default function EscalacaoPage() {
 
   return (
     <>
-      <PageHeader title="Escalação" subtitle="Arraste um jogador para trocar de posição ou colocá-lo no banco. Toque para escolher pela lista. O triângulo indica jogador fora de posição." />
+      <PageHeader
+        title="Escalação"
+        subtitle="Arraste para trocar de posição ou mandar ao banco; toque para escolher pela lista."
+        actions={
+          <Button variant="secondary" size="sm" icon={<WandSparkles />} onClick={auto}>
+            Escalar o melhor
+          </Button>
+        }
+      />
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
-        <div className="min-w-0">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,380px)] lg:items-start">
+        <div className="min-w-0 space-y-3">
           <Pitch world={world} club={u} onPick={(index) => openPicker("slot", index)} onDragStart={(index, event) => startDrag("slot", index, event)} dropTarget={dropTarget} dragging={!!dragPreview} />
-          <ul className="mx-auto mt-3 flex max-w-[520px] flex-wrap gap-x-4 gap-y-1 text-xs text-mist" aria-label="Legenda">
+          <ul className="mx-auto flex max-w-[520px] flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-mist" aria-label="Legenda">
             <li className="flex items-center gap-1.5">
               <span className="grid size-4 place-items-center rounded-full bg-gold-400 font-display text-xs font-extrabold text-ink-950">C</span> Capitão
             </li>
@@ -192,23 +206,42 @@ export default function EscalacaoPage() {
               <span className="size-3 rounded-full bg-danger-500" /> Muito fora de posição
             </li>
           </ul>
+          <SectorStrip sec={sec} />
         </div>
 
-        <div className="min-w-0 space-y-5">
-          <BenchCard bench={bench} onPick={(index) => openPicker("bench", index)} onDragStart={(index, event) => startDrag("bench", index, event)} dropTarget={dropTarget} />
-          <TacticsCard formation={u.formation} tactic={u.tactic} onFormation={setFormation} onTactic={setTactic} onAuto={auto} />
-          <InstructionsCard />
-          <LeadersCard
-            starters={starters}
-            captain={captain}
-            penTaker={penTaker}
-            fkTaker={fkTaker}
-            onCaptain={chooseCaptain}
-            onPenTaker={choosePenTaker}
-            onFkTaker={chooseFkTaker}
+        {/* Um painel só, com abas, que acompanha a rolagem no computador. */}
+        <section aria-label="Banco e tática" className="flex min-w-0 flex-col rounded-(--radius-card) bg-ink-800 p-3 shadow-card ring-1 ring-inset ring-white/8 lg:sticky lg:top-36 lg:max-h-[calc(100dvh-10rem)]">
+          <Segmented
+            ariaLabel="Painel da escalação"
+            size="sm"
+            value={tab}
+            onChange={setTab}
+            className="flex w-full max-sm:flex-nowrap sm:flex-nowrap"
+            itemClassName="px-1.5"
+            options={[
+              { value: "bench", label: `Banco ${bench.length}` },
+              { value: "tactics", label: "Tática" },
+              { value: "instr", label: "Instruções" },
+              { value: "leaders", label: "Bola parada" },
+            ]}
           />
-          <SectorCard sec={sec} />
-        </div>
+          <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-0.5">
+            {tab === "bench" && <BenchList bench={bench} onPick={(index) => openPicker("bench", index)} onDragStart={(index, event) => startDrag("bench", index, event)} dropTarget={dropTarget} />}
+            {tab === "tactics" && <TacticsPanel formation={u.formation} tactic={u.tactic} onFormation={setFormation} onTactic={setTactic} />}
+            {tab === "instr" && <InstructionsPanel />}
+            {tab === "leaders" && (
+              <LeadersPanel
+                starters={starters}
+                captain={captain}
+                penTaker={penTaker}
+                fkTaker={fkTaker}
+                onCaptain={chooseCaptain}
+                onPenTaker={choosePenTaker}
+                onFkTaker={chooseFkTaker}
+              />
+            )}
+          </div>
+        </section>
       </div>
 
       {dragPreview && (

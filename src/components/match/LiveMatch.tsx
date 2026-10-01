@@ -5,11 +5,11 @@ import { ArrowLeftRight, ChevronRight, FastForward, Pause, Play, Volume2, Volume
 import type { Match, World } from "@/game/types";
 import { useWorld } from "@/components/game/GameProvider";
 import { Button, IconButton } from "@/components/ui/Button";
-import { Crest } from "@/components/ui/Crest";
 import { Segmented } from "@/components/ui/Segmented";
 import { cn } from "@/lib/cn";
 import { LiveController, type SpeedIndex } from "./live/controller";
 import { Feed, LiveStats, PossessionBar, Scoreboard } from "./live/LivePanels";
+import { GoalCelebration } from "./live/GoalCelebration";
 import { PenaltyScene } from "./live/PenaltyScene";
 import { SubsModal } from "./live/SubsModal";
 import { compName, findMatch, settleMatch } from "./matchUtils";
@@ -73,7 +73,6 @@ function LiveMatchScreen({ w, m }: { w: World; m: Match }) {
     setOverlay({ kind: "summary", matchId: m.id });
   };
 
-  const flashClub = snap.flash ? (snap.flash.side === 0 ? home : away) : null;
   const overReason = snap.over ? "Partida encerrada" : undefined;
 
   return (
@@ -97,7 +96,7 @@ function LiveMatchScreen({ w, m }: { w: World; m: Match }) {
         <div className="flex min-h-0 flex-col gap-3 lg:h-full">
           <div ref={boxRef} className="relative grid aspect-[105/68] max-h-[46dvh] w-full shrink-0 place-items-center lg:aspect-auto lg:max-h-none lg:min-h-0 lg:flex-1">
             <canvas ref={canvasRef} className="block rounded-xl shadow-2xl ring-1 ring-white/10" />
-            {snap.moment && !snap.penaltyScene && !snap.overlay && (
+            {snap.moment && !snap.penaltyScene && !snap.overlay && !snap.flash && (
               <div key={snap.moment.key} className="pointer-events-none absolute inset-x-3 bottom-3 animate-pop sm:inset-x-auto sm:bottom-4 sm:left-4" role="status">
                 <div className={cn("max-w-sm rounded-xl border bg-ink-950/90 px-4 py-2 shadow-2xl backdrop-blur-sm", snap.moment.tone === "red" ? "border-danger-400/60" : snap.moment.tone === "blue" ? "border-sky-400/60" : "border-gold-400/60")}>
                   <b className={cn("font-display text-base font-extrabold uppercase", snap.moment.tone === "red" ? "text-danger-400" : snap.moment.tone === "blue" ? "text-sky-300" : "text-gold-400")}>{snap.moment.title}</b>
@@ -105,15 +104,7 @@ function LiveMatchScreen({ w, m }: { w: World; m: Match }) {
                 </div>
               </div>
             )}
-            {flashClub && snap.flash && !snap.penaltyScene && (
-              <div key={snap.flash.key} className="pointer-events-none absolute inset-0 grid place-items-center" aria-live="assertive">
-                <div className="flex max-w-[90%] animate-flash flex-col items-center gap-1 rounded-2xl bg-ink-950/70 px-5 py-4 text-center shadow-2xl backdrop-blur-sm sm:px-8">
-                  <Crest club={flashClub} size={60} />
-                  <b className="font-display text-3xl font-extrabold italic text-gold-400 drop-shadow sm:text-6xl">{snap.flash.label}</b>
-                  <span className="font-display text-lg font-bold uppercase">{flashClub.name}</span>
-                </div>
-              </div>
-            )}
+            {snap.flash && !snap.penaltyScene && <GoalCelebration key={snap.flash.key} flash={snap.flash} home={home} away={away} onSkip={() => ctrl.skipFlashes()} />}
             {snap.paused && !snap.overlay && !snap.subsOpen && !snap.penaltyScene && (
               <span className="pointer-events-none absolute left-3 top-3 rounded-lg bg-ink-950/80 px-2.5 py-1 font-display text-sm font-bold uppercase tracking-wide">
                 Pausado

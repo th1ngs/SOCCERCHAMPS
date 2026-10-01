@@ -39,7 +39,7 @@ function ButtonMatchScreen({ w, m }: { w: World; m: Match }) {
   useEffect(
     () =>
       session.onEnd((r) => {
-        settleMatch(w, m, buttonMatchResult(w, m, r.score), scratch);
+        settleMatch(w, m, buttonMatchResult(w, m, r.score, session.match.goals), scratch);
         commit();
         setMatchMode(null);
         setOverlay({ kind: "summary", matchId: m.id });

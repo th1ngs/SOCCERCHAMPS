@@ -55,11 +55,16 @@ export interface Body {
   /** -1 = bola; 0 = time da esquerda; 1 = time da direita. */
   team: number;
   rot: number;
+  /** Posição na escalação (0 = goleiro no formato de 11); -1 = bola. */
+  slot: number;
 }
 
 export interface PhysEvent {
   type: "ball" | "disc" | "wall";
   v: number;
+  /** Índices dos corpos envolvidos (j = -1 na parede). */
+  i: number;
+  j: number;
 }
 
 export interface Wall {
@@ -72,8 +77,33 @@ export interface Wall {
   len2: number;
 }
 
-/** Formação 1-2-2 do time da esquerda (o da direita é espelhado). */
-const FORMATION: [number, number][] = [[105, 310], [255, 215], [255, 405], [405, 200], [405, 420]];
+/** Posições de saída do time da esquerda (o da direita é espelhado) e raio dos discos. */
+export interface Layout {
+  pos: [number, number][];
+  r: number;
+}
+
+/** Formato clássico do arcade: 1-2-2 com discos grandes. */
+export const FIVE: Layout = { pos: [[105, 310], [255, 215], [255, 405], [405, 200], [405, 420]], r: P.playerR };
+
+/** Raio dos discos no formato de 11 (cabem os 22 sem lotar o campo). */
+export const ELEVEN_R = 21;
+
+/**
+ * Formato de 11 a partir das posições de uma formação do Manager
+ * (x = 0 próprio gol → 100 gol adversário; y = 0 → 100 de uma lateral à outra).
+ * Todos saem do próprio campo, fora do círculo central.
+ */
+export function formationLayout(slots: readonly { x: number; y: number }[]): Layout {
+  const x0 = F.left + 45, x1 = F.cx - 125;
+  return {
+    r: ELEVEN_R,
+    pos: slots.map((s) => {
+      const fx = Math.min(80, Math.max(5, s.x));
+      return [x0 + ((fx - 5) / 75) * (x1 - x0), F.cy + ((Math.min(96, Math.max(4, s.y)) - 50) / 50) * 225];
+    }),
+  };
+}
 
 function buildWalls(): Wall[] {
   const s: Wall[] = [];
@@ -91,11 +121,10 @@ function buildWalls(): Wall[] {
 }
 export const WALLS: readonly Wall[] = buildWalls();
 
-function makeBody(x: number, y: number, isBall: boolean, team: number): Body {
+function makeBody(x: number, y: number, isBall: boolean, team: number, r: number = isBall ? P.ballR : P.playerR, slot = -1): Body {
   const kind = isBall ? "ball" : "player";
   return {
-    x, y, vx: 0, vy: 0,
-    r: isBall ? P.ballR : P.playerR,
+    x, y, vx: 0, vy: 0, r, slot,
     m: isBall ? P.ballM : P.playerM,
     fa: P.fricA[kind], fk: P.fricK[kind],
     e: isBall ? P.eWallBall : P.eWallPlayer,
@@ -103,11 +132,12 @@ function makeBody(x: number, y: number, isBall: boolean, team: number): Body {
   };
 }
 
-/** Corpo 0 é sempre a bola; 1..5 time 0 (esquerda); 6..10 time 1 (direita). */
-export function kickoffBodies(): Body[] {
+/** Corpo 0 é sempre a bola; depois os discos do time 0 (esquerda) e os do time 1 (direita). */
+export function kickoffBodies(layouts: readonly [Layout, Layout] = [FIVE, FIVE]): Body[] {
   const bodies = [makeBody(F.cx, F.cy, true, -1)];
   for (let team = 0; team < 2; team++) {
-    for (const [x, y] of FORMATION) bodies.push(makeBody(team === 0 ? x : F.w - x, y, false, team));
+    const { pos, r } = layouts[team];
+    pos.forEach(([x, y], slot) => bodies.push(makeBody(team === 0 ? x : F.w - x, y, false, team, r, slot)));
   }
   return bodies;
 }
@@ -146,12 +176,14 @@ function collide(bodies: Body[], events: PhysEvent[] | null): void {
         const jmp = (-(1 + P.eDisc) * vn) / it;
         a.vx -= jmp * nx * ia; a.vy -= jmp * ny * ia;
         b.vx += jmp * nx * ib; b.vy += jmp * ny * ib;
-        if (events) events.push({ type: a.isBall || b.isBall ? "ball" : "disc", v: -vn });
+        if (events) events.push({ type: a.isBall || b.isBall ? "ball" : "disc", v: -vn, i, j });
       }
     }
   }
   for (let i = 0; i < n; i++) {
     const b = bodies[i];
+    // Disco parado não entra na parede sozinho (economiza com 22 discos em campo).
+    if (b.vx === 0 && b.vy === 0) continue;
     for (let k = 0; k < WALLS.length; k++) {
       const w = WALLS[k];
       let t = ((b.x - w.x1) * w.dx + (b.y - w.y1) * w.dy) / w.len2;
@@ -166,7 +198,7 @@ function collide(bodies: Body[], events: PhysEvent[] | null): void {
       const vn = b.vx * nx + b.vy * ny;
       if (vn < 0) {
         b.vx -= (1 + b.e) * vn * nx; b.vy -= (1 + b.e) * vn * ny;
-        if (events) events.push({ type: "wall", v: -vn });
+        if (events) events.push({ type: "wall", v: -vn, i, j: -1 });
       }
     }
   }

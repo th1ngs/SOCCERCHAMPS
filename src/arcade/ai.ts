@@ -20,6 +20,11 @@ export const LEVELS: Record<Level, LevelConfig> = {
 export const LEVEL_NAME: Record<Level, string> = { easy: "Fácil", medium: "Médio", hard: "Difícil" };
 
 const POWERS = [0.45, 0.7, 1];
+/** Discos que a IA considera para tocar na bola (os mais próximos dela). */
+const NEAREST = 5;
+/** Tempo máximo de simulação por quadro (ms) para não travar a tela no formato de 11. */
+const FRAME_BUDGET_MS = 7;
+const nowMs = (): number => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
 /** Chute escolhido: índice do disco, direção unitária e força (0-1). */
 export interface Shot {
@@ -58,9 +63,11 @@ function genCandidates(bodies: Body[], team: number): Candidate[] {
   targets.push([farX, F.top + 60], [farX, F.bottom - 60], [F.cx + (attackRight ? 160 : -160), F.cy]);
 
   const cands: Candidate[] = [];
-  for (let i = 1; i < bodies.length; i++) {
+  const near: number[] = [];
+  for (let i = 1; i < bodies.length; i++) if (bodies[i].team === team) near.push(i);
+  near.sort((a, b) => Math.hypot(bodies[a].x - ball.x, bodies[a].y - ball.y) - Math.hypot(bodies[b].x - ball.x, bodies[b].y - ball.y));
+  for (const i of near.slice(0, NEAREST).sort((a, b) => a - b)) {
     const d = bodies[i];
-    if (d.team !== team) continue;
     for (const [tx, ty] of targets) {
       let bx = tx - ball.x, by = ty - ball.y;
       const bl = Math.hypot(bx, by) || 1;
@@ -139,7 +146,8 @@ export function createPlanner(bodies: readonly Body[], team: number, level: Leve
   return {
     done: cands.length === 0,
     step(n: number) {
-      for (let k = 0; k < n && idx < cands.length; k++, idx++) {
+      const t0 = nowMs();
+      for (let k = 0; k < n && idx < cands.length && (k === 0 || nowMs() - t0 < FRAME_BUDGET_MS); k++, idx++) {
         const c = cands[idx];
         const sim = clone(snapshot);
         const sp = Math.min(c.p, maxPower) * P.maxShot;

@@ -1,7 +1,7 @@
 // Controlador da partida ao vivo: guarda o Sim, roda o laço rAF e expõe um snapshot
 // (atualizado por minuto de jogo) para a interface via useSyncExternalStore.
 import { Sim } from "@/game";
-import type { FormationKey, Match, MatchResult, MatchStats, SimEvent, Instructions, TacticKey, World } from "@/game/types";
+import type { FormationKey, Match, MatchResult, MatchStats, SimEvent, SimGoal, Instructions, TacticKey, World } from "@/game/types";
 import { Audio } from "@/arcade/audio";
 import { kits, pct, simOptions, type Kit } from "../matchUtils";
 import { PITCH_RATIO, drawLivePitch, type PitchAnim, type PitchScale } from "./drawPitch";
@@ -27,6 +27,30 @@ export interface PenaltyScene {
 
 export type LiveOverlay = "half" | "end" | null;
 
+/** Comemoração de um gol (todos os gols ganham a sua, em fila; o relógio espera). */
+export interface GoalFlash {
+  key: number;
+  side: number;
+  label: string;
+  scorer: string | null;
+  assist: string | null;
+  minuteText: string;
+  /** Placar logo após este gol. */
+  score: [number, number];
+  /** Duração em ms (mais curta no 4x e no resumo de "Até o fim"). */
+  dur: number;
+  /** Comemorações ainda na fila depois desta. */
+  more: number;
+}
+
+const minuteLabel = (min: number): string => (min > 90 ? `90+${min - 90}'` : `${min}'`);
+
+/** Rótulo pelo tipo do lance narrado. */
+function goalLabel(text: string): string {
+  const upper = text.toLocaleUpperCase('pt-BR');
+  return upper.includes('FALTA') ? 'GOL DE FALTA!' : upper.includes('CABEÇA') || upper.includes('CABECEADA') ? 'GOL DE CABEÇA!' : upper.includes('GOLAÇO') || upper.includes('DE LONGE') ? 'GOLAÇO!' : 'GOOOOL!';
+}
+
 export interface LiveSnapshot {
   rev: number;
   minute: number;
@@ -40,7 +64,7 @@ export interface LiveSnapshot {
   paused: boolean;
   over: boolean;
   overlay: LiveOverlay;
-  flash: { side: number; key: number; label: string } | null;
+  flash: GoalFlash | null;
   penaltyScene: PenaltyScene | null;
   moment: { key: number; title: string; text: string; side: number | null; tone: 'gold' | 'red' | 'blue' } | null;
   subsOpen: boolean;
@@ -62,7 +86,7 @@ export class LiveController {
   paused = false;
   over = false;
   overlay: LiveOverlay = null;
-  flash: { side: number; key: number; label: string } | null = null;
+  flash: GoalFlash | null = null;
   subsOpen = false;
   subsNote: string | null = null;
   private resumeOnClose = false;
@@ -74,6 +98,8 @@ export class LiveController {
   private anim: PitchAnim = { dots: new Map(), ball: { x: 50, y: 50 }, trail: [], target: "", pulse: null, flight: null };
   private scale: PitchScale = { w: 1, h: 1, dpr: 1 };
   private flashTimer: ReturnType<typeof setTimeout> | null = null;
+  private flashQueue: Omit<GoalFlash, 'more'>[] = [];
+  private flashSeq = 0;
   private sceneTimer: ReturnType<typeof setTimeout> | null = null;
   private momentTimer: ReturnType<typeof setTimeout> | null = null;
   private moment: LiveSnapshot['moment'] = null;
@@ -172,10 +198,10 @@ export class LiveController {
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       const sim = this.sim;
-      if (!this.paused && !this.scene && !sim.finished) {
+      if (!this.paused && !this.scene && !this.flash && !sim.finished) {
         this.acc += dt;
         const dur = SPEEDS[this.speed];
-        while (this.acc >= dur && !this.paused && !this.scene && !sim.finished) {
+        while (this.acc >= dur && !this.paused && !this.scene && !this.flash && !sim.finished) {
           this.acc -= dur;
           this.minute();
         }
@@ -201,6 +227,53 @@ export class LiveController {
     this.momentTimer = null;
   }
 
+  // ---------- Comemorações de gol ----------
+  private flashDur(fast: boolean): number {
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 900;
+    return fast ? 1300 : this.speed === 2 ? 1700 : 2600;
+  }
+
+  private queueGoal(g: SimGoal | undefined, side: number, label: string, score: [number, number], fast = false): void {
+    const name = (pid: string | null | undefined) => (pid ? this.w.players[pid]?.name ?? null : null);
+    this.flashQueue.push({
+      key: ++this.flashSeq, side, label,
+      scorer: name(g?.pid), assist: name(g?.assist),
+      minuteText: minuteLabel(g?.min ?? this.sim.minute),
+      score, dur: this.flashDur(fast),
+    });
+    if (!this.flash) this.nextFlash();
+  }
+
+  private nextFlash(): void {
+    if (this.flashTimer) clearTimeout(this.flashTimer);
+    this.flashTimer = null;
+    const next = this.flashQueue.shift();
+    if (!next) {
+      this.flash = null;
+      this.settleBreaks();
+      this.emit();
+      return;
+    }
+    this.flash = { ...next, more: this.flashQueue.length };
+    Audio.goal();
+    this.flashTimer = setTimeout(() => this.nextFlash(), next.dur);
+    this.emit();
+  }
+
+  /** Pula as comemorações pendentes (toque na tela do gol). */
+  skipFlashes(): void {
+    if (!this.flash) return;
+    this.flashQueue = [];
+    this.nextFlash();
+  }
+
+  /** Intervalo e apito final só aparecem depois das cenas de pênalti e das comemorações. */
+  private settleBreaks(): void {
+    if (this.scene || this.flash) return;
+    if (this.sim.finished) this.finish();
+    else if (this.sim.phase === 'half' && !this.overlay) { this.paused = true; this.overlay = 'half'; }
+  }
+
   private pushFeed(ev: SimEvent): void {
     if (ev.type === "build" && this.speed === 2) return;
     this.feed = [{ ...ev, key: ++this.feedSeq }, ...this.feed].slice(0, 120);
@@ -214,8 +287,7 @@ export class LiveController {
       this.currentSceneEvent = null;
       this.scene = null;
       this.hiddenScore = null;
-      if (this.sim.finished) this.finish();
-      else if (this.sim.phase === 'half') { this.paused = true; this.overlay = 'half'; }
+      this.settleBreaks();
       this.emit();
       return;
     }
@@ -245,10 +317,9 @@ export class LiveController {
     if (event.penalty?.outcome === 'goal') {
       this.hiddenScore = null;
       if (!event.penalty.shootoutScore) {
-        this.flash = { side: event.side ?? 0, key: this.feedSeq, label: 'GOL DE PÊNALTI!' };
-        if (this.flashTimer) clearTimeout(this.flashTimer);
-        this.flashTimer = setTimeout(() => { this.flash = null; this.emit(); }, 2200);
-        Audio.goal();
+        const shooter = event.penalty.shooterId;
+        const g = this.sim.goals.findLast((x) => x.pen && x.pid === shooter);
+        this.queueGoal(g, event.side ?? 0, 'GOL DE PÊNALTI!', [this.sim.score[0], this.sim.score[1]]);
       } else Audio.kick(0.8);
     } else Audio.kick(0.6);
     this.showNextScene();
@@ -269,14 +340,14 @@ export class LiveController {
     this.scene = null;
     this.hiddenScore = null;
     this.shownPens = this.sim.pens ? [...this.sim.pens] : null;
-    if (this.sim.finished) this.finish();
-    else if (this.sim.phase === 'half') { this.paused = true; this.overlay = 'half'; }
+    this.settleBreaks();
     this.emit();
   }
 
   private minute(): void {
     const sim = this.sim;
     const scoreBefore: [number, number] = [sim.score[0], sim.score[1]];
+    const goalsBefore = sim.goals.length;
     const evs = sim.step();
     const hasPenaltyScene = evs.some((event) => !!event.penalty);
     for (const ev of evs) {
@@ -297,20 +368,14 @@ export class LiveController {
       if (this.momentTimer) clearTimeout(this.momentTimer);
       this.momentTimer = setTimeout(() => { this.moment = null; this.emit(); }, this.speed === 2 ? 1100 : 2100);
     }
-    const goals = evs.filter((e) => e.type === "goal" && !e.penalty);
-    if (goals.length) {
-      const g = goals[goals.length - 1];
-      const upper = g.text.toLocaleUpperCase('pt-BR');
-      const label = upper.includes('FALTA') ? 'GOL DE FALTA!' : upper.includes('CABEÇA') || upper.includes('CABECEADA') ? 'GOL DE CABEÇA!' : upper.includes('GOLAÇO') || upper.includes('DE LONGE') ? 'GOLAÇO!' : 'GOOOOL!';
-      this.flash = { side: g.side ?? 0, key: this.feedSeq, label };
-      if (this.flashTimer) clearTimeout(this.flashTimer);
-      this.flashTimer = setTimeout(() => {
-        this.flash = null;
-        this.emit();
-      }, 2200);
-      Audio.goal();
-      if (this.speed === 2) this.acc = -1.2; // respiro para ver o gol no 4x
-    }
+    // Cada gol de bola rolando ganha a sua comemoração, na ordem (os de pênalti vêm depois da cena).
+    const running: [number, number] = [scoreBefore[0], scoreBefore[1]];
+    const fieldGoals = sim.goals.slice(goalsBefore).filter((g) => !g.pen);
+    evs.filter((e) => e.type === "goal" && !e.penalty).forEach((ev, i) => {
+      const side = ev.side ?? 0;
+      running[side]++;
+      this.queueGoal(fieldGoals[i], side, goalLabel(ev.text), [running[0], running[1]]);
+    });
     if (evs.some((e) => !e.penalty && (e.type === "save" || e.type === "miss"))) Audio.kick(0.6);
     if (sim.pendingInjury) {
       const pi = sim.pendingInjury;
@@ -318,11 +383,7 @@ export class LiveController {
       this.paused = true;
       this.openSubs(`${this.w.players[pi.pid]?.name ?? "Um jogador"} se machucou. Faça uma substituição.`, true);
     }
-    if (sim.phase === "half" && !this.scene) {
-      this.paused = true;
-      this.overlay = "half";
-    }
-    if (sim.finished && !this.scene) this.finish();
+    this.settleBreaks();
     this.emit();
   }
 
@@ -363,12 +424,19 @@ export class LiveController {
     const sim = this.sim;
     this.overlay = null;
     this.subsOpen = false;
+    const goalsBefore = sim.goals.length;
+    const running: [number, number] = [sim.score[0], sim.score[1]];
     while (!sim.finished) {
       const evs = sim.step();
       for (const ev of evs) if (ev.type !== "build") this.pushFeed(ev);
       sim.pendingInjury = null;
     }
-    this.finish();
+    // Resumo rápido: os gols que faltavam passam um a um antes do apito final.
+    for (const g of sim.goals.slice(goalsBefore)) {
+      running[g.side]++;
+      this.queueGoal(g, g.side, g.pen ? 'GOL DE PÊNALTI!' : 'GOL!', [running[0], running[1]], true);
+    }
+    this.settleBreaks();
     this.emit();
   }
 

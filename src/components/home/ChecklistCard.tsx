@@ -109,20 +109,22 @@ const toneCls: Record<Tone, string> = {
 };
 
 /** Checklist da semana: guia o jogador pelo que falta fazer antes de avançar. */
-export function ChecklistCard() {
+export function ChecklistCard({ compact = false }: { compact?: boolean }) {
   const { world: w, version } = useWorld();
-  const items = useMemo(
+  const all = useMemo(
     () => checklist(w),
     // `version` muda a cada mutação do mesmo objeto world.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [w, version],
   );
-  const pending = items.filter((i) => i.tone !== "ok").length;
+  const pending = all.filter((i) => i.tone !== "ok").length;
+  // Compacto: só o que falta fazer (até 4); sem pendências, o primeiro item "ok" confirma que está tudo certo.
+  const items = compact ? (pending ? all.filter((i) => i.tone !== "ok").slice(0, 4) : all.slice(0, 1)) : all;
   const firstWeeks = w.week <= 1 && w.history.length === 0;
 
   return (
     <Card
-      title="Checklist da semana"
+      title={compact ? "Antes de avançar" : "Checklist da semana"}
       action={
         <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-bold", pending ? "bg-info-500/15 text-info-400" : "bg-pitch-500/15 text-pitch-400")}>
           {pending ? `${pending} pendente${pending > 1 ? "s" : ""}` : "Tudo certo"}
@@ -140,11 +142,11 @@ export function ChecklistCard() {
       <ul className="-mx-2 flex flex-col">
         {items.map((it) => (
           <li key={it.key}>
-            <Link href={it.href} className="group flex min-h-14 items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-white/5 active:bg-white/8">
-              <span className={cn("grid size-10 shrink-0 place-items-center rounded-xl [&_svg]:size-5", toneCls[it.tone])}>{it.icon}</span>
+            <Link href={it.href} className={cn("group flex items-center gap-3 rounded-xl px-2 transition-colors hover:bg-white/5 active:bg-white/8", compact ? "min-h-12 py-1.5" : "min-h-14 py-2")}>
+              <span className={cn("grid shrink-0 place-items-center rounded-xl", compact ? "size-8 [&_svg]:size-4" : "size-10 [&_svg]:size-5", toneCls[it.tone])}>{it.icon}</span>
               <span className="min-w-0 flex-1 leading-tight">
-                <span className={cn("block font-semibold", it.tone === "ok" ? "text-snow/85" : "text-snow")}>{it.title}</span>
-                {it.detail && <span className="mt-0.5 block text-sm text-mist">{it.detail}</span>}
+                <span className={cn("block font-semibold", compact && "text-sm", it.tone === "ok" ? "text-snow/85" : "text-snow")}>{it.title}</span>
+                {it.detail && <span className={cn("mt-0.5 block text-mist", compact ? "truncate text-xs" : "text-sm")}>{it.detail}</span>}
               </span>
               <ChevronRight className="size-5 shrink-0 text-mist transition-transform group-hover:translate-x-0.5" aria-hidden />
             </Link>

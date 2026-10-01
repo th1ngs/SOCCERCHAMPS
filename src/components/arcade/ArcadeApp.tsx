@@ -6,7 +6,7 @@ import { Audio } from "@/arcade/audio";
 import { Match, type Controller, type MatchEnd } from "@/arcade/game";
 import type { Level } from "@/arcade/ai";
 import { ArcadeRunner } from "@/arcade/runner";
-import { ARCADE_TEAMS, teamById, type ArcadeTeam } from "@/arcade/teams";
+import { ARCADE_TEAMS, layoutsFor, teamById, type ArcadeTeam } from "@/arcade/teams";
 import { ROUND_NAMES, applyPlayerResult, clearCup, loadCup, newCup, opponentOf, saveCup, type ArcadeCup } from "@/arcade/cup";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -37,6 +37,7 @@ function demoMatch(): Match {
     difficulty: ["medium", "medium"],
     duration: 99999,
     goldenGoal: false,
+    layouts: layoutsFor(11),
     silent: true,
   });
 }
@@ -152,6 +153,7 @@ function ArcadeGame() {
       difficulty: cfg.difficulty,
       duration: cfg.duration,
       goldenGoal: cfg.goldenGoal,
+      layouts: layoutsFor(settings.format),
       onEnd: (r) => onMatchEnd(r, cfg),
     });
     runner.setMatch(match, true);
