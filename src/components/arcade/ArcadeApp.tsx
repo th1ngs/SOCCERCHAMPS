@@ -1,419 +1,243 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { LoaderCircle, LogOut, Play, Trophy } from "lucide-react";
+import { useMemo, useState, useSyncExternalStore } from "react";
+import Link from "next/link";
+import { ArrowLeft, Dices, LoaderCircle, Play, Trophy, Volume2, VolumeX } from "lucide-react";
 import { Audio } from "@/arcade/audio";
-import { Match, type Controller, type MatchEnd } from "@/arcade/game";
-import type { Level } from "@/arcade/ai";
-import { ArcadeRunner } from "@/arcade/runner";
-import { ARCADE_TEAMS, layoutsFor, teamById, type ArcadeTeam } from "@/arcade/teams";
+import { ARCADE_LEAGUES, ARCADE_TEAMS, teamById, teamStars, teamsOfLeague, type ArcadeTeam } from "@/arcade/teams";
 import { ROUND_NAMES, applyPlayerResult, clearCup, loadCup, newCup, opponentOf, saveCup, type ArcadeCup } from "@/arcade/cup";
-import { Button } from "@/components/ui/Button";
-import { Modal } from "@/components/ui/Modal";
-import { ButtonHud } from "./ButtonHud";
-import { ButtonStage } from "./ButtonStage";
-import { CupScreen, HelpScreen, MenuScreen, PauseScreen, ResultScreen, SelectScreen, type ResultView, type SelectMode } from "./screens";
-import { LEVEL_ORDER, loadSettings, saveSettings, type ArcadeSettings } from "./settings";
+import { LEAGUES, clamp } from "@/game";
+import type { LeagueId } from "@/game/types";
+import { BOT_DESC, BOT_LEVELS, BOT_NAME, Difficulty, type BotSetting } from "@/lances/difficulty";
+import { genericChance, genericSquad } from "@/lances/scenario";
+import { oppGoalProb, planChances, type SeriesOutcome, type SeriesPlan } from "@/lances/series";
+import { LancesSeries } from "@/components/lances/LancesSeries";
+import { Button, buttonClasses } from "@/components/ui/Button";
+import { Crest } from "@/components/ui/Crest";
+import { Card } from "@/components/ui/primitives";
+import { Segmented } from "@/components/ui/Segmented";
+import { cn } from "@/lib/cn";
+import { CHANCE_OPTIONS, loadSettings, saveSettings, type ArcadeSettings } from "./settings";
 
-interface MatchCfg {
-  mode: SelectMode;
-  teams: [ArcadeTeam, ArcadeTeam];
-  controllers: [Controller, Controller];
-  difficulty: [Level, Level];
-  duration: number;
-  goldenGoal: boolean;
-  /** Copa em andamento (modo cup). */
-  cup?: ArcadeCup;
+type Mode = "friendly" | "cup";
+type Screen = { kind: "menu" } | { kind: "select"; mode: Mode } | { kind: "play"; mode: Mode; plan: SeriesPlan; me: ArcadeTeam; opp: ArcadeTeam } | { kind: "result"; me: ArcadeTeam; opp: ArcadeTeam; score: [number, number]; tb: [number, number] | null } | { kind: "cup" };
+
+const noop = () => () => {};
+const field = "h-11 w-full rounded-xl bg-ink-950/70 px-3 text-snow ring-1 ring-inset ring-white/12 focus:outline-2 focus:outline-gold-400";
+
+/** Plano de uma partida do arcade: lances do usuário em 3D e gols do adversário sorteados pela força e pelo nível do bot. */
+function arcadePlan(me: ArcadeTeam, opp: ArcadeTeam, s: ArcadeSettings, knockout: boolean, label: string): SeriesPlan {
+  const diff = opp.rating - me.rating;
+  const difficulty = new Difficulty(s.bot, 1 + clamp(diff / 6, -1, 1.5));
+  const p = oppGoalProb(difficulty.level, diff);
+  const names = genericSquad(opp.id, opp.club.league, opp.rating).att.map((x) => x.name);
+  const oppGoals: { min: number; who: string }[] = [];
+  for (let k = 0; k < s.chances; k++) if (Math.random() < p) oppGoals.push({ min: 2 + Math.floor(Math.random() * 88), who: names[Math.floor(Math.random() * names.length)] });
+  oppGoals.sort((a, b) => a.min - b.min);
+  const kit = (t: ArcadeTeam) => ({ name: t.name, short: t.club.short, colors: [t.club.colors[0], t.club.colors[1]] as [string, string], pattern: t.club.pattern });
+  return {
+    label, home: kit(me), away: kit(opp), userSide: 0, chances: planChances(s.chances), oppGoals, difficulty,
+    setup: (kind, params) => genericChance(me, opp, params, Math.random, kind),
+    tiebreak: knockout ? { oppProb: clamp(p + 0.12, 0.2, 0.65) } : null,
+  };
 }
 
-type Screen = "menu" | "select" | "cup" | "result" | "help" | null;
-type Confirm = "newCup" | "quitCup" | null;
-
-function demoMatch(): Match {
-  const pool = ARCADE_TEAMS.slice().sort(() => Math.random() - 0.5);
-  return new Match({
-    teams: [pool[0], pool[1]],
-    controllers: ["cpu", "cpu"],
-    difficulty: ["medium", "medium"],
-    duration: 99999,
-    goldenGoal: false,
-    layouts: layoutsFor(11),
-    silent: true,
-  });
+function TeamPicker({ league, onLeague, value, onChange, exclude }: { league: LeagueId; onLeague: (l: LeagueId) => void; value: string | null; onChange: (id: string) => void; exclude?: string | null }) {
+  const teams = useMemo(() => teamsOfLeague(league).filter((t) => t.id !== exclude), [league, exclude]);
+  return (
+    <div>
+      <select className={field} value={league} onChange={(e) => onLeague(e.target.value as LeagueId)} aria-label="Liga">
+        {ARCADE_LEAGUES.map((l) => <option key={l} value={l}>{LEAGUES[l].name}</option>)}
+      </select>
+      <ul className="mt-2 grid max-h-72 grid-cols-2 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-3">
+        {teams.map((t) => (
+          <li key={t.id}>
+            <button type="button" onClick={() => onChange(t.id)} aria-pressed={value === t.id} className={cn("flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left ring-1 ring-inset transition-colors", value === t.id ? "bg-gold-400/15 ring-gold-400/70" : "bg-ink-950/50 ring-white/8 hover:bg-white/6")}>
+              <Crest club={t.club} size={26} />
+              <span className="min-w-0 leading-tight">
+                <span className="block truncate text-sm font-semibold">{t.name}</span>
+                <span className="text-[11px] text-gold-400">{"★".repeat(teamStars(t))}</span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
-const noopSubscribe = () => () => {};
-
-/** Modo arcade (futebol de botão avulso). Só monta no cliente: usa canvas e localStorage. */
+/** Arcade de lances: amistoso ou Copa (16 clubes), contra o bot no nível escolhido. Só no cliente (3D e localStorage). */
 export function ArcadeApp() {
-  const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false);
-  if (!mounted) {
-    return (
-      <div className="grid min-h-dvh place-items-center text-mist">
-        <LoaderCircle className="size-6 animate-spin" aria-label="Carregando" />
-      </div>
-    );
-  }
-  return <ArcadeGame />;
+  const mounted = useSyncExternalStore(noop, () => true, () => false);
+  if (!mounted) return <div className="grid min-h-dvh place-items-center text-mist"><LoaderCircle className="size-6 animate-spin" aria-label="Carregando" /></div>;
+  return <Arcade />;
 }
 
-function ArcadeGame() {
-  const [settings, setSettings] = useState<ArcadeSettings>(() => {
-    const s = loadSettings();
+function Arcade() {
+  const [settings, setSettings] = useState<ArcadeSettings>(loadSettings);
+  const [screen, setScreen] = useState<Screen>({ kind: "menu" });
+  const [cup, setCup] = useState<ArcadeCup | null>(loadCup);
+  const [league, setLeague] = useState<LeagueId>(settings.league);
+  const [oppLeague, setOppLeague] = useState<LeagueId>(settings.league);
+  const [mine, setMine] = useState<string | null>(() => teamsOfLeague(settings.league)[0]?.id ?? null);
+  const [opp, setOpp] = useState<string | null>(null);
+  const update = (patch: Partial<ArcadeSettings>) => {
+    const s = { ...settings, ...patch };
+    setSettings(s);
+    saveSettings(s);
     Audio.setEnabled(s.sound);
-    return s;
-  });
-  const [runner] = useState(() => {
-    const r: ArcadeRunner = new ArcadeRunner({
-      pauseOnHide: true,
-      onTick: (m) => {
-        if (!r.interactive && m.state === "over") r.setMatch(demoMatch(), false);
-      },
-    });
-    r.setMatch(demoMatch(), false);
-    return r;
-  });
-  const hud = useSyncExternalStore(runner.subscribe, runner.getSnapshot, runner.getServerSnapshot);
-  const [screen, setScreen] = useState<Screen>("menu");
-  const [playing, setPlaying] = useState<MatchCfg | null>(null);
-  const [selMode, setSelMode] = useState<SelectMode>("cpu");
-  const [picks, setPicks] = useState<[string | null, string | null]>([null, null]);
-  const [step, setStep] = useState(0);
-  const [cup, setCup] = useState<ArcadeCup | null>(() => loadCup());
-  const [result, setResult] = useState<ResultView | null>(null);
-  const [confirm, setConfirm] = useState<Confirm>(null);
+  };
 
-  const click = () => {
+  const startFriendly = () => {
+    const me = teamById(mine), o = teamById(opp) ?? ARCADE_TEAMS.filter((t) => t.id !== mine)[Math.floor(Math.random() * (ARCADE_TEAMS.length - 1))];
+    if (!me || !o) return;
     Audio.init();
-    Audio.click();
+    setScreen({ kind: "play", mode: "friendly", me, opp: o, plan: arcadePlan(me, o, settings, false, "Amistoso") });
   };
-
-  const updateSettings = (patch: Partial<ArcadeSettings>) => {
-    const next = { ...settings, ...patch };
-    setSettings(next);
-    saveSettings(next);
-    Audio.setEnabled(next.sound);
-    click();
-  };
-
-  // ---------- Navegação ----------
-  const goMenu = useCallback(() => {
-    runner.setMatch(demoMatch(), false);
-    setPlaying(null);
-    setResult(null);
-    setScreen("menu");
-  }, [runner]);
-
-  const openSelect = (mode: SelectMode) => {
-    setSelMode(mode);
-    setPicks([null, null]);
-    setStep(0);
-    setScreen("select");
-  };
-
-  // ---------- Partidas ----------
-  const onMatchEnd = (res: MatchEnd, cfg: MatchCfg) => {
-    const [t0, t1] = cfg.teams;
-    let title: string, note = res.overtime ? "Decidido na morte súbita." : "";
-    let tone: ResultView["tone"] = res.winner === 0 ? "win" : res.winner === 1 ? "lose" : "draw";
-    if (cfg.mode === "pvp") {
-      title = res.winner < 0 ? "Empate!" : `${cfg.teams[res.winner].name} venceu!`;
-      if (res.winner >= 0) tone = "win";
-    } else {
-      title = res.winner === 0 ? "Vitória!" : res.winner === 1 ? "Derrota" : "Empate";
-    }
-    let cupPlaying = false;
-    if (cfg.mode === "cup" && cfg.cup) {
-      const c = cfg.cup;
-      const won = applyPlayerResult(c, res.score[0], res.score[1], res.overtime);
-      saveCup(c);
-      setCup({ ...c });
-      cupPlaying = c.status === "playing";
-      if (c.status === "champion") {
-        title = "Campeão da Copa!";
-        note = "Você conquistou a Copa arcade!";
-      } else if (c.status === "runnerUp") {
-        title = "Vice-campeão";
-        note = "Foi por pouco! Tente de novo.";
-      } else if (!won) {
-        note = "Seu time foi eliminado da Copa.";
-      } else {
-        note = (note ? note + " " : "") + "Classificado para a " + ROUND_NAMES[c.round].toLowerCase() + "!";
-      }
-    }
-    setResult({ title, note, tone, teams: [t0, t1], score: res.score, mode: cfg.mode, cupPlaying });
-    setScreen("result");
-  };
-
-  const startMatch = (cfg: MatchCfg) => {
+  const startCupMatch = (c: ArcadeCup) => {
+    const me = teamById(c.player), o = teamById(opponentOf(c));
+    if (!me || !o) return;
     Audio.init();
-    const match = new Match({
-      teams: cfg.teams,
-      controllers: cfg.controllers,
-      difficulty: cfg.difficulty,
-      duration: cfg.duration,
-      goldenGoal: cfg.goldenGoal,
-      layouts: layoutsFor(settings.format),
-      onEnd: (r) => onMatchEnd(r, cfg),
-    });
-    runner.setMatch(match, true);
-    setPlaying(cfg);
-    setResult(null);
-    setScreen(null);
+    setScreen({ kind: "play", mode: "cup", me, opp: o, plan: arcadePlan(me, o, settings, true, `Copa arcade • ${ROUND_NAMES[c.round]}`) });
   };
-
-  const startCupMatch = () => {
-    if (!cup || cup.status !== "playing") return;
-    const me = teamById(cup.player), opp = teamById(opponentOf(cup));
-    if (!me || !opp) return;
-    const base = LEVEL_ORDER.indexOf(settings.difficulty);
-    const lvl = LEVEL_ORDER[Math.min(2, base + Math.floor(cup.round / 2))];
-    startMatch({ mode: "cup", teams: [me, opp], controllers: ["human", "cpu"], difficulty: [lvl, lvl], duration: settings.duration, goldenGoal: true, cup });
-  };
-
-  const pickTeam = (id: string) => {
-    click();
-    if (selMode === "cup") {
-      setPicks([id, null]);
+  const finished = (o: SeriesOutcome, s: Extract<Screen, { kind: "play" }>) => {
+    if (s.mode === "cup" && cup) {
+      const won = o.tiebreak ? o.tiebreak[0] > o.tiebreak[1] : o.userGoals > o.oppGoals;
+      const next = structuredClone(cup);
+      applyPlayerResult(next, o.userGoals + (o.tiebreak && won ? 1 : 0), o.oppGoals + (o.tiebreak && !won ? 1 : 0), !!o.tiebreak);
+      saveCup(next);
+      setCup(next);
+      setScreen({ kind: "cup" });
       return;
     }
-    if (step === 0) {
-      let p1 = picks[1];
-      if (selMode === "cpu" && !p1) {
-        // Adversário sorteado na mesma liga do time escolhido.
-        const lg = teamById(id)?.club.league;
-        const pool = ARCADE_TEAMS.filter((t) => t.id !== id && t.club.league === lg);
-        p1 = pool[(Math.random() * pool.length) | 0].id;
-      }
-      if (p1 === id) p1 = null;
-      setPicks([id, p1]);
-      setStep(1);
-    } else if (id === picks[0]) {
-      setStep(0); // tocar de novo no seu time volta a escolher o time 1
-    } else {
-      setPicks([picks[0], id]);
-    }
+    setScreen({ kind: "result", me: s.me, opp: s.opp, score: [o.userGoals, o.oppGoals], tb: o.tiebreak });
   };
 
-  const startFromSelect = () => {
-    click();
-    const [a, b] = picks;
-    if (selMode === "cup") {
-      if (!a) return;
-      const c = newCup(a, settings.cupScope);
-      saveCup(c);
-      setCup(c);
-      setScreen("cup");
-      return;
-    }
-    const ta = teamById(a), tb = teamById(b);
-    if (!ta || !tb) return;
-    const lvl = settings.difficulty;
-    startMatch({
-      mode: selMode,
-      teams: [ta, tb],
-      controllers: selMode === "pvp" ? ["human", "human"] : ["human", "cpu"],
-      difficulty: [lvl, lvl],
-      duration: settings.duration,
-      goldenGoal: false,
-    });
-  };
-
-  // ---------- Pausa ----------
-  const inMatch = !!playing && screen === null && hud.state !== "over";
-  const togglePause = useCallback(() => {
-    if (!runner.match || !runner.interactive) return;
-    runner.setPaused(!runner.match.paused);
-  }, [runner]);
-
-  useEffect(() => {
-    if (!inMatch) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") togglePause();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [inMatch, togglePause]);
-
-  const quit = () => {
-    click();
-    if (playing?.mode !== "cup") return goMenu();
-    setConfirm("quitCup");
-  };
-
-  const confirmYes = () => {
-    click();
-    if (confirm === "newCup") {
-      clearCup();
-      setCup(null);
-      setConfirm(null);
-      openSelect("cup");
-    } else if (confirm === "quitCup") {
-      if (playing?.cup) {
-        applyPlayerResult(playing.cup, 0, 3, false);
-        saveCup(playing.cup);
-        setCup({ ...playing.cup });
-      }
-      setConfirm(null);
-      goMenu();
-    }
-  };
-
-  const hasCup = cup?.status === "playing";
-  const turnLabel = (() => {
-    if (!playing || !hud.aiming) return "";
-    if (playing.mode === "pvp") return `Vez do Jogador ${hud.turn + 1} • ${hud.turnSecs}s`;
-    return hud.turn === 0 ? `Sua vez • ${hud.turnSecs}s` : `Vez do ${playing.teams[1].name}`;
-  })();
+  if (screen.kind === "play") return <LancesSeries key={screen.opp.id + screen.plan.chances.map((c) => c.min).join()} plan={screen.plan} finishLabel="Continuar" onFinish={(o) => finished(o, screen)} />;
 
   return (
-    <div className="fixed inset-0 flex select-none flex-col overflow-hidden bg-[radial-gradient(ellipse_at_top,#10294a,#07121f_70%)] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
-      {playing && (
-        <ButtonHud
-          teams={[playing.teams[0].club, playing.teams[1].club]}
-          hud={hud}
-          onTogglePause={() => {
-            click();
-            togglePause();
-          }}
-          turnLabel={turnLabel}
-          compLabel={playing.mode === "cup" && playing.cup ? `Copa arcade • ${ROUND_NAMES[playing.cup.round] ?? ""}` : undefined}
-        />
-      )}
-      <ButtonStage runner={runner}>
-        {screen === "menu" && (
-          <MenuScreen
-            hasCup={hasCup}
-            sound={settings.sound}
-            onToggleSound={() => updateSettings({ sound: !settings.sound })}
-            onCup={() => {
-              click();
-              if (hasCup) setConfirm("newCup");
-              else {
-                clearCup();
-                setCup(null);
-                openSelect("cup");
-              }
-            }}
-            onResumeCup={() => {
-              click();
-              setCup(loadCup() ?? cup);
-              setScreen("cup");
-            }}
-            onCpu={() => {
-              click();
-              openSelect("cpu");
-            }}
-            onPvp={() => {
-              click();
-              openSelect("pvp");
-            }}
-            onHelp={() => {
-              click();
-              setScreen("help");
-            }}
-          />
-        )}
-        {screen === "select" && (
-          <SelectScreen
-            mode={selMode}
-            picks={picks}
-            step={step}
-            settings={settings}
-            onPick={pickTeam}
-            onSetting={updateSettings}
-            onStart={startFromSelect}
-            onBack={() => {
-              click();
-              goMenu();
-            }}
-          />
-        )}
-        {screen === "cup" && cup && (
-          <CupScreen
-            cup={cup}
-            onPlay={() => {
-              click();
-              startCupMatch();
-            }}
-            onNewCup={() => {
-              click();
-              clearCup();
-              setCup(null);
-              openSelect("cup");
-            }}
-            onBack={() => {
-              click();
-              goMenu();
-            }}
-          />
-        )}
-        {screen === "result" && result && (
-          <ResultScreen
-            r={result}
-            onPrimary={() => {
-              click();
-              if (result.mode === "cup") {
-                setScreen("cup");
-                setPlaying(null);
-                runner.setMatch(demoMatch(), false);
-              } else if (playing) startMatch(playing);
-            }}
-            onChangeTeams={() => {
-              click();
-              runner.setMatch(demoMatch(), false);
-              setPlaying(null);
-              openSelect(result.mode);
-            }}
-            onMenu={() => {
-              click();
-              goMenu();
-            }}
-          />
-        )}
-        {screen === "help" && (
-          <HelpScreen
-            onClose={() => {
-              click();
-              setScreen("menu");
-            }}
-          />
-        )}
-        {inMatch && hud.paused && (
-          <PauseScreen
-            inCup={playing?.mode === "cup"}
-            onResume={() => {
-              click();
-              runner.setPaused(false);
-            }}
-            onRestart={() => {
-              click();
-              if (playing && playing.mode !== "cup") startMatch(playing);
-            }}
-            onQuit={quit}
-          />
-        )}
-      </ButtonStage>
+    <div className="mx-auto w-full max-w-5xl px-4 pb-12 pt-6 sm:pt-10">
+      <div className="flex items-center gap-2">
+        {screen.kind === "menu" ? <Link href="/" className={buttonClasses("ghost", "sm")}><ArrowLeft /> Início</Link> : <Button variant="ghost" size="sm" icon={<ArrowLeft />} onClick={() => setScreen({ kind: "menu" })}>Menu</Button>}
+        <Button variant="ghost" size="sm" className="ml-auto" icon={settings.sound ? <Volume2 /> : <VolumeX />} onClick={() => update({ sound: !settings.sound })}>{settings.sound ? "Som ligado" : "Sem som"}</Button>
+      </div>
+      <h1 className="mt-4 font-display text-5xl font-extrabold uppercase italic leading-none">Lances 3D</h1>
+      <p className="mt-2 max-w-prose text-sm text-mist">Só os ataques decisivos: deslize para chutar (a direção escolhe o canto, o comprimento a altura e a curva do gesto dá efeito), toque num companheiro para passar e no gramado para conduzir. A defesa e o goleiro são do bot.</p>
 
-      <Modal
-        open={confirm !== null}
-        onClose={() => setConfirm(null)}
-        title={confirm === "newCup" ? "Começar nova Copa?" : "Sair da partida?"}
-        footer={
-          <>
-            <Button variant="secondary" icon={confirm === "newCup" ? <Trophy /> : <Play />} onClick={() => setConfirm(null)}>
-              {confirm === "newCup" ? "Manter Copa atual" : "Continuar jogando"}
-            </Button>
-            <Button variant="danger" icon={<LogOut />} onClick={confirmYes}>
-              {confirm === "newCup" ? "Começar nova Copa" : "Sair e perder por W.O."}
-            </Button>
-          </>
-        }
-      >
-        <p className="text-sm text-mist">
-          {confirm === "newCup" ? "O progresso da Copa atual será perdido." : "Na Copa, sair agora conta como derrota por W.O. (0 x 3) e seu time é eliminado."}
-        </p>
-      </Modal>
+      {screen.kind === "menu" && (
+        <>
+          <Card className="mt-6" title="Dificuldade do bot">
+            <Segmented ariaLabel="Dificuldade do bot" value={settings.bot} onChange={(v) => update({ bot: v as BotSetting })} className="flex w-full flex-wrap" options={[...BOT_LEVELS, "auto"].map((k) => ({ value: k, label: BOT_NAME[k as BotSetting] }))} />
+            <p className="mt-2 text-sm text-mist">{BOT_DESC[settings.bot]}</p>
+            <span className="mb-1.5 mt-4 block text-xs font-bold uppercase tracking-wider text-mist">Lances por partida</span>
+            <Segmented ariaLabel="Lances por partida" size="sm" value={String(settings.chances)} onChange={(v) => update({ chances: Number(v) })} options={CHANCE_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))} />
+          </Card>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <button type="button" onClick={() => setScreen({ kind: "select", mode: "friendly" })} className="rounded-3xl bg-linear-to-br from-pitch-700/50 via-ink-800 to-ink-800 p-6 text-left ring-1 ring-inset ring-white/10 transition-transform hover:-translate-y-0.5">
+              <Play className="size-8 text-gold-400" />
+              <p className="mt-3 font-display text-3xl font-extrabold uppercase italic">Amistoso</p>
+              <p className="text-sm text-mist">Escolha os dois times e jogue os lances.</p>
+            </button>
+            <button type="button" onClick={() => (cup && cup.status === "playing" ? setScreen({ kind: "cup" }) : setScreen({ kind: "select", mode: "cup" }))} className="rounded-3xl bg-linear-to-br from-gold-500/25 via-ink-800 to-ink-800 p-6 text-left ring-1 ring-inset ring-white/10 transition-transform hover:-translate-y-0.5">
+              <Trophy className="size-8 text-gold-400" />
+              <p className="mt-3 font-display text-3xl font-extrabold uppercase italic">Copa arcade</p>
+              <p className="text-sm text-mist">{cup && cup.status === "playing" ? `Continuar: ${ROUND_NAMES[cup.round]}` : "16 clubes, mata-mata. Empate vai para o lance decisivo."}</p>
+            </button>
+          </div>
+        </>
+      )}
+
+      {screen.kind === "select" && (
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          <Card title="Seu time">
+            <TeamPicker league={league} onLeague={(l) => { setLeague(l); update({ league: l }); }} value={mine} onChange={setMine} />
+          </Card>
+          {screen.mode === "friendly" ? (
+            <Card title="Adversário" action={<Button variant="ghost" size="sm" icon={<Dices />} onClick={() => { const pool = ARCADE_TEAMS.filter((t) => t.id !== mine); const t = pool[Math.floor(Math.random() * pool.length)]; setOppLeague(t.club.league); setOpp(t.id); }}>Sortear</Button>}>
+              <TeamPicker league={oppLeague} onLeague={setOppLeague} value={opp} onChange={setOpp} exclude={mine} />
+            </Card>
+          ) : (
+            <Card title="Copa arcade">
+              <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-mist">Participantes</span>
+              <Segmented ariaLabel="Participantes da Copa" size="sm" value={settings.cupScope} onChange={(v) => update({ cupScope: v })} options={[{ value: "mixed", label: "Todas as ligas" }, { value: "league", label: "Só a minha liga" }]} />
+              <p className="mt-3 text-sm text-mist">Oitavas, quartas, semi e final. Perdeu, está fora.</p>
+            </Card>
+          )}
+          <div className="lg:col-span-2">
+            <Button variant="primary" size="lg" block icon={<Play />} disabled={!mine} onClick={() => {
+              if (screen.mode === "friendly") return startFriendly();
+              if (!mine) return;
+              const c = newCup(mine, settings.cupScope);
+              saveCup(c); setCup(c); startCupMatch(c);
+            }}>{screen.mode === "friendly" ? "Começar o amistoso" : "Começar a Copa"}</Button>
+          </div>
+        </div>
+      )}
+
+      {screen.kind === "result" && (
+        <Card className="mt-6 text-center" tone="highlight">
+          <div className="flex items-center justify-center gap-4">
+            <Crest club={screen.me.club} size={56} />
+            <span className="font-display text-5xl font-extrabold tabular">{screen.score[0]} : {screen.score[1]}</span>
+            <Crest club={screen.opp.club} size={56} />
+          </div>
+          <p className="mt-2 font-display text-3xl font-extrabold uppercase italic">{screen.score[0] > screen.score[1] ? "Vitória!" : screen.score[0] < screen.score[1] ? "Derrota" : "Empate"}</p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <Button variant="primary" icon={<Play />} onClick={startFriendly}>Jogar de novo</Button>
+            <Button variant="secondary" onClick={() => setScreen({ kind: "select", mode: "friendly" })}>Trocar times</Button>
+          </div>
+        </Card>
+      )}
+
+      {screen.kind === "cup" && cup && (
+        <div className="mt-6 space-y-4">
+          <Card tone="highlight" className="text-center">
+            {cup.status === "playing" ? (
+              <>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-gold-400">{ROUND_NAMES[cup.round]}</p>
+                <div className="mt-3 flex items-center justify-center gap-4">
+                  <Crest club={teamById(cup.player)!.club} size={52} />
+                  <span className="font-display text-3xl font-extrabold italic text-gold-400">VS</span>
+                  {teamById(opponentOf(cup)) && <Crest club={teamById(opponentOf(cup))!.club} size={52} />}
+                </div>
+                <p className="mt-2 font-semibold">{teamById(cup.player)?.name} x {teamById(opponentOf(cup))?.name}</p>
+                <Button variant="primary" size="lg" className="mt-4" icon={<Play />} onClick={() => startCupMatch(cup)}>Jogar</Button>
+              </>
+            ) : (
+              <>
+                <Trophy className={cn("mx-auto size-12", cup.status === "champion" ? "text-gold-400" : "text-mist")} />
+                <p className="mt-2 font-display text-3xl font-extrabold uppercase italic">{cup.status === "champion" ? "Campeão da Copa!" : cup.status === "runnerUp" ? "Vice-campeão" : "Eliminado"}</p>
+                {cup.champion && cup.status !== "champion" && <p className="text-sm text-mist">Campeão: {teamById(cup.champion)?.name}</p>}
+                <Button variant="primary" className="mt-4" onClick={() => { clearCup(); setCup(null); setScreen({ kind: "select", mode: "cup" }); }}>Nova Copa</Button>
+              </>
+            )}
+          </Card>
+          <div className="grid gap-3 md:grid-cols-4">
+            {cup.rounds.map((r, i) => (
+              <Card key={i} title={ROUND_NAMES[i]} className="p-3">
+                <ul className="space-y-1.5">
+                  {r.map((m, k) => {
+                    const a = teamById(m.a), b = teamById(m.b);
+                    const mineMatch = m.a === cup.player || m.b === cup.player;
+                    return (
+                      <li key={k} className={cn("rounded-lg px-2 py-1 text-xs", mineMatch ? "bg-gold-400/12 ring-1 ring-gold-400/40" : "bg-ink-950/40")}>
+                        {[[a, m.sa, m.w === m.a], [b, m.sb, m.w === m.b]].map(([t, sc, w], j) => (
+                          <span key={j} className={cn("flex items-center gap-1.5", w ? "font-semibold text-snow" : "text-mist")}>
+                            {t && <Crest club={(t as ArcadeTeam).club} size={14} />}
+                            <span className="min-w-0 flex-1 truncate">{(t as ArcadeTeam | undefined)?.name ?? "—"}</span>
+                            <span className="tabular">{(sc as number | null) ?? ""}</span>
+                          </span>
+                        ))}
+                        {m.ot && <span className="text-[10px] text-gold-300">lance decisivo</span>}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

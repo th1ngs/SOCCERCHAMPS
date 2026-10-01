@@ -3,7 +3,7 @@ import { ArcadeApp } from "@/components/arcade/ArcadeApp";
 
 export const metadata: Metadata = {
   title: "Modo arcade • Soccer Champs",
-  description: "Futebol de botão: amistoso contra a CPU, 2 jogadores no mesmo aparelho e Copa arcade com 16 clubes de 13 ligas.",
+  description: "Lances de ataque em 3D: amistoso e Copa arcade contra o bot, do fácil ao lendário.",
 };
 
 export default function ArcadePage() {

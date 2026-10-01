@@ -1,6 +1,11 @@
 // Efeitos sonoros sintetizados com WebAudio (sem arquivos externos).
-// Porta do antigo js/audio.js. Tudo é preguiçoso: nada toca o `window` antes de init().
-import type { PhysEvent } from "./physics";
+// Tudo é preguiçoso: nada toca o `window` antes de init().
+
+/** Batida na bola, na trave ou entre jogadores (volume pela velocidade). */
+export interface PhysEvent {
+  type: "ball" | "disc" | "wall";
+  v: number;
+}
 
 type AudioCtor = typeof AudioContext;
 
@@ -117,6 +122,18 @@ export const Audio = {
   },
   click(): void {
     if (ready()) tone(700, 0.05, "triangle", 0.12, 900);
+  },
+  /** "Uuuh" da torcida (defesa, trave, chance perdida). */
+  ooh(): void {
+    if (!ready()) return;
+    noise(1.4, 0.22, 420, 0.7, "bandpass", 0.25);
+    tone(220, 0.9, "sine", 0.05, 160, 0.1);
+  },
+  /** Trave: metal. */
+  post(): void {
+    if (!ready()) return;
+    tone(1250, 0.45, "triangle", 0.25, 1180);
+    tone(1880, 0.3, "sine", 0.12, 1800);
   },
 };
 

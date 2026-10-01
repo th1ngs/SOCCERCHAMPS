@@ -13,7 +13,7 @@ export type Overlay =
   | { kind: "summary"; matchId: string } | { kind: "seasonEnd" } | { kind: "fired" }
   | { kind: "calendar" }
   | { kind: "signing"; pid: string; how: "transfer" | "free" | "loan" | "option"; fee: number; from: string | null } | null;
-export type MatchMode = { kind: "live" | "button"; matchId: string } | null;
+export type MatchMode = { kind: "live" | "lances"; matchId: string } | null;
 
 interface GameState {
   world: World | null;

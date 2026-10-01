@@ -13,9 +13,10 @@ import { Crest } from "@/components/ui/Crest";
 import { Card, EmptyState } from "@/components/ui/primitives";
 import { Segmented } from "@/components/ui/Segmented";
 import { useToast } from "@/components/ui/Toast";
-import { OnlineMatch } from "./OnlineMatch";
+import { DuelMatch } from "./DuelMatch";
 
-const TURNS = [20, 30, 40] as const;
+/** Total de lances do duelo (somando os dois): 3, 5 ou 7 para cada um. */
+const TURNS = [6, 10, 14] as const;
 const field = "h-11 w-full rounded-xl bg-ink-950/70 px-3 text-snow ring-1 ring-inset ring-white/12 focus:outline-2 focus:outline-gold-400";
 
 /** Lobby do multiplayer 1x1: escolher time, criar sala, entrar por código ou pela lista. */
@@ -24,7 +25,7 @@ export function MpLobby() {
   const toast = useToast();
   const [league, setLeague] = useState<LeagueId>("bra");
   const [team, setTeam] = useState<string>(() => teamsOfLeague("bra")[0]?.id ?? "");
-  const [turns, setTurns] = useState<(typeof TURNS)[number]>(30);
+  const [turns, setTurns] = useState<(typeof TURNS)[number]>(10);
   const [code, setCode] = useState("");
   const [open, setOpen] = useState<MpOpenRoom[]>([]);
   const [room, setRoom] = useState<MpRoom | null>(null);
@@ -80,14 +81,14 @@ export function MpLobby() {
     );
   }
 
-  if (room && room.status === "playing" && room.guest) return <OnlineMatch key={room.code} room={room} onExit={() => { setRoom(null); void refresh(); }} />;
+  if (room && (room.status === "playing" || room.status === "done") && room.guest) return <DuelMatch key={room.code} room={room} onExit={() => { setRoom(null); void refresh(); }} />;
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 pb-10 pt-6 sm:pt-10">
       <Link href="/" className={buttonClasses("ghost", "sm")}><ArrowLeft /> Início</Link>
       <h1 className="mt-4 font-display text-5xl font-extrabold uppercase italic leading-none">Multiplayer 1x1</h1>
       <p className="mt-2 max-w-prose text-sm text-mist">
-        Futebol de botão online, 11 contra 11, por turnos. Crie uma sala e passe o código para um amigo, ou entre numa sala aberta.
+        Duelo de lances em 3D: cada um ataca na sua vez contra a defesa (bot) do time do outro, e ganha quem fizer mais gols. Crie uma sala e passe o código para um amigo, ou entre numa sala aberta.
       </p>
 
       {room && room.status === "waiting" ? (
@@ -98,7 +99,7 @@ export function MpLobby() {
             <Button variant="secondary" size="sm" icon={<Copy />} onClick={() => { void navigator.clipboard?.writeText(room.code); toast("Código copiado."); }}>Copiar código</Button>
             <Button variant="ghost" size="sm" onClick={async () => { await mpApi.leave(room.code).catch(() => {}); setRoom(null); }}>Cancelar sala</Button>
           </div>
-          <p className="mt-4 flex items-center justify-center gap-2 text-sm text-mist"><RefreshCw className="size-4 animate-spin" /> Esperando adversário… ({room.turns} jogadas)</p>
+          <p className="mt-4 flex items-center justify-center gap-2 text-sm text-mist"><RefreshCw className="size-4 animate-spin" /> Esperando adversário… ({room.turns / 2} lances para cada um)</p>
         </Card>
       ) : (
         <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -119,8 +120,8 @@ export function MpLobby() {
             </div>
             {picked && <p className="mt-3 flex items-center gap-2 font-display text-lg font-bold uppercase"><Crest club={picked.club} size={32} /> {picked.name}</p>}
 
-            <span className="mb-1.5 mt-5 block text-xs font-bold uppercase tracking-wider text-mist">Jogadas por partida</span>
-            <Segmented ariaLabel="Jogadas por partida" size="sm" value={String(turns)} onChange={(v) => setTurns(Number(v) as (typeof TURNS)[number])} options={TURNS.map((t) => ({ value: String(t), label: `${t} (${t / 2} cada)` }))} />
+            <span className="mb-1.5 mt-5 block text-xs font-bold uppercase tracking-wider text-mist">Lances para cada um</span>
+            <Segmented ariaLabel="Lances para cada um" size="sm" value={String(turns)} onChange={(v) => setTurns(Number(v) as (typeof TURNS)[number])} options={TURNS.map((t) => ({ value: String(t), label: `${t / 2} lances` }))} />
             <Button variant="primary" size="lg" block icon={<Plus />} className="mt-4" loading={busy} disabled={!team} onClick={() => run(() => mpApi.create(team, turns))}>Criar sala</Button>
 
             <div className="mt-5 border-t border-white/8 pt-4">
@@ -142,7 +143,7 @@ export function MpLobby() {
                       {t && <Crest club={t.club} size={28} />}
                       <span className="min-w-0 flex-1 leading-tight">
                         <span className="block truncate text-sm font-semibold">{r.host}</span>
-                        <span className="block truncate text-xs text-mist">{t?.name ?? "?"} • {r.turns} jogadas</span>
+                        <span className="block truncate text-xs text-mist">{t?.name ?? "?"} • {r.turns / 2} lances cada</span>
                       </span>
                       <Button variant="primary" size="sm" disabled={busy || !team} onClick={() => run(() => mpApi.join(r.code, team))}>Jogar</Button>
                     </li>

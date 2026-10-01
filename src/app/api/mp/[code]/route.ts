@@ -16,7 +16,7 @@ export async function GET(req: Request, ctx: RouteContext<"/api/mp/[code]">) {
   } catch (e) { return handleError(e); }
 }
 
-/** { action: "move", seq, move } | { action: "finish", score } | { action: "leave" } | { action: "claim" } */
+/** { action: "move", seq, move } | { action: "finish" } | { action: "leave" } | { action: "claim" } */
 export async function POST(req: Request, ctx: RouteContext<"/api/mp/[code]">) {
   const code = (await ctx.params).code;
   if (!validCode(code)) return jsonError(400, "Código inválido.");
@@ -29,7 +29,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/mp/[code]">) {
     const account = await requireAccount();
     switch (body.action) {
       case "move": return Response.json(await postMove(account.id, code, body.seq, body.move), { headers: NO_STORE });
-      case "finish": return Response.json({ room: await finishRoom(account.id, code, body.score) }, { headers: NO_STORE });
+      case "finish": return Response.json({ room: await finishRoom(account.id, code) }, { headers: NO_STORE });
       case "leave": return Response.json(await leaveRoom(account.id, code), { headers: NO_STORE });
       case "claim": return Response.json({ room: await claimRoom(account.id, code) }, { headers: NO_STORE });
       default: return jsonError(400, "Ação inválida.");

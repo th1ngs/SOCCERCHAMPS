@@ -2,7 +2,16 @@
 import { FORMATIONS, clamp } from "@/game";
 import type { Sim } from "@/game";
 import type { World } from "@/game/types";
-import { displayFont } from "@/arcade/render";
+
+let fontCache = "";
+/** Fonte de títulos do app (next/font gera um nome com hash, exposto em --font-head). */
+function displayFont(): string {
+  if (fontCache) return fontCache;
+  let fam = "";
+  try { fam = getComputedStyle(document.documentElement).getPropertyValue("--font-head").trim(); } catch { fam = ""; }
+  fontCache = (fam ? fam + ", " : "") + '"Arial Black", system-ui, sans-serif';
+  return fontCache;
+}
 import { contrast, type Kit } from "../matchUtils";
 
 export interface PitchScale {

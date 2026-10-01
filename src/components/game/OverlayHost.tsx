@@ -10,7 +10,7 @@ const FiredModal = dynamic(() => import("@/components/flow/FiredModal").then((m)
 const PrematchModal = dynamic(() => import("@/components/match/PrematchModal").then((m) => m.PrematchModal));
 const SummaryModal = dynamic(() => import("@/components/match/SummaryModal").then((m) => m.SummaryModal));
 const LiveMatch = dynamic(() => import("@/components/match/LiveMatch").then((m) => m.LiveMatch));
-const ButtonMatch = dynamic(() => import("@/components/match/ButtonMatch").then((m) => m.ButtonMatch));
+const LancesMatch = dynamic(() => import("@/components/match/LancesMatch").then((m) => m.LancesMatch));
 const SigningShowcase = dynamic(() => import("@/components/player/SigningShowcase").then((m) => m.SigningShowcase));
 const CalendarAdvanceModal = dynamic(() => import("@/components/home/CalendarAdvanceModal").then((m) => m.CalendarAdvanceModal));
 
@@ -22,7 +22,7 @@ export function OverlayHost() {
   return (
     <>
       {matchMode?.kind === "live" && <LiveMatch matchId={matchMode.matchId} />}
-      {matchMode?.kind === "button" && <ButtonMatch matchId={matchMode.matchId} />}
+      {matchMode?.kind === "lances" && <LancesMatch matchId={matchMode.matchId} />}
       {overlay?.kind === "player" && <PlayerModal pid={overlay.pid} onClose={close} />}
       {overlay?.kind === "weekResults" && <WeekResultsModal />}
       {overlay?.kind === "seasonEnd" && <SeasonEndModal />}

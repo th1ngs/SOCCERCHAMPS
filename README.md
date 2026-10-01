@@ -1,6 +1,6 @@
 # ⚽ Soccer Champs Manager
 
-Jogo de gestão de futebol brasileiro: comande um clube temporada após temporada, revele craques na base, negocie no mercado e acompanhe as partidas ao vivo. Traz também um **modo arcade** de futebol de botão.
+Jogo de gestão de futebol brasileiro: comande um clube temporada após temporada, revele craques na base, negocie no mercado e acompanhe as partidas ao vivo. Traz também os **Lances 3D**: você decide os ataques do seu time deslizando o dedo para chutar, contra um bot de dificuldade ajustável (no Manager, no arcade e no duelo online 1x1).
 
 Feito com **Next.js 16 (App Router)**, **React 19**, **Tailwind CSS v4**, **TypeScript** e **PostgreSQL** (Neon) para salvar as carreiras na nuvem.
 
@@ -18,6 +18,7 @@ npm run dev                  # http://localhost:3000
 | `npm run dev` / `build` / `start` | Desenvolvimento, build e produção |
 | `npm run db:migrate` | Aplica `db/schema.sql` no banco de `DATABASE_URL` |
 | `npm run sim -- <clube> [--checks]` | Simula temporadas sem interface e verifica o balanceamento e a API do motor |
+| `npm run test:lances` | Testa os lances 3D sem navegador (taxa de gol por nível do bot, gesto de chute, súmula) |
 | `npx tsx scripts/api-smoke.ts` | Teste de fumaça da API de carreiras (`API=http://localhost:3000`) |
 | `npm run typecheck` / `lint` | TypeScript e ESLint |
 
@@ -32,7 +33,7 @@ npm run dev                  # http://localhost:3000
 **Dia de jogo**
 - **Ao vivo:** campo animado, narração lance a lance, estatísticas e xG.
 - **Durante a partida:** substituições, mudança de formação e de estilo, e intervalo.
-- **Resultado rápido** ou **Jogar no botão**, em que o futebol de botão decide o placar.
+- **Resultado rápido** ou **Jogar os lances**: você joga em 3D as chances de ataque do seu time e os gols do adversário vêm da simulação.
 
 **Elenco**
 - Cada jogador tem overall, potencial, idade, condição física, moral, contrato, salário e valor.
@@ -68,11 +69,13 @@ src/
   app/                 rotas (App Router)
     page.tsx           tela inicial
     jogo/*             telas do Manager (casca em jogo/layout.tsx)
-    arcade/            modo arcade (futebol de botão)
+    arcade/            Lances 3D avulsos (amistoso e Copa contra o bot)
+    multiplayer/       duelo de lances online 1x1
     hall-da-fama/      ranking (server component, lê o Postgres)
     api/careers, api/hall   route handlers da nuvem
   game/                motor do Manager: TypeScript puro e serializável
-  arcade/              motor do futebol de botão (física, IA, render, som)
+  lances/              Lances 3D: motor do lance, bot, cenários, render three.js e gestos
+  arcade/              times do arcade, Copa e sons
   components/
     ui/                kit de interface (Button, Modal, Segmented, Toast, Crest…)
     game/              estado (GameProvider), fluxo semanal, host de diálogos
@@ -80,6 +83,7 @@ src/
   server/              acesso ao Postgres (pool, schema, carreiras, Hall da Fama)
 db/schema.sql          tabelas careers e achievements
 docs/ENGINE_ADDITIONS.md   contrato das funções v2 do motor
+docs/LANCES_3D.md          como funcionam os Lances 3D
 ```
 
 - **Estado:** o mundo do jogo é um objeto JSON mutado pelo motor.

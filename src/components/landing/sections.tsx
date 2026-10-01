@@ -162,8 +162,8 @@ export function ArcadeBand() {
           <circle cx="150" cy="95" r="16" />
         </svg>
         <p className="font-display text-xs font-bold uppercase tracking-[0.3em] text-info-400">Modo arcade</p>
-        <h2 className="mt-2 max-w-xl font-display text-4xl font-extrabold uppercase italic leading-[0.95] sm:text-5xl">Futebol de botão</h2>
-        <p className="mt-3 max-w-lg text-mist">Mire, puxe e solte. Jogue contra a CPU, chame um amigo para uma partida no mesmo aparelho, dispute a Copa arcade ou jogue online 1x1.</p>
+        <h2 className="mt-2 max-w-xl font-display text-4xl font-extrabold uppercase italic leading-[0.95] sm:text-5xl">Lances em 3D</h2>
+        <p className="mt-3 max-w-lg text-mist">Deslize para chutar com efeito, toque num companheiro para tabelar e vença o goleiro. Amistosos e Copa contra o bot (do fácil ao lendário) ou duelo online 1x1.</p>
         <div className="mt-6 flex flex-wrap gap-2">
           <Link href="/arcade" className={buttonClasses("secondary", "lg")}>
             <Gamepad2 /> Jogar arcade

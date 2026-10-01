@@ -3,7 +3,7 @@ import { MpLobby } from "@/components/mp/MpLobby";
 
 export const metadata: Metadata = {
   title: "Multiplayer 1x1 • Soccer Champs",
-  description: "Futebol de botão online, 11 contra 11, por turnos: crie uma sala e jogue contra um amigo.",
+  description: "Duelo de lances em 3D online: cada um ataca na sua vez contra a defesa do outro time.",
 };
 
 export default function MultiplayerPage() {

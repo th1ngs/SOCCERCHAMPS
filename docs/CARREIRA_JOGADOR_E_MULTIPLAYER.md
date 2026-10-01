@@ -62,26 +62,22 @@
 | Tabela | Classificação da divisão e artilharia, com o jogador em destaque |
 
 ## Multiplayer 1x1 (`/multiplayer`)
-- **O jogo:** futebol de botão online, 11 contra 11, por turnos, entre duas contas.
+- **O jogo:** duelo de **Lances 3D** online entre duas contas (veja `LANCES_3D.md`). Cada um, na sua vez, ataca contra a defesa (bot, nível entre médio e difícil) do time do outro. Ganha quem fizer mais gols.
 - **Como jogar:**
-  - O anfitrião cria a sala (time, 20/30/40 jogadas) e passa o código de 5 letras.
+  - O anfitrião cria a sala (time e 3, 5 ou 7 lances para cada um) e passa o código de 5 letras.
   - O adversário entra pelo código ou pela lista de salas abertas.
-- **Tempo da vez:** 25 s por jogada. Esgotado, a vez passa.
+  - O anfitrião ataca primeiro, depois os dois se alternam. Quem espera vê a tabela de lances se atualizando.
 - **Sair** conta como abandono: a vitória fica com o outro.
-- **Ausência:** se o adversário ficar 90 s sem jogar na vez dele, é possível reivindicar a vitória.
+- **Ausência:** se o adversário ficar 120 s sem jogar na vez dele, é possível reivindicar a vitória.
 
-### Sincronização
-- **Física determinística:**
-  - só `+ − × ÷` e `Math.sqrt` (o `Math.hypot` saiu do passo da física);
-  - passo fixo de 1/120 s.
-  - Os dois aparelhos reproduzem o mesmo chute e chegam às mesmas posições, mesmo com taxas de quadros diferentes (teste em `scripts/arcade-gameplay-test.ts`).
-- **Cada jogada leva:**
-  - disco, direção e força;
-  - as posições de antes (snapshot) e o placar, que corrigem qualquer diferença.
-- **Servidor (`src/server/mp.ts`, tabela `mp_rooms`):**
-  - grava as jogadas em sequência (`jsonb_array_length(moves) = seq`: uma jogada fora de ordem recebe 409);
-  - os clientes consultam a sala a cada 0,9 s (`GET /api/mp/[código]?since=n`).
-- **Fim:** a partida acaba quando as jogadas chegam ao total; o anfitrião registra o placar final.
+### Servidor (`src/server/mp.ts`, tabela `mp_rooms`)
+- **Cada lance gravado:** `{by, kind:"chance", goal, text}`.
+- **Ordem:**
+  - os lances são gravados em sequência (`jsonb_array_length(moves) = seq`: um lance fora de ordem recebe 409);
+  - o servidor confere que é a vez de quem envia (`seq % 2 === lado`) e que o total não passou.
+- **Placar:** calculado no servidor a partir dos lances gravados (`duelScore`), também no abandono e na ausência.
+- **Consulta:** os clientes leem a sala a cada 1,5 s.
+- **Fim:** quando os lances chegam ao total, o anfitrião registra o fim (`finish`), e o servidor calcula o placar e o vencedor.
 
 ### API
 | Rota | Ação |
@@ -89,7 +85,7 @@
 | `GET /api/mp` | Salas abertas e a sala ativa da conta |
 | `POST /api/mp` | `{action:"create", team, turns}` ou `{action:"join", code, team}` |
 | `GET /api/mp/[código]?since=n` | Estado da sala e as jogadas a partir de n |
-| `POST /api/mp/[código]` | `move` (seq + jogada), `finish` (placar), `leave` (abandono) ou `claim` (ausência) |
+| `POST /api/mp/[código]` | `move` (seq + lance), `finish` (placar calculado no servidor), `leave` (abandono) ou `claim` (ausência) |
 
 Todas as rotas exigem conta; as de escrita conferem a origem.
 
@@ -103,4 +99,4 @@ Todas as rotas exigem conta; as de escrita conferem a origem.
   - fim de contrato → agente livre;
   - aposentadoria;
   - migração idempotente.
-- `arcade-gameplay-test`: 60 jogadas online sincronizadas a 60 Hz × 144 Hz, com gols.
+- `npm run test:lances`: lances 3D (veja `LANCES_3D.md`).

@@ -155,9 +155,9 @@ export function PrematchModal({ matchId }: { matchId: string }) {
     setOverlay(null);
     setMatchMode({ kind: "live", matchId });
   };
-  const button = () => {
+  const lances = () => {
     setOverlay(null);
-    setMatchMode({ kind: "button", matchId });
+    setMatchMode({ kind: "lances", matchId });
   };
   const talk = (k: TeamTalkKey) => {
     giveTeamTalk(w, m, k);
@@ -186,8 +186,8 @@ export function PrematchModal({ matchId }: { matchId: string }) {
           <Button variant="ghost" icon={<SlidersHorizontal />} onClick={adjust} className="max-sm:flex-1">
             Ajustar escalação
           </Button>
-          <Button variant="secondary" icon={<Gamepad2 />} onClick={button} className="max-sm:flex-1">
-            Jogar no botão
+          <Button variant="secondary" icon={<Gamepad2 />} onClick={lances} className="max-sm:flex-1">
+            Jogar os lances
           </Button>
           <Button variant="secondary" icon={<Zap />} onClick={quick} className="max-sm:flex-1">
             Resultado rápido
@@ -299,7 +299,7 @@ export function PrematchModal({ matchId }: { matchId: string }) {
           </section>
         </div>
 
-        <p className="text-xs text-mist">No modo botão você decide a partida jogando futebol de botão. O placar vale para a temporada.</p>
+        <p className="text-xs text-mist">Em “Jogar os lances” você decide os ataques do seu time em 3D (deslize para chutar, toque para passar); os gols do adversário vêm da simulação. O placar vale para a temporada.</p>
       </div>
     </Modal>
   );

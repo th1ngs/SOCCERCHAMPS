@@ -1,4 +1,4 @@
-// Funções puras compartilhadas pelas telas de partida (pré-jogo, ao vivo, botão e resumo).
+// Funções puras compartilhadas pelas telas de partida (pré-jogo, ao vivo, lances e resumo).
 import { applyResult, competitionName, cupRoundName, currentWeek, isKnockout, simulateWeek } from "@/game";
 import type { Club, Match, MatchResult, MatchStats, World } from "@/game/types";
 

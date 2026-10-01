@@ -1,13 +1,9 @@
-// Cliente da API do multiplayer 1x1 (salas por código, jogadas por turno).
+// Cliente da API do multiplayer 1x1 (duelo de lances: salas por código, lances alternados).
 export interface MpMove {
   by: 0 | 1;
-  kind: "shot" | "skip";
-  i?: number;
-  dx?: number;
-  dy?: number;
-  p?: number;
-  before: number[];
-  score: [number, number];
+  kind: "chance";
+  goal: boolean;
+  text: string;
 }
 
 export interface MpResult {
@@ -48,7 +44,7 @@ export const mpApi = {
   join: (code: string, team: string) => call<{ room: MpRoom }>("/api/mp", { action: "join", code: code.trim().toUpperCase(), team }),
   room: (code: string, since = 0) => call<{ room: MpRoom }>(`/api/mp/${code}?since=${since}`),
   move: (code: string, seq: number, move: MpMove) => call<{ ok: true }>(`/api/mp/${code}`, { action: "move", seq, move }),
-  finish: (code: string, score: [number, number]) => call<{ room: MpRoom }>(`/api/mp/${code}`, { action: "finish", score }),
+  finish: (code: string) => call<{ room: MpRoom }>(`/api/mp/${code}`, { action: "finish" }),
   leave: (code: string) => call<{ ok: true }>(`/api/mp/${code}`, { action: "leave" }),
   claim: (code: string) => call<{ room: MpRoom }>(`/api/mp/${code}`, { action: "claim" }),
 };

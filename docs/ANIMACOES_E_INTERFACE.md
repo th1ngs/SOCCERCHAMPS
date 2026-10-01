@@ -34,25 +34,8 @@
   - confete.
 - **Botões:** "Ver ficha" e "Continuar". Esc fecha.
 
-## Jogo de botão com 11 (`src/arcade/*`, `src/components/match/buttonResult.ts`)
-- **No Manager:**
-  - cada time entra com os 11 titulares, nas posições da formação escolhida (`formationLayout`);
-  - os discos levam o número da camisa, e o goleiro tem aro verde.
-- **Autor do gol:** o último disco do time que marcou a tocar na bola desde a saída. Desvio do adversário não tira o gol.
-- **Assistência:** o toque anterior do mesmo time.
-- **Gol contra:** só quando o time que marcou não tocou na bola.
-- **Súmula:** autor, garçom e minuto (proporcional ao relógio) entram nela.
-- **Modo arcade avulso:** ganhou a opção **Formato 11 x 11 / 5 x 5**, com padrão 11.
-- **Discos:** no formato de 11, o raio é 21 (no de 5, continua 27).
-- **IA:**
-  - considera os 5 discos mais perto da bola;
-  - simula no máximo ~7 ms por quadro.
-- **Testes (`scripts/arcade-gameplay-test.ts`):**
-  - todas as formações cabem no campo, sem discos colados nem dentro do círculo central;
-  - nenhuma saída curta vira gol direto;
-  - a IA termina de planejar dentro do orçamento;
-  - autor e garçom são creditados corretamente.
-- **Medição:** com 11, a CPU contra a CPU faz ~2,8 gols por jogo (com 5, ~5,3).
+## Jogo de botão (removido)
+O jogo de botão foi substituído pelos **Lances 3D**: veja `LANCES_3D.md`.
 
 ## Escalação
 - **Painel lateral:** virou um painel só, com abas (Banco, Tática, Instruções, Bola parada).
@@ -93,7 +76,7 @@
 - **Equilíbrio:** em 1.200 jogos de cada formação contra o 4-4-2, os pontos por jogo ficam entre 1,38 e 1,60 (com mando de campo alternado). Cada formação tem o seu perfil:
   - o 4-2-4 marca e sofre mais;
   - o 5-4-1 e o 3-4-2-1 têm jogos com menos gols.
-- **Botão:** todas cabem no campo do jogo de botão. O teste do arcade confere as 14.
+- **Lances 3D:** nos lances do Manager, quem conduz e quem defende saem das vagas da formação escolhida.
 
 ## Fora da posição de origem
 - **Overall na vaga** (`slotOvr`): overall × encaixe na posição (`playerFit`).
