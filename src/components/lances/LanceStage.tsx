@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { Hand, MousePointerClick, MoveUpRight } from "lucide-react";
+import { Hand, MousePointerClick, MoveUpRight, Video } from "lucide-react";
 import type { ChanceSetup, LanceResult } from "@/lances/engine";
+import type { CameraView } from "@/lances/render3d";
 import { LanceRunner } from "@/lances/runner";
 import { cn } from "@/lib/cn";
 
@@ -11,6 +12,8 @@ const RESULT_TITLE: Record<LanceResult["outcome"], string> = {
 };
 
 const HINT_KEY = "scm.lances.hint";
+const CAM_KEY = "scm.lances.cam";
+const CAM_NAME: Record<CameraView, string> = { top: "Câmera alta", back: "Câmera atrás" };
 
 /** Palco de um lance: canvas 3D, rastro do gesto, tempo, quem conduz e o resultado. */
 export function LanceStage({ setup, onDone, top, className }: { setup: ChanceSetup; onDone: (r: LanceResult) => void; top?: ReactNode; className?: string }) {
@@ -22,6 +25,16 @@ export function LanceStage({ setup, onDone, top, className }: { setup: ChanceSet
   const [hint, setHint] = useState(() => {
     try { return localStorage.getItem(HINT_KEY) !== "1"; } catch { return true; }
   });
+
+  const [view, setView] = useState<CameraView>(() => {
+    try { return localStorage.getItem(CAM_KEY) === "back" ? "back" : "top"; } catch { return "top"; }
+  });
+  useEffect(() => { runner.setView(view); }, [runner, view]);
+  const toggleView = () => {
+    const v: CameraView = view === "top" ? "back" : "top";
+    setView(v);
+    try { localStorage.setItem(CAM_KEY, v); } catch { /* sem armazenamento */ }
+  };
 
   useEffect(() => {
     runner.setOnDone((res) => {
@@ -54,6 +67,15 @@ export function LanceStage({ setup, onDone, top, className }: { setup: ChanceSet
             <div className={cn("h-full rounded-full transition-[width] duration-200 ease-linear", hud.timeFrac < 0.3 ? "bg-danger-500" : "bg-pitch-400")} style={{ width: `${hud.phase === "intro" ? 100 : hud.timeFrac * 100}%` }} />
           </div>
           <span className={cn("w-8 shrink-0 text-right font-display text-sm font-bold tabular", hud.timeFrac < 0.3 ? "text-danger-400" : "text-snow")}>{hud.timeLeft}s</span>
+          <button
+            type="button"
+            onClick={toggleView}
+            className="pointer-events-auto grid size-8 shrink-0 place-items-center rounded-full bg-ink-950/75 text-snow ring-1 ring-white/15 hover:text-gold-300 focus-visible:outline-2 focus-visible:outline-gold-400"
+            aria-label={`${CAM_NAME[view]}: trocar para ${CAM_NAME[view === "top" ? "back" : "top"].toLowerCase()}`}
+            title={CAM_NAME[view]}
+          >
+            <Video className="size-4" />
+          </button>
         </div>
       </div>
 

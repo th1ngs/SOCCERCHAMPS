@@ -2,7 +2,7 @@
 // tocar no gramado = conduzir), atualização do motor, render 3D, sons e HUD para o React.
 import { Audio } from "@/arcade/audio";
 import { BALL_R, Chance, GOAL_Z, type ChanceSetup, type LanceResult, type Phase } from "./engine";
-import { LanceScene } from "./render3d";
+import { LanceScene, type CameraView } from "./render3d";
 
 export interface LanceHud {
   phase: Phase;
@@ -63,6 +63,13 @@ export class LanceRunner {
   setOnDone(fn: (r: LanceResult) => void): void {
     this.onDone = fn;
   }
+
+  private view: CameraView = "top";
+  /** Troca a câmera (alta ou atrás do jogador). */
+  setView(v: CameraView): void {
+    this.view = v;
+    this.scene?.setView(v);
+  }
   private doneFired = false;
   private samples: Sample[] = [];
   private trail: { x: number; y: number; t: number }[] = [];
@@ -113,6 +120,7 @@ export class LanceRunner {
   attach(canvas: HTMLCanvasElement, overlay: HTMLCanvasElement, stage: HTMLElement): () => void {
     const scene = new LanceScene(canvas);
     this.scene = scene;
+    scene.setView(this.view);
     if (this.chance) scene.setChance(this.chance);
     this.overlay = overlay.getContext("2d");
     const resize = () => {

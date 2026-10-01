@@ -46,18 +46,22 @@ O jogo de botão saiu. No lugar dele entram as **chances de ataque em 3D**, no e
 
 ## Render 3D (`src/lances/render3d.ts`, three.js)
 - **Estádio:**
-  - gramado com faixas de corte e linhas;
-  - arquibancadas com torcida e placas de LED;
-  - torres de refletores com brilho;
-  - céu noturno e sombras suaves.
-- **Jogadores:** low-poly, com camisa nas cores e no padrão do clube, número e nome. Têm animação de corrida, desarme, queda, comemoração e mergulho do goleiro.
+  - gramado em faixas de corte (uma malha por faixa) com textura fina de grama repetida em metros;
+  - linhas do campo em geometria (retas, arcos e marcas), nítidas a qualquer distância;
+  - arquibancadas com torcida e placas de LED (texto só na face voltada para o campo);
+  - torres de refletores com brilho, céu noturno e sombras suaves.
+- **Jogadores:** low-poly (1,3x para ler bem de cima), com camisa nas cores e no padrão do clube, número e nome. Têm animação de corrida, desarme, queda, comemoração e mergulho do goleiro.
+- **Bola:** desenhada 1,6x maior que o tamanho real (só no visual; a física usa o tamanho real).
 - **Uniformes:** quando as cores se confundem (inclusive time contra ele mesmo no online), a defesa veste o reserva (`contrastKit`).
-- **Câmera:**
-  - acompanha o ataque por trás;
-  - aproxima no chute;
-  - gira ao redor do gol na comemoração, com confete e rede estufando;
-  - treme na defesa.
-- **Celular em pé:** campo de visão mais aberto.
+- **Câmera** (botão no canto do placar; a escolha fica salva em `scm.lances.cam`):
+  - **Alta (padrão):** de cima e um pouco atrás da bola, como no Soccer Champs, com o gol no alto da tela. No celular em pé fica mais alta e com campo de visão mais aberto.
+  - **Atrás:** atrás do jogador, mais perto e mais baixa.
+  - Nas duas: aproxima do gol no chute, gira ao redor do gol na comemoração (confete e rede estufando) e treme na defesa.
+- **Qualidade de imagem:**
+  - antialiasing e anisotropia máxima da placa nas texturas;
+  - densidade de pixels até 2,5x no celular e 2x em telas grandes;
+  - **resolução adaptativa:** se a média ficar abaixo de ~40 quadros por segundo, a densidade baixa 0,25 por vez (até 1x) e volta a subir quando sobra folga;
+  - textos (nomes e números) em texturas de alta resolução.
 
 ## Onde aparece
 - **Manager** (pré-jogo → **Jogar os lances**):
