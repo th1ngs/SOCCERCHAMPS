@@ -4,7 +4,9 @@
 // strings, booleanos e null. Nada de Map, Set ou classes.
 
 export type Position = 'GOL' | 'ZAG' | 'LAT' | 'VOL' | 'MEI' | 'ATA';
-export type FormationKey = '4-4-2' | '4-3-3' | '4-2-3-1' | '3-5-2' | '5-3-2' | '4-5-1';
+export type FormationKey =
+  | '4-4-2' | '4-3-3' | '4-2-3-1' | '3-5-2' | '5-3-2' | '4-5-1'
+  | '4-1-4-1' | '4-3-1-2' | '4-4-1-1' | '4-3-2-1' | '4-2-4' | '3-4-3' | '3-4-2-1' | '5-4-1';
 export type TacticKey = 'def' | 'bal' | 'att' | 'press';
 /** Instruções táticas (v6): por onde atacar, como passar, altura da linha e tipo de marcação. */
 export type WidthKey = 'meio' | 'misto' | 'pontas';

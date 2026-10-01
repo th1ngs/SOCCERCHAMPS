@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { ArrowLeftRight, Bandage, Check, Play } from "lucide-react";
-import { FORMATIONS, FORMATION_KEYS, MAX_SUBS, TACTICS } from "@/game";
-import type { FormationKey, Player, TacticKey } from "@/game/types";
+import { FORMATIONS, MAX_SUBS, TACTICS } from "@/game";
+import type { Player, TacticKey } from "@/game/types";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Segmented } from "@/components/ui/Segmented";
@@ -11,6 +11,7 @@ import { Alert, EmptyState, Meter, OvrBadge, PosBadge, SectionTitle } from "@/co
 import { cn } from "@/lib/cn";
 import type { LiveController } from "./controller";
 import { CardGlyph } from "./FeedIcon";
+import { FormationPicker } from "@/components/lineup/FormationPicker";
 import { InstructionPicker } from "@/components/lineup/InstructionPicker";
 
 function PickRow({
@@ -139,12 +140,7 @@ export function SubsModal({ ctrl, note }: { ctrl: LiveController; note: string |
         </div>
         <section>
           <SectionTitle className="mb-2">Formação</SectionTitle>
-          <Segmented<FormationKey>
-            ariaLabel="Formação"
-            value={side.formation}
-            onChange={(f) => ctrl.setFormation(f)}
-            options={FORMATION_KEYS.map((f) => ({ value: f, label: f }))}
-          />
+          <FormationPicker value={side.formation} onChange={(f) => ctrl.setFormation(f)} />
         </section>
         <section>
           <SectionTitle className="mb-2">Estilo</SectionTitle>

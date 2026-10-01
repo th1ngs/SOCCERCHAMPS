@@ -242,7 +242,7 @@ export function assignNumbers(w: World, club: Club): void {
 
 /** Inclui clubes novos em carreiras existentes sem alterar elencos antigos. */
 export function seedMissingClubs(w: World): number {
-  const FORMATION_POOL: FormationKey[] = ['4-4-2', '4-3-3', '4-2-3-1', '4-3-3', '4-4-2', '3-5-2'];
+  const FORMATION_POOL: FormationKey[] = ['4-4-2', '4-3-3', '4-2-3-1', '4-3-3', '4-4-2', '3-5-2', '4-2-3-1', '4-1-4-1', '4-3-1-2', '4-4-1-1', '3-4-3', '5-4-1', '4-3-2-1', '3-4-2-1'];
   const missing = CLUBS.filter((c) => !w.clubs[c.id]);
   missing.forEach((c) => {
     const club: Club = {

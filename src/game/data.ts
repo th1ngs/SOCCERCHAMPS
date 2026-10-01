@@ -52,6 +52,32 @@ export const FORMATIONS: Record<FormationKey, FormationSlot[]> = {
   '3-5-2': [S('GOL', 5, 50), S('ZAG', 20, 26), S('ZAG', 18, 50), S('ZAG', 20, 74), S('LAT', 45, 10), S('VOL', 40, 50), S('MEI', 54, 32), S('MEI', 54, 68), S('LAT', 45, 90), S('ATA', 75, 40), S('ATA', 75, 60)],
   '5-3-2': [S('GOL', 5, 50), S('LAT', 30, 10), S('ZAG', 20, 30), S('ZAG', 18, 50), S('ZAG', 20, 70), S('LAT', 30, 90), S('VOL', 42, 50), S('MEI', 52, 28), S('MEI', 52, 72), S('ATA', 75, 40), S('ATA', 75, 60)],
   '4-5-1': [S('GOL', 5, 50), S('LAT', 26, 14), S('ZAG', 20, 38), S('ZAG', 20, 62), S('LAT', 26, 86), S('MEI', 52, 12), S('VOL', 42, 36), S('VOL', 42, 64), S('MEI', 56, 50), S('MEI', 52, 88), S('ATA', 78, 50)],
+  '4-1-4-1': [S('GOL', 5, 50), S('LAT', 26, 14), S('ZAG', 20, 38), S('ZAG', 20, 62), S('LAT', 26, 86), S('VOL', 37, 50), S('MEI', 55, 13), S('MEI', 51, 37), S('MEI', 51, 63), S('MEI', 55, 87), S('ATA', 78, 50)],
+  '4-3-1-2': [S('GOL', 5, 50), S('LAT', 26, 14), S('ZAG', 20, 38), S('ZAG', 20, 62), S('LAT', 26, 86), S('VOL', 39, 50), S('MEI', 49, 27), S('MEI', 49, 73), S('MEI', 62, 50), S('ATA', 77, 37), S('ATA', 77, 63)],
+  '4-4-1-1': [S('GOL', 5, 50), S('LAT', 26, 14), S('ZAG', 20, 38), S('ZAG', 20, 62), S('LAT', 26, 86), S('MEI', 50, 14), S('VOL', 43, 38), S('VOL', 43, 62), S('MEI', 50, 86), S('MEI', 64, 50), S('ATA', 80, 50)],
+  '4-3-2-1': [S('GOL', 5, 50), S('LAT', 26, 14), S('ZAG', 20, 38), S('ZAG', 20, 62), S('LAT', 26, 86), S('VOL', 39, 50), S('MEI', 47, 25), S('MEI', 47, 75), S('MEI', 63, 34), S('MEI', 63, 66), S('ATA', 80, 50)],
+  '4-2-4': [S('GOL', 5, 50), S('LAT', 26, 14), S('ZAG', 20, 38), S('ZAG', 20, 62), S('LAT', 26, 86), S('VOL', 43, 37), S('VOL', 43, 63), S('ATA', 70, 13), S('ATA', 78, 38), S('ATA', 78, 62), S('ATA', 70, 87)],
+  '3-4-3': [S('GOL', 5, 50), S('ZAG', 20, 26), S('ZAG', 18, 50), S('ZAG', 20, 74), S('LAT', 46, 10), S('VOL', 42, 37), S('VOL', 42, 63), S('LAT', 46, 90), S('ATA', 73, 18), S('ATA', 80, 50), S('ATA', 73, 82)],
+  '3-4-2-1': [S('GOL', 5, 50), S('ZAG', 20, 26), S('ZAG', 18, 50), S('ZAG', 20, 74), S('LAT', 46, 10), S('VOL', 42, 37), S('VOL', 42, 63), S('LAT', 46, 90), S('MEI', 63, 32), S('MEI', 63, 68), S('ATA', 80, 50)],
+  '5-4-1': [S('GOL', 5, 50), S('LAT', 30, 10), S('ZAG', 20, 30), S('ZAG', 18, 50), S('ZAG', 20, 70), S('LAT', 30, 90), S('MEI', 50, 16), S('VOL', 43, 39), S('VOL', 43, 61), S('MEI', 50, 84), S('ATA', 76, 50)],
+};
+
+/** Apelido e resumo de cada formação (escolha na Escalação e nas substituições). */
+export const FORMATION_INFO: Record<FormationKey, { name: string; desc: string }> = {
+  '4-4-2': { name: 'Clássico', desc: 'Duas linhas de quatro e dupla de ataque. Equilibrado em tudo.' },
+  '4-3-3': { name: 'Com pontas', desc: 'Três atacantes abertos pressionam e esticam o campo.' },
+  '4-2-3-1': { name: 'Moderno', desc: 'Dois volantes protegem; três meias abastecem o centroavante.' },
+  '3-5-2': { name: 'Alas', desc: 'Três zagueiros e alas que sobem. Meio-campo povoado.' },
+  '5-3-2': { name: 'Retranca', desc: 'Cinco atrás e contra-ataque com dois atacantes.' },
+  '4-5-1': { name: 'Meio cheio', desc: 'Cinco no meio para ter a bola; um atacante isolado.' },
+  '4-1-4-1': { name: 'Volante fixo', desc: 'Um volante na frente da zaga e quatro meias por dentro e por fora.' },
+  '4-3-1-2': { name: 'Losango', desc: 'Meio fechado com camisa 10 e dois atacantes; pouco jogo pelos lados.' },
+  '4-4-1-1': { name: 'Segundo atacante', desc: 'Um meia joga colado no centroavante, entre as linhas.' },
+  '4-3-2-1': { name: 'Árvore de Natal', desc: 'Três volantes/meias atrás de dois meias-atacantes e um centroavante.' },
+  '4-2-4': { name: 'Ofensivo total', desc: 'Quatro atacantes à moda antiga. Muito gol, meio-campo exposto.' },
+  '3-4-3': { name: 'Ataque largo', desc: 'Três zagueiros, alas e um tridente. Agressivo e arriscado.' },
+  '3-4-2-1': { name: 'Dois camisas 10', desc: 'Três zagueiros, alas e dois meias atrás do centroavante.' },
+  '5-4-1': { name: 'Ferrolho', desc: 'Dez atrás da linha da bola. Para segurar resultado.' },
 };
 export const FORMATION_KEYS = Object.keys(FORMATIONS) as FormationKey[];
 

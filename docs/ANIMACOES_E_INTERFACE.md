@@ -69,3 +69,28 @@
 - **Faixa de números:** liga, forma, diretoria e caixa.
 - **Abaixo:** classificação e mensagens.
 - **Painel completo (recolhido):** diretoria, elenco, finanças e competições.
+
+## Formações (14)
+- **Novas:**
+
+  | Formação | Apelido |
+  |---|---|
+  | 4-1-4-1 | Volante fixo |
+  | 4-3-1-2 | Losango |
+  | 4-4-1-1 | Segundo atacante |
+  | 4-3-2-1 | Árvore de Natal |
+  | 4-2-4 | Ofensivo total |
+  | 3-4-3 | Ataque largo |
+  | 3-4-2-1 | Dois camisas 10 |
+  | 5-4-1 | Ferrolho |
+
+- **Formações antigas:** 4-4-2, 4-3-3, 4-2-3-1, 3-5-2, 5-3-2 e 4-5-1 continuam.
+- **Onde ficam (`FORMATIONS` e `FORMATION_INFO` em `src/game/data.ts`):**
+  - posições, apelido e resumo de cada formação;
+  - a escolha (`FormationPicker`) mostra um mini campo com os 11 pontos;
+  - ela aparece na Escalação e nas substituições ao vivo.
+- **CPU:** os clubes também usam as novas formações (`FORMATION_POOL` em `gen.ts`).
+- **Equilíbrio:** em 1.200 jogos de cada formação contra o 4-4-2, os pontos por jogo ficam entre 1,38 e 1,60 (com mando de campo alternado). Cada formação tem o seu perfil:
+  - o 4-2-4 marca e sofre mais;
+  - o 5-4-1 e o 3-4-2-1 têm jogos com menos gols.
+- **Botão:** todas cabem no campo do jogo de botão. O teste do arcade confere as 14.

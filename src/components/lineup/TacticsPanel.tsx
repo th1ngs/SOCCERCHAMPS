@@ -1,8 +1,9 @@
 "use client";
 
-import { FORMATION_KEYS, TACTICS } from "@/game";
+import { TACTICS } from "@/game";
 import type { FormationKey, TacticKey } from "@/game/types";
 import { Segmented } from "@/components/ui/Segmented";
+import { FormationPicker } from "./FormationPicker";
 import { TACTIC_HELP } from "./lineupLogic";
 
 const TACTIC_KEYS = Object.keys(TACTICS) as TacticKey[];
@@ -23,8 +24,8 @@ export function TacticsPanel({
     <div className="space-y-4">
       <div>
         <span className="mb-1.5 block text-sm font-semibold">Formação</span>
-        <Segmented ariaLabel="Formação" size="sm" options={FORMATION_KEYS.map((f) => ({ value: f, label: f }))} value={formation} onChange={onFormation} />
-        <p className="mt-1.5 text-xs text-mist">Trocar a formação escala o melhor time para o novo desenho.</p>
+        <FormationPicker value={formation} onChange={onFormation} />
+        <p className="mt-1 text-xs text-mist">Trocar a formação escala o melhor time para o novo desenho.</p>
       </div>
       <div>
         <span className="mb-1.5 block text-sm font-semibold">Estilo de jogo</span>
