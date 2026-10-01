@@ -200,10 +200,10 @@ export default function EscalacaoPage() {
               <span className="grid size-4 place-items-center rounded-full bg-gold-400 font-display text-xs font-extrabold text-ink-950">C</span> Capitão
             </li>
             <li className="flex items-center gap-1.5">
-              <span className="size-3 rounded-full bg-warn-400" /> Fora de posição
+              <span className="size-3 rounded-full bg-warn-400" /> Fora de posição (−8% a −16%)
             </li>
             <li className="flex items-center gap-1.5">
-              <span className="size-3 rounded-full bg-danger-500" /> Muito fora de posição
+              <span className="size-3 rounded-full bg-danger-500" /> Muito fora (−28% a −32%; no gol, −65%)
             </li>
           </ul>
           <SectorStrip sec={sec} />

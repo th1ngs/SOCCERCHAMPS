@@ -148,15 +148,17 @@ export class Sim {
     const p = this.P(o.pid);
     const sp = FORMATIONS[side.formation][o.slot].pos;
     o.sp = sp;
+    // Fora da posição de origem o jogador rende menos em tudo: força e atributos dos lances.
+    const pf = playerFit(p, sp);
     // Moral pesa de verdade: 30 → −2,8%; 90 → +5,6%.
-    o.k = matchOvr(p) * playerFit(p, sp) * (0.93 + (0.14 * p.morale) / 100);
+    o.k = matchOvr(p) * pf * (0.93 + (0.14 * p.morale) / 100);
     const motor = hasTrait(p, 'motorzinho') && (sp === 'LAT' || sp === 'VOL' || sp === 'MEI') ? MOTOR_SECTOR : 0;
     o.dm = (1 + (hasTrait(p, 'marcacao') ? TRAIT_SECTOR : 0) + (hasTrait(p, 'desarme') ? TRAIT_SECTOR : 0) + motor) * (1 + ATTR_SECTOR * devAvg(p, ['mar', 'cab', 'vel']));
     o.mm = (1 + (hasTrait(p, 'passe') ? TRAIT_PASS_MID : 0)) * (1 + ATTR_SECTOR * devAvg(p, ['pas', 'fol']));
     o.am = (1 + (hasTrait(p, 'drible') ? TRAIT_SECTOR : 0) + (hasTrait(p, 'velocidade') ? TRAIT_SECTOR : 0) + motor) * (1 + ATTR_SECTOR * devAvg(p, ['fin', 'dri', 'vel']));
     o.drain = (sp === 'GOL' ? 0.08 : 0.3) * (p.age > 31 ? 1.15 : 1) * (hasTrait(p, 'resistencia') ? TRAIT_STAMINA : 1) * (motor ? MOTOR_STAMINA : 1) * (sp === 'GOL' ? 1 : staminaMult(p));
     o.garra = hasTrait(p, 'garra');
-    o.av = ATTR_KEYS.map((k) => attr(p, k));
+    o.av = ATTR_KEYS.map((k) => Math.max(1, Math.round(attr(p, k) * pf)));
   }
 
   /** Invalida o cache (troca de jogador, slot ou formação). */

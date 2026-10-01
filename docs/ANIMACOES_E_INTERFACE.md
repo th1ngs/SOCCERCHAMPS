@@ -94,3 +94,21 @@
   - o 4-2-4 marca e sofre mais;
   - o 5-4-1 e o 3-4-2-1 têm jogos com menos gols.
 - **Botão:** todas cabem no campo do jogo de botão. O teste do arcade confere as 14.
+
+## Fora da posição de origem
+- **Overall na vaga** (`slotOvr`): overall × encaixe na posição (`playerFit`).
+
+  | Situação | Rendimento |
+  |---|---|
+  | Posição de origem | 100% |
+  | Posição vizinha (ex.: VOL ↔ MEI, ZAG ↔ LAT) | 84% a 92% |
+  | Posição distante | 68% a 72% |
+  | Jogador de linha no gol, ou goleiro na linha | 35% |
+
+  A habilidade Coringa nunca cai abaixo de 90% (exceto no gol).
+- **Interface:**
+  - o campo da Escalação mostra o overall já descontado e o selo vermelho com os pontos perdidos ("ATA • 70 −10");
+  - a legenda traz as faixas de perda;
+  - as substituições ao vivo também mostram o overall descontado.
+- **Motor:** a perda vale para a força do jogador e, agora, também para os atributos usados nos lances (finalização, passe, marcação, reflexos…).
+- **Checagem (`sim-test --checks`):** o mesmo time, com os 10 de linha girados de posição, cai de ~1,7 para ~0,7 ponto por jogo.

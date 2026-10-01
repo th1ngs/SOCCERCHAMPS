@@ -128,6 +128,9 @@ export function playerFit(p: Pick<Player, 'pos' | 'traits'>, slot: Position): nu
   return 0.9;
 }
 
+/** Overall efetivo numa posição (fora da de origem, o jogador perde pontos). */
+export const slotOvr = (p: Pick<Player, 'ovr' | 'pos' | 'traits'>, slot: Position): number => Math.round(p.ovr * playerFit(p, slot));
+
 /** Todos os atributos de um jogador. */
 export const attrs = (p: Pick<Player, 'ovr' | 'at' | 'pos'>): Record<AttrKey, number> =>
   Object.fromEntries(ATTR_KEYS.map((k) => [k, attr(p, k)])) as Record<AttrKey, number>;

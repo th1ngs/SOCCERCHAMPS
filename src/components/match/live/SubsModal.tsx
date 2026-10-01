@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { ArrowLeftRight, Bandage, Check, Play } from "lucide-react";
-import { FORMATIONS, MAX_SUBS, TACTICS } from "@/game";
-import type { Player, TacticKey } from "@/game/types";
+import { FORMATIONS, MAX_SUBS, TACTICS, slotOvr } from "@/game";
+import type { Player, Position, TacticKey } from "@/game/types";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Segmented } from "@/components/ui/Segmented";
@@ -31,6 +31,8 @@ function PickRow({
   injured?: boolean;
   yellow?: boolean;
 }) {
+  const eff = slotOvr(p, pos as Position);
+  const lost = Math.round(p.ovr) - eff;
   return (
     <button
       type="button"
@@ -46,7 +48,8 @@ function PickRow({
       {injured && <Bandage className="size-4 shrink-0 text-danger-400" aria-label="Lesionado" />}
       {yellow && <CardGlyph color="yellow" label="Amarelado" />}
       <Meter value={fat} label="Condição física" className="w-12 shrink-0" />
-      <OvrBadge value={p.ovr} size="sm" />
+      {lost > 0 && <span className="shrink-0 text-xs font-bold text-danger-400" title={`Fora de posição: perde ${lost} pontos`}>−{lost}</span>}
+      <OvrBadge value={eff} size="sm" />
       {selected && <Check className="size-4 shrink-0 text-gold-400" aria-hidden />}
     </button>
   );

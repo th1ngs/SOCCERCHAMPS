@@ -1,6 +1,6 @@
 import type { PointerEvent } from "react";
 import { Plus, TriangleAlert } from "lucide-react";
-import { playerFit } from "@/game";
+import { playerFit, slotOvr } from "@/game";
 import type { FormationSlot, Player } from "@/game/types";
 import { cn } from "@/lib/cn";
 import { surname } from "@/components/player/playerInfo";
@@ -46,7 +46,9 @@ export function PitchSlot({
 
   const f = playerFit(p, slot.pos);
   const tone = fitTone(f);
-  const label = `${slot.pos}: ${p.name}, ${p.pos}, overall ${Math.round(p.ovr)}, condição ${Math.round(p.fitness)}%${captain ? ", capitão" : ""}${tone !== "ok" ? ", fora de posição" : ""}. Trocar jogador`;
+  const eff = slotOvr(p, slot.pos);
+  const lost = Math.round(p.ovr) - eff;
+  const label = `${slot.pos}: ${p.name}, ${p.pos}, overall ${eff}${lost > 0 ? ` (fora de posição: ${Math.round(p.ovr)} − ${lost})` : ""}, condição ${Math.round(p.fitness)}%${captain ? ", capitão" : ""}. Trocar jogador`;
 
   return (
     <button type="button" data-lineup-target={`slot:${index}`} onClick={onPick} onPointerDown={onPointerDown} style={style} className={cn(base, "touch-none cursor-grab active:cursor-grabbing", dropActive && "bg-gold-400/35 ring-2 ring-gold-400 scale-110", dragging && "hover:scale-100")} aria-label={label} title={label}>
@@ -70,8 +72,9 @@ export function PitchSlot({
         )}
       </span>
       <span className="w-full truncate rounded bg-black/55 px-1 text-xs font-semibold leading-4 sm:text-[13px]">{surname(p.name)}</span>
-      <span className={cn("text-xs font-bold leading-3.5 tabular drop-shadow sm:text-[13px]", tone === "bad" ? "text-danger-400" : tone === "warn" ? "text-warn-400" : "text-snow")}>
-        {slot.pos} • {Math.round(p.ovr)}
+      <span className={cn("whitespace-nowrap text-xs font-bold leading-3.5 tabular drop-shadow sm:text-[13px]", tone === "bad" ? "text-danger-400" : tone === "warn" ? "text-warn-400" : "text-snow")}>
+        {slot.pos} • {eff}
+        {lost > 0 && <span className="ml-0.5 rounded bg-danger-500/85 px-0.5 text-[10px] text-white sm:text-[11px]">−{lost}</span>}
       </span>
       <span className="h-1.5 w-10 overflow-hidden rounded-full bg-black/40" aria-hidden>
         <span className={cn("block h-full rounded-full", p.fitness < 55 ? "bg-danger-500" : p.fitness < 75 ? "bg-warn-400" : "bg-pitch-400")} style={{ width: `${Math.max(0, Math.min(100, p.fitness))}%` }} />

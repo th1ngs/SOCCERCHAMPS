@@ -817,6 +817,31 @@ function runV5Checks(): void {
   assert(mine.every((a) => a.exact), 'atributos exatos no próprio elenco');
   console.log(`attrs ok: ${fk.length} batedores de falta; bola parada +${devBp(fk).toFixed(1)} vs ${devBp(noFk).toFixed(1)}`);
 
+  // Fora da posição de origem o jogador perde pontos: na escalação e no jogo.
+  const zag = all.find((p) => p.pos === 'ZAG' && !p.youth && !p.traits.includes('coringa'))!;
+  assert(G.slotOvr(zag, 'ZAG') === Math.round(zag.ovr), 'na posição de origem não perde');
+  assert(G.slotOvr(zag, 'ATA') < zag.ovr - 8, 'zagueiro no ataque perde pontos');
+  assert(G.slotOvr(zag, 'GOL') < zag.ovr * 0.4, 'jogador de linha no gol perde muito');
+  const opp = Object.values(w.clubs).find((c) => c.div === u.div && c.id !== u.id)!;
+  const pointsWith = (shuffle: boolean) => {
+    G.autoLineup(w, u); G.autoLineup(w, opp);
+    if (shuffle) {
+      // Gira os 10 de linha: cada um vai para a vaga do seguinte (zagueiro no meio, atacante na zaga…).
+      const out = u.lineup.slice(1);
+      u.lineup = [u.lineup[0], ...out.slice(3), ...out.slice(0, 3)];
+    }
+    let pts = 0;
+    for (let i = 0; i < 300; i++) {
+      const r = new G.Sim(w, u.id, opp.id, {}).runToEnd().result();
+      pts += r.hs > r.as ? 3 : r.hs === r.as ? 1 : 0;
+    }
+    return pts / 300;
+  };
+  const natural = pointsWith(false), messy = pointsWith(true);
+  G.autoLineup(w, u);
+  assert(natural > messy + 0.4, `time fora de posição rende menos (${natural.toFixed(2)} vs ${messy.toFixed(2)})`);
+  console.log(`posição ok: ${zag.name} ZAG ${Math.round(zag.ovr)} → ATA ${G.slotOvr(zag, 'ATA')}; pontos/jogo ${natural.toFixed(2)} escalado certo vs ${messy.toFixed(2)} fora de posição`);
+
   // Finanças por clube: ligas ricas pagam e faturam mais; teto salarial e veto da diretoria.
   const rev = (lg: G.LeagueId) => {
     const cs = Object.values(w.clubs).filter((c) => c.league === lg && G.DIVISIONS[c.div].level === 1);
