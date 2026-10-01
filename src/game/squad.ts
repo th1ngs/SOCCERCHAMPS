@@ -5,7 +5,7 @@ import { promoteYouth } from './market';
 import { aiInstructions } from './tactics';
 import type { Club, Player, Position, SectorStrength, World } from './types';
 import { avg, rand, randi } from './util';
-import { neededPos, pushMessage, user } from './world';
+import { isProtagonist, managesClub, neededPos, pushMessage, user } from './world';
 
 const SLOT_PRIORITY: Record<Position, number> = { GOL: 0, ATA: 1, MEI: 2, ZAG: 3, VOL: 4, LAT: 5 };
 const BENCH_SIZE = 7;
@@ -26,7 +26,8 @@ function fillSlots(w: World, club: Club, lineup: (string | null)[]): (string | n
     let best: Player | null = null, bs = -1;
     for (const p of pool) {
       if (used.has(p.id)) continue;
-      const s = slotScore(p, slots[i].pos);
+      // Carreira de jogador: a confiança do técnico pesa na escolha (±6 pontos de overall).
+      const s = slotScore(p, slots[i].pos) + (isProtagonist(w, p.id) ? ((w.playerCareer?.trust ?? 50) - 50) * 0.12 : 0);
       if (s > bs) { bs = s; best = p; }
     }
     if (best) { lineup[i] = best.id; used.add(best.id); }
@@ -47,6 +48,13 @@ function fillBench(w: World, club: Club, lineup: (string | null)[], bench: strin
   for (const p of pool) {
     if (bench.length >= BENCH_SIZE) break;
     if (!used.has(p.id)) { bench.push(p.id); used.add(p.id); }
+  }
+  // Carreira de jogador: o protagonista apto sempre fica entre os relacionados (no lugar do último reserva de linha).
+  const star = w.playerCareer ? w.players[w.playerCareer.pid] : undefined;
+  if (star && star.clubId === club.id && available(star) && !used.has(star.id)) {
+    const out = bench.map((id, i) => ({ id, i })).reverse().find(({ id }) => w.players[id].pos !== 'GOL');
+    if (out) bench[out.i] = star.id;
+    else if (bench.length < BENCH_SIZE) bench.push(star.id);
   }
   return bench.slice(0, BENCH_SIZE);
 }
@@ -76,7 +84,7 @@ export function autoLineup(w: World, club: Club): void {
   pickPenTaker(w, club);
   pickFkTaker(w, club);
   // A CPU ajusta as instruções ao perfil do time escalado; as do usuário são dele.
-  if (club.id !== w.userClub) club.instr = aiInstructions(w, club);
+  if (!managesClub(w, club.id)) club.instr = aiInstructions(w, club);
 }
 
 // ---------- Capitão e batedor ----------

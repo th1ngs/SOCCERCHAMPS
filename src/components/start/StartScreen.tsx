@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { useId, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -11,24 +11,12 @@ import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { useGame } from "@/components/game/GameProvider";
 import { Flag } from "@/components/ui/Flag";
+import { cn } from "@/lib/cn";
 import { ClubGrid, DivisionTabs, LeaguePicker } from "./ClubPicker";
+import { PlayerStart } from "./PlayerStart";
+import { Step } from "./Step";
 
 const DEFAULT_NAME = "Treinador";
-
-function Step({ n, title, aside, children }: { n: number; title: ReactNode; aside?: ReactNode; children: ReactNode }) {
-  return (
-    <section className="mt-8">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2.5 font-display text-[13px] font-bold uppercase tracking-[0.14em] text-gold-400">
-          <span className="grid size-7 place-items-center rounded-full bg-gold-400 text-sm font-extrabold tracking-normal text-ink-950" aria-hidden>{n}</span>
-          {title}
-        </h2>
-        {aside}
-      </div>
-      {children}
-    </section>
-  );
-}
 
 /** Nova carreira: nome do treinador e escolha do clube. */
 export function StartScreen() {
@@ -42,6 +30,7 @@ export function StartScreen() {
   const requested = Number(search.get("slot"));
   const slot = selectedSlot ?? ([1, 2, 3].includes(requested) ? requested : 1);
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState<"manager" | "player">(search.get("modo") === "jogador" ? "player" : "manager");
   const [error, setError] = useState("");
   const [name, setName] = useState<string | null>(null);
   const shownName = name ?? g.world?.manager.name ?? "";
@@ -95,6 +84,29 @@ export function StartScreen() {
             Save {n}{g.slots.some((s) => s.slot === n) ? " · ocupado" : " · vazio"}
           </Button>)}
         </div>
+        <div role="radiogroup" aria-label="Modo de jogo" className="mt-5 grid max-w-xl grid-cols-2 gap-2">
+          {([
+            ["manager", "Treinador", "Monte o time, contrate e dispute títulos."],
+            ["player", "Jogador", "Comece aos 17 anos e vire um craque."],
+          ] as const).map(([value, label, desc]) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={mode === value}
+              onClick={() => setMode(value)}
+              className={cn(
+                "rounded-2xl p-3 text-left ring-1 ring-inset transition-colors focus-visible:outline-2 focus-visible:outline-gold-400",
+                mode === value ? "bg-gold-400/15 ring-gold-400/70" : "bg-ink-800 ring-white/8 hover:bg-white/6",
+              )}
+            >
+              <span className={cn("block font-display text-xl font-extrabold uppercase", mode === value ? "text-gold-400" : "text-snow")}>{label}</span>
+              <span className="block text-xs text-mist">{desc}</span>
+            </button>
+          ))}
+        </div>
+
+        {mode === "player" ? <PlayerStart slot={slot} /> : <>
         {error && <p role="alert" className="mt-3 text-sm text-danger-400">{error}</p>}
 
         <Step n={1} title={<label htmlFor={nameId}>Seu nome de treinador</label>}>
@@ -127,6 +139,7 @@ export function StartScreen() {
             <ClubGrid key={div} id={gridId} div={div} onPick={pick} />
           </div>
         </Step>
+        </>}
       </section>
 
       <Modal

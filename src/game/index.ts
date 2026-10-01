@@ -19,3 +19,4 @@ export * from './talks';
 export * from './career';
 export * from './nations';
 export * from './leaguestrength';
+export * from './playercareer';

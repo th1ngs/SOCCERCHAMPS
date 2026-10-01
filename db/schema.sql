@@ -65,3 +65,21 @@ create table if not exists account_saves (
   updated_at timestamptz not null default now(),
   primary key (account_id, slot)
 );
+
+-- Multiplayer 1x1 (futebol de botão online por turnos).
+create table if not exists mp_rooms (
+  code text primary key,
+  host_id uuid not null references accounts (id) on delete cascade,
+  host_name text not null,
+  host_team text not null,
+  guest_id uuid references accounts (id) on delete cascade,
+  guest_name text,
+  guest_team text,
+  turns smallint not null,
+  status text not null default 'waiting',
+  moves jsonb not null default '[]'::jsonb,
+  result jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists mp_rooms_status_idx on mp_rooms (status, updated_at desc);

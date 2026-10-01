@@ -10,7 +10,7 @@ import type {
   BidResult, Club, LeagueId, Message, Player, Position, TransferKind, TrialOptions, UpgradeKey, Upgrade, World,
 } from './types';
 import { avg, chance, clamp, formatMoney, pick, rand, randi, shuffle, weighted } from './util';
-import { addMoney, clubPlayers, detach, freeAgentFor, neededPos, pushMessage, removePlayer, toFree, user, windowOpen } from './world';
+import { addMoney, clubPlayers, detach, freeAgentFor, isProtagonist, managesClub, neededPos, pushMessage, removePlayer, toFree, user, windowOpen } from './world';
 
 export const SQUAD_MAX = 32;
 /** Fração das buscas da CPU feitas fora da própria liga. */
@@ -271,7 +271,7 @@ export function upgrade(w: World, kind: UpgradeKey): boolean {
  * estádio (se ele for pequeno para o tamanho do clube). No máximo 2 obras por temporada.
  */
 export function aiInvest(w: World, c: Club): void {
-  if (c.id === w.userClub) return;
+  if (managesClub(w, c.id)) return;
   const weekly = financeProfile(w, c).revenue;
   for (let k = 0; k < 2; k++) {
     if (c.money < weekly * 30) return;
@@ -327,8 +327,8 @@ export function willingToMove(p: Player, from: Club, to: Club): boolean {
 }
 
 export function aiTransfers(w: World): void {
-  const clubs = Object.values(w.clubs).filter((c) => c.id !== w.userClub);
-  const all = Object.values(w.players).filter((p) => p.clubId && p.clubId !== w.userClub && !p.youth && !p.loan);
+  const clubs = Object.values(w.clubs).filter((c) => !managesClub(w, c.id));
+  const all = Object.values(w.players).filter((p) => p.clubId && !managesClub(w, p.clubId) && !isProtagonist(w, p.id) && !p.youth && !p.loan);
   const userDiv = user(w).div;
   // Escala com o número de clubes (legado: 2-5 tentativas para 32 clubes).
   const n = Math.round((randi(2, 5) * clubs.length) / 32);
@@ -381,7 +381,7 @@ function distressedSales(w: World, clubs: Club[]): void {
   for (const seller of clubs) {
     const over = seller.wageCap ? clubWages(w, seller) > seller.wageCap * 1.15 : false;
     if ((seller.money >= 0 && !over) || seller.squad.length <= 20 || !chance(0.35)) continue;
-    const ranked = clubPlayers(w, seller).filter((p) => !p.loan).sort((a, b) => b.ovr - a.ovr);
+    const ranked = clubPlayers(w, seller).filter((p) => !p.loan && !isProtagonist(w, p.id)).sort((a, b) => b.ovr - a.ovr);
     const sale = ranked.slice(5).sort((a, b) => valueOf(b) - valueOf(a))[0];
     if (!sale) continue;
     const fee = Math.round((valueOf(sale) * rand(0.85, 1.1)) / 10000) * 10000;
@@ -399,10 +399,11 @@ function distressedSales(w: World, clubs: Club[]): void {
 /** Clubes da CPU põem na lista de venda até 2 excedentes (fora dos 22 melhores ou veteranos). Semana 0 e 15. */
 export function aiListPlayers(w: World): void {
   for (const c of Object.values(w.clubs)) {
-    if (c.id === w.userClub) continue;
+    if (managesClub(w, c.id)) continue;
     const ps = clubPlayers(w, c).filter((p) => !p.loan).sort((a, b) => b.ovr - a.ovr);
     let listed = 0;
     ps.forEach((p, i) => {
+      if (isProtagonist(w, p.id)) return; // a lista do protagonista é decisão dele
       p.listed = false;
       if (listed < 2 && (i >= 22 || (p.age >= 33 && i >= 11)) && chance(0.5)) { p.listed = true; listed++; }
     });

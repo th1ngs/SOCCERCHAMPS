@@ -146,7 +146,8 @@ function integrate(bodies: Body[], h: number): void {
   for (let i = 0; i < bodies.length; i++) {
     const b = bodies[i];
     if (b.vx === 0 && b.vy === 0) continue;
-    const sp = Math.hypot(b.vx, b.vy);
+    // sqrt (exata no IEEE) em vez de hypot: o resultado é idêntico em todos os navegadores (multiplayer).
+    const sp = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
     const ns = sp - (b.fa + b.fk * sp) * h;
     if (ns <= P.stopSpeed) { b.vx = 0; b.vy = 0; continue; }
     const f = ns / sp;

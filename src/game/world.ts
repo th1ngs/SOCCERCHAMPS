@@ -66,6 +66,10 @@ export function pushMessage(w: World, m: MessageInput): void {
 }
 
 export const user = (w: World): Club => w.clubs[w.userClub];
+/** O usuário dirige este clube? Na carreira de jogador, nenhum: o clube do protagonista é da CPU. */
+export const managesClub = (w: World, clubId: string | null | undefined): boolean => !!clubId && clubId === w.userClub && !w.playerCareer;
+/** É o protagonista da carreira de jogador? (a CPU não vende, não dispensa nem aposenta esse jogador). */
+export const isProtagonist = (w: World, pid: string): boolean => !!w.playerCareer && w.playerCareer.pid === pid;
 export const clubPlayers = (w: World, club: Club): Player[] => club.squad.map((id) => w.players[id]);
 
 /** Movimenta o caixa de um clube; registra em finWeek/finSeason se for o clube do usuário (era M.money). */
@@ -607,7 +611,7 @@ export function endWeek(w: World): WeekReport {
     // Dia do fechamento: atividade da CPU e ofertas ao usuário em dobro.
     for (let k = 0; k < (deadline ? 2 : 1); k++) {
       aiTransfers(w);
-      aiOffersToUser(w);
+      if (!w.playerCareer) aiOffersToUser(w);
     }
     if (deadline) {
       const deals = w.transfers.slice(before).filter((t) => t.fee > 0).sort((a, b) => b.fee - a.fee).slice(0, 3);
@@ -617,10 +621,12 @@ export function endWeek(w: World): WeekReport {
     }
   }
   payDue(w);
-  if (w.week === PROMISE_CHECK_WEEK) checkPromises(w);
-  expireTalks(w);
-  checkChancePromises(w);
-  generateTalks(w);
+  if (!w.playerCareer) {
+    if (w.week === PROMISE_CHECK_WEEK) checkPromises(w);
+    expireTalks(w);
+    checkChancePromises(w);
+    generateTalks(w);
+  }
   weeklyAchievements(w);
   checkWatchlist(w);
   // Propostas expiradas
@@ -639,7 +645,7 @@ export function endWeek(w: World): WeekReport {
   }
   if (w.week === WINDOWS[1][0] - 1) pushMessage(w, { kind: 'info', title: 'Janela do meio do ano', body: `A janela de transferências abre na próxima semana e vai até a semana ${WINDOWS[1][1]}.` });
 
-  if (w.week >= 8 && w.board.conf <= 4) {
+  if (w.week >= 8 && w.board.conf <= 4 && !w.playerCareer) {
     w.fired = { reason: 'A sequência de maus resultados custou o seu emprego.' };
   }
 
@@ -727,7 +733,8 @@ export function seasonEnd(w: World): SeasonSummary {
     relegated: mine.filter((mv) => lvl(mv.to) > lvl(mv.from)).map((mv) => mv.club),
     userPos, success, fired, scorers, best, contNext,
   };
-  if (fired) w.fired = { reason: `Objetivo não cumprido: a meta era ${w.board.label}, e o time terminou em ${userPos}º.` };
+  if (w.playerCareer) { /* carreira de jogador: sem diretoria cobrando nem propostas de emprego */ }
+  else if (fired) w.fired = { reason: `Objetivo não cumprido: a meta era ${w.board.label}, e o time terminou em ${userPos}º.` };
   else if (userPos <= Math.max(1, w.board.target - 3) || (DIVISIONS[u.div].up && userPos <= PROMOTION_SPOTS)) {
     const bigger = Object.values(w.clubs).filter((c) => prestigeOf(c) > prestigeOf(u) + 4 && c.id !== u.id);
     const near = bigger.filter((c) => prestigeOf(c) <= prestigeOf(u) + 15);
@@ -795,7 +802,7 @@ export function newSeason(w: World): void {
       }
     }
     const retireP = p.age >= 38 ? 1 : p.age >= 34 ? (p.age - 33) * 0.22 : 0;
-    if (!p.youth && chance(retireP)) {
+    if (!p.youth && !isProtagonist(w, p.id) && chance(retireP)) {
       if (p.clubId === u.id) news.push(`${p.name} (${p.age} anos) se aposentou.`);
       rememberLegend(w, p);
       removePlayer(w, p);
@@ -808,7 +815,11 @@ export function newSeason(w: World): void {
       p.contract--;
       p.renewAsk = null;
       if (p.contract > 0) continue;
-      if (c.id === u.id) {
+      if (isProtagonist(w, p.id)) {
+        toFree(w, p);
+        continue;
+      }
+      if (managesClub(w, c.id)) {
         news.push(`${p.name} encerrou o contrato e deixou o clube.`);
         toFree(w, p);
       } else if (chance(c.wageCap && clubWages(w, c) > c.wageCap ? 0.5 : 0.75)) {
@@ -823,7 +834,7 @@ export function newSeason(w: World): void {
     for (const id of c.youth.slice()) {
       const p = w.players[id];
       if (p.age < 19) continue;
-      const keep = c.id === u.id ? c.squad.length < 32 : p.pot >= 50 + c.rep * 0.3 && c.squad.length < 30;
+      const keep = managesClub(w, c.id) ? c.squad.length < 32 : p.pot >= 50 + c.rep * 0.3 && c.squad.length < 30;
       if (keep) {
         promoteYouth(w, id, true);
         if (c.id === u.id) news.push(`${p.name} completou 19 anos e subiu para o profissional.`);
@@ -835,7 +846,7 @@ export function newSeason(w: World): void {
   }
   // Clubes da CPU completam o elenco
   // Os clubes mais prestigiados escolhem primeiro entre os agentes livres (antes valia a ordem do cadastro).
-  for (const c of Object.values(w.clubs).sort((a, b) => prestigeOf(b) - prestigeOf(a))) if (c.id !== u.id) aiMaintain(w, c);
+  for (const c of Object.values(w.clubs).sort((a, b) => prestigeOf(b) - prestigeOf(a))) if (!managesClub(w, c.id)) aiMaintain(w, c);
   // Nova safra da base
   const intake: Player[] = [];
   for (const c of Object.values(w.clubs)) {
@@ -847,14 +858,14 @@ export function newSeason(w: World): void {
   }
   // Base da CPU: no máximo AI_YOUTH_MAX garotos (dispensa os de menor potencial) para o World não crescer sem limite.
   for (const c of Object.values(w.clubs)) {
-    if (c.id === u.id || c.youth.length <= AI_YOUTH_MAX) continue;
+    if (managesClub(w, c.id) || c.youth.length <= AI_YOUTH_MAX) continue;
     const extra = c.youth.map((id) => w.players[id]).sort((a, b) => b.pot - a.pot).slice(AI_YOUTH_MAX);
     for (const p of extra) removePlayer(w, p);
   }
   // Agentes livres: mantém entre FREE_MIN e FREE_MAX (descarta os piores).
   w.free = w.free.filter((id) => w.players[id]);
   if (w.free.length > FREE_MAX) {
-    const sorted = w.free.map((id) => w.players[id]).sort((a, b) => a.ovr - b.ovr);
+    const sorted = w.free.map((id) => w.players[id]).filter((p) => !isProtagonist(w, p.id)).sort((a, b) => a.ovr - b.ovr);
     for (const p of sorted.slice(0, w.free.length - FREE_MAX)) removePlayer(w, p);
   }
   while (w.free.length < FREE_MIN) makeFreeAgent(w);
@@ -898,14 +909,14 @@ export function freeAgentFor(w: World, club: Club, pos: Position, minOvr = 0): P
   const ceiling = clubBaseOvr(club) + FREE_AGENT_CEILING;
   return w.free
     .map((id) => w.players[id])
-    .filter((p) => p && p.pos === pos && p.ovr > minOvr && p.ovr <= ceiling)
+    .filter((p) => p && p.pos === pos && p.ovr > minOvr && p.ovr <= ceiling && !isProtagonist(w, p.id))
     .sort((a, b) => b.ovr - a.ovr)[0];
 }
 
 /** Mantém o elenco de um clube da CPU entre 23 e 30 jogadores. */
 export function aiMaintain(w: World, c: Club): void {
   while (c.squad.length > 30) {
-    const worst = clubPlayers(w, c).filter((p) => !p.loan).sort((a, b) => a.ovr - b.ovr)[0];
+    const worst = clubPlayers(w, c).filter((p) => !p.loan && !isProtagonist(w, p.id)).sort((a, b) => a.ovr - b.ovr)[0];
     if (!worst) break;
     toFree(w, worst);
   }

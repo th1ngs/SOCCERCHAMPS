@@ -39,7 +39,16 @@ export interface GoalLog {
   at: number;
 }
 
-export type Controller = "human" | "cpu";
+/** "remote": jogadas chegam de fora (multiplayer online) via remoteShot/passTurn. */
+export type Controller = "human" | "cpu" | "remote";
+
+/** Jogada: índice do disco, direção e força pedida (antes do limite da saída). */
+export interface ShotInput {
+  i: number;
+  dx: number;
+  dy: number;
+  p: number;
+}
 
 export interface MatchEnd {
   score: [number, number];
@@ -56,6 +65,12 @@ export interface MatchOptions {
   goldenGoal: boolean;
   /** Formato de cada time; padrão: 5 discos (1-2-2). */
   layouts?: [Layout, Layout];
+  /** Sem relógio de jogo (o fim é decidido de fora, ex.: número de jogadas no online). */
+  noClock?: boolean;
+  /** Sem limite de tempo da vez para humanos (o online controla o próprio tempo). */
+  noTurnTimer?: boolean;
+  /** Chamado em cada chute, antes de aplicar a velocidade (time da vez e a jogada). */
+  onShot?: (turn: number, shot: ShotInput) => void;
   silent?: boolean;
   onEnd?: (r: MatchEnd) => void;
 }
@@ -182,7 +197,7 @@ export class Match {
   }
 
   tickClock(dt: number): void {
-    if (this.overtime || this.timeUp) return;
+    if (this.overtime || this.timeUp || this.opts.noClock) return;
     this.clock = Math.max(0, this.clock - dt);
     if (this.clock === 0) this.timeUp = true;
   }
@@ -200,6 +215,7 @@ export class Match {
         this.tickClock(dt);
         if (this.timeUp && !this.overtime) { this.finishOrOvertime(); break; }
         if (this.ctrl[this.turn] === "cpu") this.updateCpu(dt);
+        else if (this.ctrl[this.turn] === "remote" || this.opts.noTurnTimer) { /* aguarda a jogada de fora */ }
         else {
           const before = Math.ceil(this.turnTimer);
           this.turnTimer -= dt;
@@ -358,6 +374,7 @@ export class Match {
   }
 
   shoot(disc: Body, dx: number, dy: number, power: number): void {
+    this.opts.onShot?.(this.turn, { i: this.bodies.indexOf(disc), dx, dy, p: power });
     const actualPower = Math.min(power, this.kickoffTurn ? KICKOFF_MAX_POWER : 1);
     const sp = actualPower * P.maxShot;
     disc.vx = dx * sp;
@@ -367,6 +384,38 @@ export class Match {
     this.accum = 0;
     this.setState("moving");
     this.sfx("kick", actualPower);
+  }
+
+  // ---------- Multiplayer ----------
+  /** Posições de todos os corpos (x, y alternados), para sincronizar dois aparelhos. */
+  snapshot(): number[] {
+    const out: number[] = [];
+    for (const b of this.bodies) out.push(b.x, b.y);
+    return out;
+  }
+
+  /** Restaura posições de um snapshot (corpos parados). Ignora snapshots de outro formato. */
+  restore(s: readonly number[]): void {
+    if (s.length !== this.bodies.length * 2) return;
+    this.bodies.forEach((b, k) => { b.x = s[2 * k]; b.y = s[2 * k + 1]; b.vx = 0; b.vy = 0; });
+  }
+
+  /** Aplica a jogada do adversário remoto (só na vez dele, com tudo parado). */
+  remoteShot(s: ShotInput): boolean {
+    if (this.state !== "aim" || this.ctrl[this.turn] !== "remote") return false;
+    const disc = this.bodies[s.i];
+    if (!disc || disc.team !== this.turn) return false;
+    this.shoot(disc, s.dx, s.dy, s.p);
+    return true;
+  }
+
+  /** Passa a vez sem chutar (tempo esgotado no online). */
+  passTurn(): void {
+    if (this.state !== "aim") return;
+    this.drag = null;
+    this.kickoffTurn = false;
+    this.showBanner("Tempo esgotado!", { dur: 1.1, color: "#ffd23f" });
+    this.startTurn(1 - this.turn);
   }
 
   // ---------- Entrada (coordenadas lógicas) ----------

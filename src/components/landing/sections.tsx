@@ -9,6 +9,7 @@ import {
   Radio,
   Sprout,
   Trophy,
+  Users,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { buttonClasses } from "@/components/ui/Button";
@@ -41,6 +42,7 @@ export function LandingNav() {
             <a href="#ligas" className={buttonClasses("ghost", "sm")}>Ligas</a>
             <Link href="/hall-da-fama" className={buttonClasses("ghost", "sm")}>Hall da Fama</Link>
             <Link href="/arcade" className={buttonClasses("ghost", "sm")}>Arcade</Link>
+            <Link href="/multiplayer" className={buttonClasses("ghost", "sm")}>Multiplayer</Link>
           </div>
           <Link href="/#login" className={buttonClasses("primary", "sm")}>Jogar</Link>
         </div>
@@ -161,10 +163,15 @@ export function ArcadeBand() {
         </svg>
         <p className="font-display text-xs font-bold uppercase tracking-[0.3em] text-info-400">Modo arcade</p>
         <h2 className="mt-2 max-w-xl font-display text-4xl font-extrabold uppercase italic leading-[0.95] sm:text-5xl">Futebol de botão</h2>
-        <p className="mt-3 max-w-lg text-mist">Mire, puxe e solte. Jogue contra a CPU, chame um amigo para uma partida no mesmo aparelho ou dispute a Copa arcade.</p>
-        <Link href="/arcade" className={buttonClasses("secondary", "lg", false, "mt-6")}>
-          <Gamepad2 /> Jogar arcade
-        </Link>
+        <p className="mt-3 max-w-lg text-mist">Mire, puxe e solte. Jogue contra a CPU, chame um amigo para uma partida no mesmo aparelho, dispute a Copa arcade ou jogue online 1x1.</p>
+        <div className="mt-6 flex flex-wrap gap-2">
+          <Link href="/arcade" className={buttonClasses("secondary", "lg")}>
+            <Gamepad2 /> Jogar arcade
+          </Link>
+          <Link href="/multiplayer" className={buttonClasses("primary", "lg")}>
+            <Users /> Multiplayer 1x1
+          </Link>
+        </div>
       </div>
     </section>
   );
@@ -197,7 +204,9 @@ export function LandingFooter() {
         <div className="flex gap-4">
           <Link href="/hall-da-fama" className="hover:text-snow">Hall da Fama</Link>
           <Link href="/arcade" className="hover:text-snow">Arcade</Link>
+          <Link href="/multiplayer" className="hover:text-snow">Multiplayer</Link>
           <Link href="/nova-carreira" className="hover:text-snow">Nova carreira</Link>
+          <Link href="/nova-carreira?modo=jogador" className="hover:text-snow">Carreira de jogador</Link>
         </div>
       </div>
     </footer>

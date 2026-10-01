@@ -95,7 +95,7 @@ const snapshot = (p: Player): AwardPlayer => ({
 });
 
 function coachName(w: World, clubId: string): string {
-  if (clubId === w.userClub) return w.manager.name;
+  if (clubId === w.userClub && !w.playerCareer) return w.manager.name;
   const club = w.clubs[clubId];
   const names = NAMES_BY_NAT[club.league];
   const hash = [...club.id].reduce((n, char) => Math.imul(n, 31) + char.charCodeAt(0) | 0, 17) >>> 0;

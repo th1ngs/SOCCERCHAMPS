@@ -865,6 +865,8 @@ export interface World {
   legends?: Legend[];
   /** Conversa no vestiário escolhida para o jogo desta semana (v6). */
   teamTalk?: TeamTalk | null;
+  /** Carreira de jogador (v8): o usuário é um jogador, e o clube dele é dirigido pela CPU. */
+  playerCareer?: PlayerCareer | null;
 }
 
 export interface WeekReport {
@@ -1069,4 +1071,89 @@ export interface NewPlayerOptions {
   clubId?: string | null;
   youth?: boolean;
   contract?: number;
+}
+
+// ---------- Carreira de jogador ----------
+export type CareerFocus = AttrKey | 'geral';
+export type CareerIntensity = 'leve' | 'normal' | 'forte';
+
+/** Proposta de clube (transferência, contrato como agente livre ou renovação). */
+export interface CareerOffer {
+  id: number;
+  club: string;
+  kind: 'transfer' | 'free' | 'renew';
+  /** Taxa paga ao clube atual (0 em renovação e agente livre). */
+  fee: number;
+  /** Salário semanal oferecido. */
+  wage: number;
+  years: number;
+  role: Role;
+  /** Semana (absoluta: temporada × 100 + semana) em que a proposta expira. */
+  expires: number;
+}
+
+export interface CareerEvent {
+  season: number;
+  week: number;
+  text: string;
+  tone: 'good' | 'bad' | 'info' | 'gold';
+}
+
+/** Resumo do último jogo do protagonista. */
+export interface CareerMatchReport {
+  season: number;
+  week: number;
+  comp: string;
+  opp: string;
+  home: boolean;
+  gf: number;
+  ga: number;
+  pens: [number, number] | null;
+  /** 'titular' | 'reserva' (entrou) | 'banco' (não entrou) | 'fora' (não relacionado) | 'lesionado' | 'suspenso'. */
+  status: 'titular' | 'reserva' | 'banco' | 'fora' | 'lesionado' | 'suspenso';
+  rating: number | null;
+  goals: number;
+  assists: number;
+  /** Lances narrados com o nome do jogador. */
+  moments: string[];
+  trust: number;
+}
+
+/** Temporada completa do protagonista (sem limite, ao contrário de Player.hist). */
+export interface CareerSeason {
+  season: number;
+  club: string | null;
+  league: LeagueId | null;
+  apps: number;
+  goals: number;
+  assists: number;
+  rating: number | null;
+  ovr: number;
+  teamPos: number | null;
+  titles: string[];
+  awards: string[];
+}
+
+export interface PlayerCareer {
+  pid: string;
+  /** Confiança do técnico (0-100): pesa na escalação. */
+  trust: number;
+  /** Patrimônio acumulado com salários e luvas. */
+  money: number;
+  focus: CareerFocus;
+  intensity: CareerIntensity;
+  offers: CareerOffer[];
+  nextOffer: number;
+  log: CareerEvent[];
+  last: CareerMatchReport | null;
+  seasons: CareerSeason[];
+  /** Marcos já alcançados (chaves). */
+  milestones: string[];
+  /** Pediu para ser negociado. */
+  wantsOut: boolean;
+  retired: boolean;
+  /** Temporada de estreia. */
+  debut: number;
+  /** Temporada em que o clube já ofereceu (ou recusou) a renovação. */
+  renewSeason?: number;
 }

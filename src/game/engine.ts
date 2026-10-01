@@ -126,7 +126,7 @@ export class Sim {
 
   makeSide(clubId: string): SimSide {
     const w = this.w, club = w.clubs[clubId];
-    const user = clubId === w.userClub;
+    const user = clubId === w.userClub && !w.playerCareer;
     if (user) ensureLineup(w, club); else autoLineup(w, club);
     // emergencyFill garante 11 disponíveis, então a escalação não tem vagas abertas.
     const on: OnField[] = club.lineup.map((pid, slot) => ({ pid: pid as string, slot, fat: w.players[pid as string].fitness, yc: 0 }));
@@ -599,7 +599,10 @@ export class Sim {
     for (const id of side.bench) {
       const p = this.P(id);
       if (!available(p)) continue;
-      const sc = p.ovr * playerFit(p, slotPos) * (0.85 + (0.15 * p.fitness) / 100);
+      // Carreira de jogador: a confiança do técnico também pesa na hora de mexer no time.
+      const career = this.w.playerCareer;
+      const bonus = career && career.pid === p.id ? (career.trust - 50) * 0.12 : 0;
+      const sc = p.ovr * playerFit(p, slotPos) * (0.85 + (0.15 * p.fitness) / 100) + bonus;
       if (sc > bs) { bs = sc; best = p; }
     }
     return best;

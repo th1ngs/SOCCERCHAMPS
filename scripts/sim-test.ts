@@ -869,6 +869,7 @@ function runV5Checks(): void {
   assert(ren.before === before && ren.after > 0 && ren.after <= before * 1.45 + 1000 && ren.after >= before * 0.7 - 1000, 'renovação do patrocínio limitada');
   runV6Checks();
   runV8Checks();
+  runPlayerCareerChecks();
   console.log(`finance ok: receita/sem 1ª div eng ${formatMoney(rev('eng'))}, bra ${formatMoney(rev('bra'))}, arg ${formatMoney(rev('arg'))}; teto ${formatMoney(u.wageCap)}`);
 }
 
@@ -1022,4 +1023,54 @@ function runV8Checks(): void {
   assert(old.clubs[old.userClub].youth.every((id) => old.players[id].wage > 800), 'migração: salário da base reajustado');
   const avgYouth = youth.reduce((s, p) => s + p.wage, 0) / Math.max(1, youth.length);
   console.log(`v8 ok: ${staff0.length} olheiro(s) iniciais, ${G.trialsMax(w)} peneiras/temporada, base ${formatMoney(avgYouth)}/sem em média, folha de olheiros ${formatMoney(G.scoutPayroll(w))}/sem`);
+}
+
+/** Carreira de jogador: criação, clube dirigido pela CPU, temporada completa, propostas e fim de contrato. */
+function runPlayerCareerChecks(): void {
+  const t0 = Date.now();
+  const start = G.startingClubs('bra');
+  assert(start.length === 3 && new Set(start).size === 3, 'três clubes para começar');
+  const w = G.newPlayerCareer({ name: 'Teste Craque', pos: 'ATA', nat: 'bra', clubId: start[0] });
+  const c = w.playerCareer!;
+  const p = w.players[c.pid];
+  assert(p && p.age === G.CAREER_START_AGE && p.clubId === start[0] && w.clubs[start[0]].squad.includes(p.id) && p.name === 'Teste Craque', 'protagonista no elenco');
+  assert(!G.managesClub(w, start[0]) && G.isProtagonist(w, p.id), 'clube do protagonista é da CPU');
+  p.ovr = Math.max(p.ovr, G.clubBaseOvr(w.clubs[start[0]]) + 6); // garante minutos para a checagem
+  G.setCareerTraining(w, 'fin', 'forte');
+  const fin0 = G.attr(p, 'fin');
+  let reports = 0, played = 0, accepted = 0;
+  let guard = 0;
+  while (!w.pendingSeason && guard++ < 80) {
+    const before: string | null = p.clubId;
+    const r = G.playCareerWeek(w);
+    assert(w.players[c.pid] === p, 'protagonista continua no mundo');
+    assert(p.clubId === before || p.clubId === null, 'a CPU não vende o protagonista');
+    if (r.report) { reports++; if (r.report.rating != null) played++; }
+    const o = c.offers.find((x) => x.kind !== 'renew');
+    if (o && accepted === 0 && G.windowOpen(w)) { assert(G.acceptCareerOffer(w, o.id).ok && p.clubId === o.club && w.userClub === o.club, 'aceitar proposta transfere'); accepted++; }
+  }
+  assert(!!w.pendingSeason && !w.fired, 'temporada termina sem demissão');
+  assert(reports >= 25 && played >= 10, `relatórios de jogo (${reports}, jogou ${played})`);
+  assert(G.attr(p, 'fin') > fin0, 'treino em foco melhora o atributo');
+  const row = c.seasons.at(-1)!;
+  assert(row.season === w.season && row.apps === p.s.apps && row.goals === p.s.goals, 'temporada gravada na carreira');
+  assert(w.inbox.every((m) => !m.talk), 'sem conversas de elenco na carreira de jogador');
+  // Fim de contrato sem renovação: fica livre e recebe propostas.
+  p.contract = 1;
+  c.offers = [];
+  G.careerNewSeason(w);
+  assert(w.season === row.season + 1 && !w.pendingSeason, 'nova temporada');
+  assert(p.clubId === null && c.offers.length >= 1 && c.offers.every((o) => o.kind === 'free'), 'sem contrato: propostas como agente livre');
+  const free = c.offers[0];
+  assert(G.acceptCareerOffer(w, free.id).ok && p.clubId === free.club && p.contract === free.years && p.wage === free.wage, 'assina como agente livre');
+  // Aposentadoria só a partir dos 33.
+  assert(!G.canRetire(w), 'jovem não se aposenta');
+  p.age = 34;
+  assert(G.canRetire(w), 'veterano pode se aposentar');
+  G.retireCareer(w);
+  assert(c.retired && G.playCareerWeek(w).report === null, 'carreira encerrada não avança');
+  // Save idempotente na migração.
+  const json = JSON.stringify(w);
+  assert(JSON.stringify(G.migrateWorld(JSON.parse(json))) === json, 'migrateWorld preserva a carreira de jogador');
+  console.log(`player career ok: ${reports} jogos, ${row.apps} em campo, ${row.goals} gols, ${accepted} transferência(s), ${((Date.now() - t0) / 1000).toFixed(1)} s`);
 }

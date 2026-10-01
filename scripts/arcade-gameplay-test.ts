@@ -98,3 +98,44 @@ const g = m11.creditGoal(0);
 assert.equal(g.slot, m11.bodies[9].slot);
 assert.equal(g.assist, m11.bodies[3].slot);
 console.log("Autor e garçom do gol: OK");
+
+// Online: dois aparelhos com taxas de quadros diferentes chegam às mesmas posições e ao mesmo placar
+// (o anfitrião chuta; o visitante reproduz com remoteShot). Inclui gols e saídas de bola.
+{
+  type Shot = { i: number; dx: number; dy: number; p: number };
+  const mk = (side: 0 | 1, log: { turn: number; shot: Shot }[]) => new Match({
+    teams, controllers: side === 0 ? ["human", "remote"] : ["remote", "human"], difficulty: ["medium", "medium"], duration: 1e9,
+    goldenGoal: false, silent: true, noClock: true, noTurnTimer: true, layouts: [formationLayout(FORMATIONS["4-3-3"]), formationLayout(FORMATIONS["4-4-2"])],
+    onShot: (turn, shot) => log.push({ turn, shot }),
+  });
+  const logA: { turn: number; shot: Shot }[] = [], logB: { turn: number; shot: Shot }[] = [];
+  const a = mk(0, logA), b = mk(1, logB);
+  const settle = (m: Match, dtBase: number) => {
+    let guard = 0;
+    while (m.state !== "aim" && guard++ < 20000) m.update(dtBase * (0.6 + ((guard * 7919) % 13) / 13));
+  };
+  let seed = 42;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  settle(a, 1 / 60); settle(b, 1 / 144);
+  let goals = 0;
+  for (let k = 0; k < 60; k++) {
+    // O time da vez escolhe o disco mais perto da bola e chuta nela com força e desvio aleatórios.
+    const ball = a.bodies[0];
+    let best = -1, bd = Infinity;
+    a.bodies.forEach((d, i) => { if (i && d.team === a.turn) { const dd = Math.sqrt((d.x - ball.x) ** 2 + (d.y - ball.y) ** 2); if (dd < bd) { bd = dd; best = i; } } });
+    const ang = Math.atan2(ball.y - a.bodies[best].y, ball.x - a.bodies[best].x) + (rnd() - 0.5) * 0.3;
+    const shot = { i: best, dx: Math.cos(ang), dy: Math.sin(ang), p: 0.5 + rnd() * 0.5 };
+    // Os dois aparelhos aplicam a mesma jogada (no próprio, o dono é "human"; no outro, "remote").
+    const own = a.turn === 0 ? a : b, other = own === a ? b : a;
+    own.shoot(own.bodies[shot.i], shot.dx, shot.dy, shot.p);
+    assert.ok(other.remoteShot(shot), `jogada ${k}: remoteShot aceito`);
+    const before = a.score[0] + a.score[1];
+    settle(a, 1 / 60); settle(b, 1 / 144);
+    goals += a.score[0] + a.score[1] - before;
+    assert.deepEqual(a.snapshot(), b.snapshot(), `jogada ${k}: posições iguais nos dois aparelhos`);
+    assert.deepEqual(a.score, b.score, `jogada ${k}: placar igual`);
+    assert.equal(a.turn, b.turn, `jogada ${k}: mesma vez`);
+  }
+  assert.equal(logA.length, 60);
+  console.log(`Online: 60 jogadas sincronizadas com 60 Hz x 144 Hz (${goals} gols, placar ${a.score.join(" x ")})`);
+}
