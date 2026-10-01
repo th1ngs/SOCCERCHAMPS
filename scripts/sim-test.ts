@@ -1,4 +1,4 @@
-// Teste de balanceamento headless do motor do Manager (13 ligas, World v7).
+// Teste de balanceamento headless do motor do Manager (13 ligas, World v8).
 //   npx tsx scripts/sim-test.ts [clubId] [--seasons N] [--checks]
 // Sem --checks: simula N temporadas (padrão 3) com todos os clubes no automático e imprime
 // campeões, gols por jogo e artilheiros por liga, tempo por temporada e tamanho do JSON.
@@ -202,8 +202,10 @@ function runChecks(): void {
 
   // Base
   const found = runTrial(w);
-  assert(found && found.length >= 1 && w.trialUsed, 'runTrial revela garotos');
-  assert(runTrial(w) === null, 'runTrial só uma vez por temporada');
+  assert(found && found.length >= 1 && w.trialsUsed === 1, 'runTrial revela garotos');
+  let extra = 0;
+  while (runTrial(w)) extra++;
+  assert(extra + 1 === G.trialsMax(w) && G.trialsMax(w) >= 3 && runTrial(w) === null, `várias peneiras por temporada (${G.trialsMax(w)})`);
   const y = found[0];
   promoteYouth(w, y.id);
   assert(!y.youth && u.squad.includes(y.id) && !u.youth.includes(y.id), 'promoteYouth sobe o garoto');
@@ -286,7 +288,7 @@ const adhoc = (w: World, h: string, a: string): Match => ({ id: 'chk' + h + a, h
 
 function runV2Checks(w: World): void {
   const u = user(w);
-  assert(w.version === WORLD_VERSION && WORLD_VERSION === 7, 'World v7');
+  assert(w.version === WORLD_VERSION && WORLD_VERSION === 8, 'World v8');
 
   // Características e Craque
   const all = Object.values(w.players);
@@ -376,7 +378,7 @@ function runV2Checks(w: World): void {
   }
   delete (old as Record<string, unknown>).finWeek;
   const mig = migrateWorld(old);
-  assert(mig.version === 7, 'migrateWorld -> v7');
+  assert(mig.version === 8, 'migrateWorld -> v8');
   assert(Object.values(mig.clubs).every((c) => c.fans === 60 && c.ticketPrice === 'normal' && c.loan === null && !!c.captain && !!c.penTaker && typeof c.rival === 'string'), 'clubes migrados');
   assert(Object.values(mig.players).every((p) => Array.isArray(p.traits) && typeof p.star === 'boolean' && !!p.nat && (p.inj > 0 ? !!p.injType : p.injType === null)), 'jogadores migrados');
   const once = JSON.stringify(mig);
@@ -549,7 +551,7 @@ function runV4Checks(): void {
   const mine = clubPlayers(w, u)[0];
   assert(G.potentialRange(w, mine).exact && Array.isArray(G.knownTraits(w, mine)), 'elenco do usuário: exato e características conhecidas');
   const y0 = w.players[u.youth[0]];
-  const yw = Math.max(4, 24 - 3 * u.academy - 2 * u.scouting);
+  const yw = Math.max(4, 24 - 3 * u.academy - 2 * Math.max(1, G.bestScoutSkill(w)));
   assert(G.potentialRange(w, y0).max - G.potentialRange(w, y0).min === yw, `base: largura ${yw}`);
   console.log(`potentialRange ok: ${Object.keys(w.players).length} jogadores, base com largura ${yw}`);
 
@@ -572,13 +574,14 @@ function runV4Checks(): void {
   for (const p of gen) G.removePlayer(w, p);
   assert(gk > 0.12, `foco em goleiros aumenta a safra de goleiros (${(gk * 100).toFixed(0)}%)`);
   G.setAcademyFocus(w, 'balanced');
-  const reg = LEAGUE_IDS.find((l) => l !== u.league) as LeagueId;
+  const reg = LEAGUE_IDS.find((l) => l !== u.league && !G.specialistFor(w, l)) as LeagueId;
   const baseCost = G.trialCost(w), foreignCost = G.trialCost(w, { region: reg });
   assert(Math.abs(foreignCost / baseCost - 1.8) < 0.01 && G.trialCost(u) === baseCost, 'trialCost ×1,8 no exterior (e aceita o clube)');
-  w.trialUsed = false;
+  w.trialsUsed = 0;
   const found = runTrial(w, { region: reg, pos: 'ATA' });
   assert(found && found.length >= 1 && found.every((p) => p.nat === reg && p.pos === 'ATA' && p.youth && p.start.season === w.season), 'peneira regional por posição');
-  assert(runTrial(w) === null, 'uma peneira por temporada');
+  w.trialsUsed = G.trialsMax(w);
+  assert(runTrial(w) === null, 'peneiras esgotadas na temporada');
   assert(G.isGem({ ...found[0], pot: 85, age: 16 }) && !G.isGem({ ...found[0], pot: 79, age: 16 }), 'isGem');
   console.log(`academy ok: foco goleiros ${(gk * 100).toFixed(0)}% GOL; peneira ${reg}/ATA ${found.length} garoto(s) por ${formatMoney(foreignCost)}`);
 
@@ -708,10 +711,12 @@ function runV4Checks(): void {
   const idBefore = w.nextMsg;
   advanceTo(w, readyWeek);
   assert(w.scouting[target.id]?.level === 2 && G.potentialRange(w, target).exact && Array.isArray(G.knownTraits(w, target)), 'relatório entregue no endWeek');
-  const rep = lastMsg(w, (m) => m.title === `Relatório do olheiro: ${target.name}` && m.pid === target.id);
+  const rep = lastMsg(w, (m) => m.title.startsWith("Relatório ") && m.title.endsWith(`: ${target.name}`) && m.pid === target.id);
   assert(rep && /Veredito: /.test(rep.body), 'mensagem do olheiro com veredito');
   // A CPU pode vender o observado na mesma semana (venda em crise): aí o aviso é de troca de clube.
-  assert(w.inbox.some((m) => m.id >= idBefore && m.pid === wp.id && /lista de venda|trocou de clube/.test(m.body)), 'aviso: entrou na lista de venda (ou trocou de clube)');
+  // Se a CPU tirou o jogador da lista (ou ele saiu do mundo) antes do fechamento da semana, não há aviso a dar.
+  const wpNow = w.players[wp.id];
+  assert(!wpNow || !wpNow.listed || w.inbox.some((m) => m.id >= idBefore && m.pid === wp.id && /lista de venda|trocou de clube|sem clube/.test(m.body)), 'aviso: entrou na lista de venda (ou trocou de clube)');
   const dest = Object.values(w.clubs).find((c) => c.id !== u.id && c.id !== wp.clubId && c.squad.length < 30) as G.Club;
   G.transfer(w, wp.id, dest.id, 0, true);
   const id2 = w.nextMsg;
@@ -768,7 +773,7 @@ function runV4Checks(): void {
   }
   assert(isCompatible(v3), 'v3 é compatível');
   const m4 = migrateWorld(v3);
-  assert(m4.version === 7 && Array.isArray(m4.transfers) && Array.isArray(m4.scoutQueue) && m4.negotiations && m4.scouting, 'campos de World v4');
+  assert(m4.version === 8 && Array.isArray(m4.transfers) && Array.isArray(m4.scoutQueue) && m4.negotiations && m4.scouting, 'campos de World v4');
   assert(Object.values(m4.clubs).every((c) => c.scouting >= 1 && c.scouting <= 5 && c.academyFocus === 'balanced'), 'clubes v4');
   assert(Object.values(m4.players).every((p) => p.start && p.loan === null && typeof p.releaseClause === 'number'), 'jogadores v4');
   const j4 = JSON.stringify(m4);
@@ -863,6 +868,7 @@ function runV5Checks(): void {
   const ren = G.renewClubFinances(w, u, true);
   assert(ren.before === before && ren.after > 0 && ren.after <= before * 1.45 + 1000 && ren.after >= before * 0.7 - 1000, 'renovação do patrocínio limitada');
   runV6Checks();
+  runV8Checks();
   console.log(`finance ok: receita/sem 1ª div eng ${formatMoney(rev('eng'))}, bra ${formatMoney(rev('bra'))}, arg ${formatMoney(rev('arg'))}; teto ${formatMoney(u.wageCap)}`);
 }
 
@@ -956,6 +962,64 @@ function runV6Checks(): void {
   assert(car[0].current && car.some((r) => !r.current), 'carreira do jogador: atual + passadas');
   assert(G.clubIdols(w, u.id, 5).length > 0, 'ídolos do clube');
   const json = JSON.stringify(w);
-  assert(JSON.stringify(G.migrateWorld(JSON.parse(json))) === json, 'migrateWorld v7 idempotente');
+  assert(JSON.stringify(G.migrateWorld(JSON.parse(json))) === json, 'migrateWorld v8 idempotente');
   console.log(`v7 ok: cruzamentos ${crosses}, conversas ${talks}, histórico ${withHist}, Copa das Nações ${e.season}: ${e.champion}`);
+}
+
+/** Olheiros contratados, várias peneiras por temporada e salários da base (World v8). */
+function runV8Checks(): void {
+  const w = freshWorld();
+  const u = user(w);
+  // Carreira nova: equipe inicial de olheiros, mercado de olheiros e nada de "departamento por nível".
+  const staff0 = G.scoutStaff(w);
+  assert(staff0.length >= 1 && staff0.every((s) => s.skill >= 1 && s.skill <= 5 && s.wage > 0), 'equipe inicial de olheiros');
+  assert((w.scoutMarket ?? []).length === G.SCOUT_MARKET_SIZE, 'mercado de olheiros');
+  assert(u.scouting === 0 && !('scouting' in G.UPGRADES), 'sem melhoria de departamento de olheiros');
+  assert(G.scoutSlots(w) === staff0.length, 'um relatório por olheiro');
+  // Contratar: paga luvas, entra na equipe, sai do mercado; o salário entra na folha semanal.
+  u.money = 1e9;
+  const cand = (w.scoutMarket ?? [])[0];
+  const before = u.money;
+  assert(G.hireScout(w, cand.id).ok && G.scoutStaff(w).some((s) => s.id === cand.id) && !(w.scoutMarket ?? []).some((s) => s.id === cand.id), 'hireScout');
+  assert(before - u.money === G.scoutHireFee(cand), 'luvas do olheiro');
+  // Especialista: relatório em 1 semana de jogador do país dele.
+  const spec = G.scoutStaff(w).find((s) => s.nat !== u.league) ?? G.scoutStaff(w)[0];
+  const foreign = Object.values(w.players).find((p) => p.clubId && p.clubId !== u.id && !p.youth && p.nat === spec.nat && G.scoutLevel(w, p.id) < 2)!;
+  w.scoutQueue = [];
+  const req = G.requestScoutReport(w, foreign.id);
+  assert(req.ok && req.readyWeek === w.week + 1, 'especialista entrega em 1 semana');
+  // Especialista barateia a peneira no país dele e traz +1 garoto.
+  if (spec.nat !== u.league) {
+    assert(Math.abs(G.trialCost(w, { region: spec.nat }) / G.trialCost(w) - G.TRIAL_SPECIALIST_MULT) < 0.01, 'peneira com especialista ×1,2');
+    assert(G.trialKids(w, { region: spec.nat }).min >= 2, 'especialista: +1 garoto');
+  }
+  // Dispensar: paga multa e libera a vaga.
+  const n = G.scoutStaff(w).length;
+  assert(G.fireScout(w, cand.id).ok && G.scoutStaff(w).length === n - 1, 'fireScout');
+  // Sem olheiros, não há relatório.
+  const saved = w.scoutStaff;
+  w.scoutStaff = [];
+  w.scoutQueue = [];
+  const none = G.requestScoutReport(w, Object.values(w.players).find((p) => p.clubId && p.clubId !== u.id && !p.youth && G.scoutLevel(w, p.id) < 2)!.id);
+  assert(!none.ok && /Contrate/.test(none.reason ?? ''), 'sem olheiros, sem relatório');
+  w.scoutStaff = saved;
+  // Salários da base: bem acima dos antigos R$ 800/sem e crescendo com o overall.
+  const youth = u.youth.map((id) => w.players[id]);
+  assert(youth.every((p) => p.wage >= 1500), 'salário da base maior');
+  assert(G.youthWage(65, u.league) > G.youthWage(45, u.league), 'salário da base cresce com o overall');
+  // Save v7: ganha olheiros, contador de peneiras e salários novos na base.
+  const old = JSON.parse(JSON.stringify(w)) as World & { trialUsed?: boolean };
+  old.version = 7;
+  delete old.scoutStaff;
+  delete old.scoutMarket;
+  delete old.trialsUsed;
+  old.trialUsed = true;
+  old.clubs[old.userClub].scouting = 4;
+  for (const id of old.clubs[old.userClub].youth) old.players[id].wage = 800;
+  G.migrateWorld(old);
+  assert(G.scoutStaff(old).length === 2 && G.bestScoutSkill(old) === 4 && old.clubs[old.userClub].scouting === 0, 'migração: olheiros pelo nível antigo');
+  assert(old.trialsUsed === 1 && G.trialsLeft(old) === G.trialsMax(old) - 1, 'migração: peneira já feita conta');
+  assert(old.clubs[old.userClub].youth.every((id) => old.players[id].wage > 800), 'migração: salário da base reajustado');
+  const avgYouth = youth.reduce((s, p) => s + p.wage, 0) / Math.max(1, youth.length);
+  console.log(`v8 ok: ${staff0.length} olheiro(s) iniciais, ${G.trialsMax(w)} peneiras/temporada, base ${formatMoney(avgYouth)}/sem em média, folha de olheiros ${formatMoney(G.scoutPayroll(w))}/sem`);
 }

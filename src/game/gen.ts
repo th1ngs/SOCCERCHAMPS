@@ -4,6 +4,7 @@ import { LEAGUES, LEAGUE_IDS, clubBaseOvr, qualityBonus } from './leagues';
 import { initClubFinances } from './finance';
 import { DEFAULT_INSTRUCTIONS } from './tactics';
 import { pickCaptain, pickFkTaker, pickPenTaker } from './squad';
+import { seedScoutStaff } from './scouts';
 import type { AttrKey, Club, FormationKey, LeagueId, NewPlayerOptions, Player, Position, TraitKey, World } from './types';
 import { chance, clamp, gauss, pick, rand, randi, weighted } from './util';
 
@@ -13,6 +14,11 @@ const SQUAD_TEMPLATE: Record<Position, number> = { GOL: 3, ZAG: 4, LAT: 4, VOL: 
 export const wageFor = (ovr: number, league?: LeagueId): number =>
   Math.round((1500 * Math.pow(1.155, ovr - 50) * (league ? LEAGUES[league].wages : 1)) / 100) * 100;
 /** Salário de referência no clube `clubId` (nível salarial da liga dele). */
+/** Salário semanal de um garoto da base: cresce com o overall e acompanha os salários da liga. */
+export function youthWage(ovr: number, league?: LeagueId): number {
+  return Math.round(((2000 + 140 * Math.max(0, ovr - 35)) * (league ? LEAGUES[league].wages : 1)) / 100) * 100;
+}
+
 export const clubWage = (w: World, clubId: string | null | undefined, ovr: number): number =>
   wageFor(ovr - (w.econ?.drift ?? 0), clubId && w.clubs[clubId] ? w.clubs[clubId].league : undefined);
 
@@ -24,7 +30,7 @@ export function meanSquadOvr(w: World): number {
 }
 
 /** Versão atual do formato do World. */
-export const WORLD_VERSION = 7;
+export const WORLD_VERSION = 8;
 /** Saves a partir desta versão podem ser migrados. */
 export const MIN_COMPATIBLE_VERSION = 3;
 
@@ -181,7 +187,7 @@ export function newPlayer(w: World, o: NewPlayerOptions): Player {
   if (p.clubId && p.clubId === w.userClub && w.weeks.length > 0) p.joined = { season: w.season, week: w.week };
   p.traits = rollTraits(p.pos, p.ovr, p.star);
   p.at = rollAttrs(p.pos, p.traits);
-  p.wage = o.youth ? 800 : clubWage(w, p.clubId, p.ovr) * rand(0.85, 1.15);
+  p.wage = o.youth ? youthWage(p.ovr, p.clubId ? w.clubs[p.clubId]?.league : undefined) : clubWage(w, p.clubId, p.ovr) * rand(0.85, 1.15);
   p.wage = Math.round(p.wage / 100) * 100;
   p.releaseClause = releaseClauseFor(p);
   w.players[id] = p;
@@ -332,10 +338,16 @@ export function newWorld(managerName: string, clubId: string): World {
     finance: [],
     finWeek: {},
     finSeason: {},
-    trialUsed: false,
+    trialsUsed: 0,
     started: false,
   };
   seedMissingClubs(w);
+  // O usuário trabalha com olheiros contratados (a equipe inicial acompanha o porte do clube).
+  const u = w.clubs[clubId];
+  if (u) {
+    seedScoutStaff(w, u.scouting || 1);
+    u.scouting = 0;
+  }
   w.econ = { baseOvr: Math.round(meanSquadOvr(w) * 100) / 100, drift: 0 };
   for (let k = 0; k < FREE_MIN; k++) makeFreeAgent(w);
   return w;

@@ -3,7 +3,7 @@
 import { useMemo, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowLeftRight, BatteryLow, ChevronRight, CircleCheck, ClipboardList, FileClock, HandCoins, Lightbulb, Mail, MessageCircle, Sprout, TriangleAlert, Wallet } from "lucide-react";
-import { formatMoney, nextWindow, user, WINDOWS, windowOpen } from "@/game";
+import { formatMoney, nextWindow, trialsLeft, user, WINDOWS, windowOpen } from "@/game";
 import type { World } from "@/game/types";
 import { Card } from "@/components/ui/primitives";
 import { useWorld } from "@/components/game/GameProvider";
@@ -89,8 +89,9 @@ function checklist(w: World): Item[] {
     });
   }
 
-  if (!w.trialUsed) {
-    items.push({ key: "trial", tone: "todo", icon: <Sprout />, title: "Peneira da temporada disponível", detail: "Descubra novos garotos para a base.", href: "/jogo/base" });
+  const trials = trialsLeft(w);
+  if (trials > 0) {
+    items.push({ key: "trial", tone: "todo", icon: <Sprout />, title: `${trials} peneira${trials > 1 ? "s" : ""} disponíve${trials > 1 ? "is" : "l"}`, detail: "Descubra novos garotos para a base.", href: "/jogo/base" });
   }
 
   if (!open) {

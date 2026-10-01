@@ -52,8 +52,9 @@ export const ticketBase = (c: Club): number => (8 + c.rep * 0.18) * REVENUE_SCAL
 
 /** Manutenção semanal: estádio (por lugar) e estrutura (base, CT e olheiros; cresce com o nível). */
 export function upkeepWeekly(c: Club): number {
+  // Olheiros: departamento por nível na CPU; o usuário (scouting 0) paga o salário dos olheiros contratados.
   const levels = [c.academy, c.training, c.scouting ?? 1];
-  const structure = levels.reduce((s, l) => s + Math.pow(Math.max(1, l), 1.5) * 5500, 0) * lg(c).wealth;
+  const structure = levels.reduce((s, l, i) => s + (i === 2 && l === 0 ? 0 : Math.pow(Math.max(1, l), 1.5) * 5500), 0) * lg(c).wealth;
   return round1k(c.cap * 0.55 * lg(c).ticket + structure);
 }
 

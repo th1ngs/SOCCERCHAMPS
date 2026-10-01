@@ -12,12 +12,21 @@ import {
   loanedOut,
   nextWindow,
   potentialRange,
+  SCOUT_MAX,
+  bestScoutSkill,
   scoutCost,
+  scoutHireFee,
+  scoutPayroll,
   scoutSlots,
+  scoutStaff,
+  trialKids,
+  trialsLeft,
+  trialsMax,
   user,
   windowOpen,
+  youthRangeWidth,
 } from "@/game";
-import type { Club, LeagueId, Message, Player, Position, TraitKey, World } from "@/game/types";
+import type { Club, LeagueId, Message, Player, Position, Scout, TraitKey, TrialOptions, World } from "@/game/types";
 
 export type AcademyFocusKey = Club["academyFocus"];
 export type PotRange = ReturnType<typeof potentialRange>;
@@ -41,7 +50,7 @@ export const focusName = (f: AcademyFocusKey): string => ACADEMY_FOCUS[f]?.name 
 export const focusDesc = (f: AcademyFocusKey): string => ACADEMY_FOCUS[f]?.desc ?? "";
 
 /** Largura inicial da faixa de potencial de um garoto da base (contrato: 24 − 3·base − 2·olheiros, mín. 4). */
-export const initialRangeWidth = (academy: number, scouting: number): number => Math.max(4, 24 - 3 * academy - 2 * scouting);
+export const initialRangeWidth = (academy: number, scoutSkill: number): number => youthRangeWidth(academy, Math.max(1, scoutSkill));
 
 /** Posição percentual de um valor de potencial na barra (0–100). */
 export const potPct = (v: number): number =>
@@ -150,19 +159,23 @@ export function loanBlock(w: World, p: Player): string | null {
 }
 
 export interface ScoutState {
+  /** Nível do olheiro-chefe (0 sem olheiros). */
   level: number;
-  max: number;
   slots: number;
   used: number;
+  /** Custo de cada relatório. */
   cost: number;
-  upgradeCost: number;
-  maxed: boolean;
-  queue: { pid: string; name: string; pos: Position | null; club: string | null; readyWeek: number; youth: boolean }[];
+  /** Folha semanal dos olheiros. */
+  payroll: number;
+  max: number;
+  staff: (Scout & { busy: string | null })[];
+  market: (Scout & { fee: number })[];
+  queue: { pid: string; name: string; pos: Position | null; club: string | null; readyWeek: number; youth: boolean; scout: string | null }[];
 }
 
 export function scoutState(w: World): ScoutState {
   const u = user(w);
-  const up = UPGRADES.scouting;
+  const staff = scoutStaff(w);
   const queue = (w.scoutQueue ?? [])
     .map((q) => {
       const p = w.players[q.pid];
@@ -173,25 +186,47 @@ export function scoutState(w: World): ScoutState {
         club: p?.clubId ? w.clubs[p.clubId]?.short ?? null : null,
         readyWeek: q.readyWeek,
         youth: !!p && u.youth.includes(p.id),
+        scout: staff.find((s) => s.id === q.scoutId)?.name ?? null,
       };
     })
     .sort((a, b) => a.readyWeek - b.readyWeek);
-  const level = up.level(u);
   return {
-    level,
-    max: up.max,
+    level: bestScoutSkill(w),
     slots: scoutSlots(w),
     used: queue.length,
     cost: scoutCost(w),
-    upgradeCost: up.cost(u),
-    maxed: level >= up.max,
+    payroll: scoutPayroll(w),
+    max: SCOUT_MAX,
+    staff: staff.map((s) => {
+      const job = w.scoutQueue.find((j) => j.scoutId === s.id);
+      return { ...s, busy: job ? w.players[job.pid]?.name ?? "relatório" : null };
+    }),
+    market: (w.scoutMarket ?? []).map((s) => ({ ...s, fee: scoutHireFee(s) })),
     queue,
+  };
+}
+
+/** Peneiras: restantes, máximo, faixa de garotos e países com especialista. */
+export interface TrialState {
+  left: number;
+  max: number;
+  kids: { min: number; max: number };
+  specialists: LeagueId[];
+}
+
+export function trialState(w: World, opts: TrialOptions): TrialState {
+  return {
+    left: trialsLeft(w),
+    max: trialsMax(w),
+    kids: trialKids(w, opts),
+    specialists: [...new Set(scoutStaff(w).map((s) => s.nat))],
   };
 }
 
 export function scoutBlock(w: World, v: YouthView, s: ScoutState): string | null {
   if (v.reportDone) return "Relatório completo já feito";
   if (v.scoutReady !== null) return `Pronto na semana ${v.scoutReady}`;
+  if (!s.slots) return "Contrate um olheiro";
   if (s.used >= s.slots) return `Olheiros ocupados (${s.used}/${s.slots})`;
   if (user(w).money < s.cost) return `Caixa insuficiente (${formatMoney(user(w).money)})`;
   return null;
@@ -202,8 +237,11 @@ export function scoutBlock(w: World, v: YouthView, s: ScoutState): string | null
 export interface AcademySummary {
   academy: number;
   academyMax: number;
-  scouting: number;
-  scoutingMax: number;
+  /** Olheiros contratados e o máximo. */
+  scouts: number;
+  scoutsMax: number;
+  /** Nível do olheiro-chefe. */
+  chief: number;
   focus: AcademyFocusKey;
   youthCount: number;
   gems: number;
@@ -218,8 +256,9 @@ export function academySummary(w: World, views: YouthView[]): AcademySummary {
   return {
     academy: UPGRADES.academy.level(u),
     academyMax: UPGRADES.academy.max,
-    scouting: UPGRADES.scouting.level(u),
-    scoutingMax: UPGRADES.scouting.max,
+    scouts: scoutStaff(w).length,
+    scoutsMax: SCOUT_MAX,
+    chief: bestScoutSkill(w),
     focus: u.academyFocus,
     youthCount: views.length,
     gems: views.filter((v) => v.gem).length,

@@ -3,7 +3,9 @@
 import { useCallback, useMemo, useState } from "react";
 import {
   dismissYouth,
+  fireScout,
   formatMoney,
+  hireScout,
   loanOut,
   loanOutOffers,
   promoteYouth,
@@ -12,7 +14,6 @@ import {
   runTrial,
   setAcademyFocus,
   trialCost,
-  upgrade,
   user,
   windowOpen,
 } from "@/game";
@@ -39,6 +40,7 @@ import {
   promoteBlock,
   scoutBlock,
   scoutState,
+  trialState,
   windowText,
   youthView,
   type AcademyFocusKey,
@@ -87,7 +89,11 @@ export default function BasePage() {
     void version;
     return trialCost(world, trialOpts);
   }, [world, version, trialOpts]);
-  const trialBlock = world.trialUsed ? "Peneira já realizada nesta temporada" : u.money < cost ? `Caixa insuficiente (${formatMoney(u.money)})` : null;
+  const trialInfo = useMemo(() => {
+    void version;
+    return trialState(world, trialOpts);
+  }, [world, version, trialOpts]);
+  const trialBlock = trialInfo.left <= 0 ? "Todas as peneiras da temporada já foram feitas" : u.money < cost ? `Caixa insuficiente (${formatMoney(u.money)})` : null;
 
   const trialViews = useMemo(() => {
     void version;
@@ -120,12 +126,21 @@ export default function BasePage() {
     setTrial((t) => ({ key: (t?.key ?? 0) + 1, ids: box.ids as string[] }));
   };
 
-  const upgradeScouting = () => {
-    const box = { ok: false };
+  const hire = (id: string) => {
+    const name = world.scoutMarket?.find((s) => s.id === id)?.name ?? "O olheiro";
+    const box: { r: ReturnType<typeof hireScout> | null } = { r: null };
     mutate((w) => {
-      box.ok = upgrade(w, "scouting");
+      box.r = hireScout(w, id);
     });
-    toast(box.ok ? "Departamento de olheiros melhorado!" : "Não foi possível melhorar os olheiros agora.", box.ok ? "good" : "bad");
+    toast(box.r?.ok ? `${name} é o novo olheiro do clube!` : box.r?.reason ?? "Não foi possível contratar agora.", box.r?.ok ? "good" : "bad");
+  };
+  const fire = (id: string) => {
+    const name = world.scoutStaff?.find((s) => s.id === id)?.name ?? "O olheiro";
+    const box: { r: ReturnType<typeof fireScout> | null } = { r: null };
+    mutate((w) => {
+      box.r = fireScout(w, id);
+    });
+    toast(box.r?.ok ? `${name} foi dispensado.` : box.r?.reason ?? "Não foi possível dispensar agora.", box.r?.ok ? "good" : "bad");
   };
 
   const recall = (pid: string) => {
@@ -200,10 +215,13 @@ export default function BasePage() {
           onPos={setTrialPos}
           cost={cost}
           block={trialBlock}
-          bonusKid={scout.level >= 4}
+          left={trialInfo.left}
+          max={trialInfo.max}
+          kids={trialInfo.kids}
+          specialists={trialInfo.specialists}
           onRun={doTrial}
         />
-        <ScoutingCard s={scout} academy={summary.academy} week={world.week} money={u.money} onUpgrade={upgradeScouting} onOpenPlayer={openPlayer} />
+        <ScoutingCard s={scout} academy={summary.academy} week={world.week} money={u.money} onHire={hire} onFire={fire} onOpenPlayer={openPlayer} />
       </div>
 
       <div className="mt-4">

@@ -54,7 +54,7 @@ export function YouthList({
   const notices: string[] = [];
   if (promoteBlock) notices.push(`Promover: ${promoteBlock}. Libere uma vaga no elenco.`);
   if (windowBlock) notices.push(`Emprestar: ${windowBlock}.`);
-  if (scoutsBusy) notices.push(`Relatórios: olheiros ocupados (${scout.used}/${scout.slots}). Melhore o departamento para ter mais vagas.`);
+  if (scoutsBusy) notices.push(`Relatórios: olheiros ocupados (${scout.used}/${scout.slots}). Contrate mais olheiros para ter mais vagas.`);
 
   return (
     <section aria-labelledby="youth-title" className="mt-8">

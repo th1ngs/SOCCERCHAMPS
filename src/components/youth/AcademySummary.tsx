@@ -46,9 +46,9 @@ export function AcademySummary({ s, season }: { s: Summary; season: number }) {
         {s.academy}
         <span className="text-base text-mist">/{s.academyMax}</span>
       </Tile>
-      <Tile icon={Telescope} label="Olheiros" sub={<Pips value={s.scouting} max={s.scoutingMax} tone="bg-info-400" />}>
-        {s.scouting}
-        <span className="text-base text-mist">/{s.scoutingMax}</span>
+      <Tile icon={Telescope} label="Olheiros" sub={s.scouts ? <>Chefe: <span className="text-gold-400">{"★".repeat(s.chief)}</span><span className="opacity-30">{"★".repeat(5 - s.chief)}</span></> : <span className="text-warn-400">Nenhum contratado</span>}>
+        {s.scouts}
+        <span className="text-base text-mist">/{s.scoutsMax}</span>
       </Tile>
       <Tile icon={Target} label="Foco" sub="Posições da safra">
         <span className="block truncate text-xl">{focusName(s.focus)}</span>

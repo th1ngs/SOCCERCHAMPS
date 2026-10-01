@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpCircle, Binoculars, Building2, Dumbbell, GraduationCap, type LucideIcon } from "lucide-react";
+import { ArrowUpCircle, Building2, Dumbbell, GraduationCap, type LucideIcon } from "lucide-react";
 import { formatMoney, upgrade, UPGRADES, user } from "@/game";
 import type { Club, UpgradeKey } from "@/game/types";
 import { Button } from "@/components/ui/Button";
@@ -9,8 +9,8 @@ import { useToast } from "@/components/ui/Toast";
 import { useWorld } from "@/components/game/GameProvider";
 import { cn } from "@/lib/cn";
 
-const ICON: Record<UpgradeKey, LucideIcon> = { academy: GraduationCap, scouting: Binoculars, training: Dumbbell, stadium: Building2 };
-const KEYS: UpgradeKey[] = ["academy", "scouting", "training", "stadium"];
+const ICON: Record<UpgradeKey, LucideIcon> = { academy: GraduationCap, training: Dumbbell, stadium: Building2 };
+const KEYS: UpgradeKey[] = ["academy", "training", "stadium"];
 
 function Pips({ level, max }: { level: number; max: number }) {
   return (

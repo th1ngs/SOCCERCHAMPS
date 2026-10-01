@@ -3,7 +3,7 @@ import { ACADEMY_FOCUS, FOCUS_DEV, TICKET_PRICES, TRAINING, TRAITS, injuryLabel,
 import { seasonAwards } from './awards';
 import { contByRep, contQualifiers } from './competitions';
 import { Sim, isDerbyClubs } from './engine';
-import { FREE_MAX, FREE_MIN, assignNumbers, attr, clubWage, hasTrait, learnTrait, makeFreeAgent, meanSquadOvr, makeYouth, newPlayer, releaseClauseFor, rollNat, rollTrait, seedMissingClubs, traitCap, valueOf } from './gen';
+import { FREE_MAX, FREE_MIN, youthWage, assignNumbers, attr, clubWage, hasTrait, learnTrait, makeFreeAgent, meanSquadOvr, makeYouth, newPlayer, releaseClauseFor, rollNat, rollTrait, seedMissingClubs, traitCap, valueOf } from './gen';
 import { clubWages, commercialWeekly, renewClubFinances, ticketBase, tvShare, upkeepWeekly } from './finance';
 
 /** Piso da multa rescisória em relação ao valor de mercado. */
@@ -15,6 +15,7 @@ import {
 } from './leagues';
 import { aiInvest, aiListPlayers, aiOffersToUser, aiTransfers, promoteYouth, transfer } from './market';
 import { potentialRange, processScoutQueue } from './scouting';
+import { refreshScoutMarket, scoutPayroll } from './scouts';
 import { checkChancePromises, expireTalks, generateTalks } from './talks';
 import { runNationsCup } from './nations';
 import { onUserMatch, recordSeasonHistory, rememberLegend, seasonAchievements, seasonTitles, weeklyAchievements } from './career';
@@ -153,7 +154,11 @@ export function startSeason(w: World): void {
   aiListPlayers(w);
   w.finSeason = {};
   w.finWeek = {};
-  w.trialUsed = false;
+  w.trialsUsed = 0;
+  w.trialUsed = undefined;
+  refreshScoutMarket(w);
+  // Salários da base acompanham a evolução dos garotos.
+  for (const c of Object.values(w.clubs)) for (const id of c.youth) { const p = w.players[id]; if (p) p.wage = youthWage(p.ovr, c.league); }
   setObjective(w);
   const u = user(w);
   pushMessage(w, {
@@ -573,6 +578,7 @@ export function endWeek(w: World): WeekReport {
     let wages = ownerWages[c.id] || 0;
     for (const id of c.squad) { const p = w.players[id]; wages += p.loan ? p.wage * p.loan.wageShare : p.wage; }
     for (const id of c.youth) wages += w.players[id].wage;
+    if (c.id === w.userClub) wages += scoutPayroll(w);
     wages = Math.round(wages);
     addMoney(w, c.id, -wages, 'wages');
     addMoney(w, c.id, c.sponsor || 0, 'sponsor');

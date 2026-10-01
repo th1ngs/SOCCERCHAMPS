@@ -7,7 +7,8 @@
 import { CLUBS, TICKET_PRICES, injuryLabel } from './data';
 import { ATTR_KEYS } from './data';
 import { clubWages, sponsorValue, wageCapFor } from './finance';
-import { MIN_COMPATIBLE_VERSION, WORLD_VERSION, meanSquadOvr, rollAttrs, rollStar, rollTraits, seedMissingClubs, valueOf } from './gen';
+import { refreshScoutMarket, scoutStaff, seedScoutStaff } from './scouts';
+import { MIN_COMPATIBLE_VERSION, WORLD_VERSION, youthWage, meanSquadOvr, rollAttrs, rollStar, rollTraits, seedMissingClubs, valueOf } from './gen';
 import { DIVISIONS, LEAGUES } from './leagues';
 import { pickCaptain, pickFkTaker, pickPenTaker } from './squad';
 import { DEFAULT_INSTRUCTIONS } from './tactics';
@@ -161,6 +162,22 @@ export function migrateWorld(w: World): World {
     } else {
       pushMessage(w, { kind: 'info', title: 'Sete novas ligas a caminho', body: 'Alemanha, França, Holanda, Bélgica, Turquia, Escócia e Grécia entram no calendário quando começar a próxima temporada. Sua carreira atual continua normalmente.' });
     }
+  }
+  // v8: olheiros contratados no lugar do departamento por níveis, várias peneiras por temporada e
+  // salários maiores na base.
+  if (!Array.isArray(lw.scoutStaff)) {
+    const u = w.clubs[w.userClub];
+    if (u) {
+      seedScoutStaff(w, u.scouting || 1);
+      u.scouting = 0;
+      const ids = scoutStaff(w).map((s) => s.id);
+      w.scoutQueue.forEach((job, i) => { job.scoutId = ids[i % ids.length]; });
+    }
+  }
+  if (!Array.isArray(lw.scoutMarket)) refreshScoutMarket(w);
+  if (typeof lw.trialsUsed !== 'number') w.trialsUsed = lw.trialUsed ? 1 : 0;
+  if ((lw.version ?? 0) < 8) {
+    for (const c of Object.values(w.clubs)) for (const id of c.youth) { const p = w.players[id]; if (p) p.wage = Math.max(p.wage, youthWage(p.ovr, c.league)); }
   }
   if (!(typeof lw.version === 'number' && lw.version >= WORLD_VERSION)) w.version = WORLD_VERSION;
   return w;

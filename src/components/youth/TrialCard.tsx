@@ -22,19 +22,37 @@ export interface TrialCardProps {
   cost: number;
   /** Motivo para não poder fazer a peneira (null = liberada). */
   block: string | null;
-  /** Olheiros nível 4+: +1 garoto. */
-  bonusKid: boolean;
+  /** Peneiras restantes e máximo na temporada. */
+  left: number;
+  max: number;
+  /** Quantos garotos a peneira escolhida pode trazer. */
+  kids: { min: number; max: number };
+  /** Países com olheiro especialista. */
+  specialists: LeagueId[];
   onRun: () => void;
 }
 
-/** Peneira: uma por temporada, escolhendo região (nacional ou estrangeira) e posição. */
-export function TrialCard({ homeLeague, region, onRegion, pos, onPos, cost, block, bonusKid, onRun }: TrialCardProps) {
+/** Peneiras da temporada, escolhendo região (nacional ou estrangeira) e posição. */
+export function TrialCard({ homeLeague, region, onRegion, pos, onPos, cost, block, left, max, kids, specialists, onRun }: TrialCardProps) {
   const foreign = region !== homeLeague;
+  const spec = foreign && specialists.includes(region);
   const regions = [homeLeague, ...LEAGUE_IDS.filter((l) => l !== homeLeague)];
   return (
-    <Card title="Peneira" tone={block ? "default" : "highlight"} className="flex flex-col">
+    <Card
+      title="Peneiras"
+      tone={block ? "default" : "highlight"}
+      className="flex flex-col"
+      action={
+        <span className="flex items-center gap-1" aria-label={`${left} de ${max} peneiras restantes`}>
+          {Array.from({ length: max }, (_, i) => (
+            <span key={i} className={cn("h-2 w-5 rounded-full", i < left ? "bg-gold-400" : "bg-white/10")} />
+          ))}
+          <span className="ml-1 text-xs text-mist tabular">{left}/{max}</span>
+        </span>
+      }
+    >
       <p className="mb-4 text-sm text-mist">
-        Os olheiros organizam uma peneira e trazem de 1 a 3 garotos{bonusKid ? " (+1 com o seu departamento de olheiros)" : ""}. Uma por temporada.
+        Os olheiros organizam a peneira e trazem de {kids.min} a {kids.max} garotos. Você tem {max} peneiras por temporada.
       </p>
 
       <fieldset className="mb-4 min-w-0">
@@ -45,6 +63,7 @@ export function TrialCard({ homeLeague, region, onRegion, pos, onPos, cost, bloc
           {regions.map((r) => {
             const on = r === region;
             const home = r === homeLeague;
+            const hasSpec = !home && specialists.includes(r);
             return (
               <button
                 key={r}
@@ -60,7 +79,9 @@ export function TrialCard({ homeLeague, region, onRegion, pos, onPos, cost, bloc
                 <Flag code={r} decorative className="h-4 rounded-[2px] ring-1 ring-black/25" />
                 <span className="min-w-0 flex-1 leading-tight">
                   <span className="block truncate font-semibold">{home ? "Nacional" : countryName(r)}</span>
-                  <span className="block text-xs uppercase tracking-wide opacity-80">{home ? countryName(r) : "custo ×1,8"}</span>
+                  <span className={cn("block text-xs uppercase tracking-wide", hasSpec ? "text-info-400" : "opacity-80")}>
+                    {hasSpec ? "especialista ×1,2" : home ? countryName(r) : "custo ×1,8"}
+                  </span>
                 </span>
               </button>
             );
@@ -81,13 +102,14 @@ export function TrialCard({ homeLeague, region, onRegion, pos, onPos, cost, bloc
       </div>
 
       <p className="mb-3 text-xs text-mist">
-        {foreign ? `Só garotos ${OF[region]} ${countryName(region)} (a peneira no exterior custa ×1,8). ` : "Garotos do seu país. "}
+        {foreign ? `Só garotos ${OF[region]} ${countryName(region)} (no exterior custa ${spec ? "×1,2 com o seu especialista" : "×1,8"}). ` : "Garotos do seu país. "}
+        {spec ? "Seu olheiro especialista acha +1 garoto e aumenta a chance de um talento acima da média. " : ""}
         {pos === "all" ? "Posições variadas conforme o foco da base." : `Todos serão ${POS_NAME[pos].toLowerCase()}s.`}
       </p>
 
       <div className="mt-auto">
         <Button variant="primary" icon={<Binoculars />} onClick={onRun} disabled={!!block} title={block ?? undefined} block className="sm:w-auto">
-          Fazer peneira • {formatMoney(cost)}
+          Fazer peneira ({left} restante{left === 1 ? "" : "s"}) • {formatMoney(cost)}
         </Button>
         {block && <p className="mt-2 text-xs text-mist">{block}.</p>}
       </div>

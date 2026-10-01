@@ -4,6 +4,7 @@ import { assignNumbers, clubWage, makeYouth, releaseClauseFor, valueOf } from '.
 import { clubWages, financeProfile } from './finance';
 import { LEAGUES, prestigeOf } from './leagues';
 import { hash01 } from './scouting';
+import { bestScoutSkill, specialistFor } from './scouts';
 import { endLoan, recordTransfer } from './transfers';
 import type {
   BidResult, Club, LeagueId, Message, Player, Position, TransferKind, TrialOptions, UpgradeKey, Upgrade, World,
@@ -192,34 +193,56 @@ export function dismissYouth(w: World, pid: string): void {
   removePlayer(w, w.players[pid]);
 }
 
-/** Peneira em região estrangeira custa ×1,8. */
+/** Peneira em região estrangeira custa ×1,8 (×1,2 com um olheiro especialista naquele país). */
 export const TRIAL_FOREIGN_MULT = 1.8;
+export const TRIAL_SPECIALIST_MULT = 1.2;
+/** Peneiras por temporada (+1 com um olheiro nível 4 ou mais). */
+export const TRIALS_PER_SEASON = 3;
+
+/** Peneiras permitidas nesta temporada. */
+export const trialsMax = (w: World): number => TRIALS_PER_SEASON + (bestScoutSkill(w) >= 4 ? 1 : 0);
+/** Peneiras que ainda podem ser feitas nesta temporada. */
+export const trialsLeft = (w: World): number => Math.max(0, trialsMax(w) - (w.trialsUsed ?? 0));
 
 /**
  * Custo da peneira. Aceita o World (clube do usuário) ou, por compatibilidade, o próprio clube.
- * Região estrangeira: ×1,8.
+ * Região estrangeira: ×1,8, ou ×1,2 com especialista naquele país.
  */
 export function trialCost(wOrClub: World | Club, opts: TrialOptions = {}): number {
-  const club = 'clubs' in wOrClub ? user(wOrClub) : wOrClub;
+  const w = 'clubs' in wOrClub ? wOrClub : null;
+  const club = w ? user(w) : (wOrClub as Club);
   const base = 300000 + club.academy * 150000;
-  return Math.round(base * (opts.region && opts.region !== club.league ? TRIAL_FOREIGN_MULT : 1));
+  if (!opts.region || opts.region === club.league) return base;
+  return Math.round(base * (w && specialistFor(w, opts.region) ? TRIAL_SPECIALIST_MULT : TRIAL_FOREIGN_MULT));
+}
+
+/** Especialista numa peneira no exterior (no próprio país, todo olheiro já conhece o mercado). */
+const foreignSpecialist = (w: World, opts: TrialOptions): boolean => !!opts.region && opts.region !== user(w).league && !!specialistFor(w, opts.region);
+
+/** Quantos garotos a peneira pode trazer: 1-3, +1 com olheiro-chefe nível 4+, +1 com especialista na região estrangeira. */
+export function trialKids(w: World, opts: TrialOptions = {}): { min: number; max: number } {
+  const bonus = (bestScoutSkill(w) >= 4 ? 1 : 0) + (foreignSpecialist(w, opts) ? 1 : 0);
+  return { min: 1 + bonus, max: 3 + bonus };
 }
 
 /**
- * Peneira: uma vez por temporada, revela 1-3 garotos (+1 com olheiros nível 4+).
+ * Peneira: até TRIALS_PER_SEASON por temporada; revela garotos (veja trialKids).
  * `region`: nacionalidade dos garotos; `pos`: todos dessa posição.
+ * Olheiros melhores aumentam a chance de achar um garoto acima da média.
  */
 export function runTrial(w: World, opts: TrialOptions = {}): Player[] | null {
   const u = user(w);
   const cost = trialCost(w, opts);
-  if (w.trialUsed || u.money < cost) return null;
+  if (trialsLeft(w) <= 0 || u.money < cost) return null;
   addMoney(w, u.id, -cost, 'other');
-  w.trialUsed = true;
+  w.trialsUsed = (w.trialsUsed ?? 0) + 1;
   const found: Player[] = [];
-  const n = randi(1, 3) + ((u.scouting || 1) >= 4 ? 1 : 0);
+  const { min, max } = trialKids(w, opts);
+  const n = randi(min, max);
+  const lucky = 0.18 + 0.04 * bestScoutSkill(w) + (foreignSpecialist(w, opts) ? 0.06 : 0);
   for (let k = 0; k < n; k++) {
     const y = makeYouth(w, u, randi(15, 17), { pos: opts.pos, nat: opts.region });
-    if (chance(0.25)) { y.pot = clamp(y.pot + rand(4, 10), 45, 96); }
+    if (chance(lucky)) { y.pot = clamp(y.pot + rand(4, 10), 45, 96); }
     found.push(y);
   }
   return found;
@@ -230,7 +253,6 @@ export const UPGRADES: Record<UpgradeKey, Upgrade> = {
   academy: { name: 'Categoria de base', desc: 'Garotos com mais potencial em cada safra. Cada nível aumenta a manutenção semanal.', max: 5, cost: (c) => 3e6 * c.academy, level: (c) => c.academy },
   training: { name: 'Centro de treinamento', desc: 'Jogadores evoluem mais rápido. Cada nível aumenta a manutenção semanal.', max: 5, cost: (c) => 4e6 * c.training, level: (c) => c.training },
   stadium: { name: 'Estádio (+5.000 lugares)', desc: 'Mais público e mais bilheteria, com manutenção um pouco maior.', max: 90000, cost: (c) => 10e6 + c.cap * 100, level: (c) => c.cap },
-  scouting: { name: 'Departamento de olheiros', desc: 'Mais olheiros ao mesmo tempo, relatórios mais rápidos e faixas de potencial mais estreitas na base.', max: 5, cost: (c) => 3e6 * (c.scouting || 1), level: (c) => c.scouting || 1 },
 };
 
 export function upgrade(w: World, kind: UpgradeKey): boolean {
@@ -245,7 +267,7 @@ export function upgrade(w: World, kind: UpgradeKey): boolean {
 }
 
 /**
- * Clubes da CPU com caixa sobrando investem na estrutura (fim de temporada): CT, base, olheiros ou
+ * Clubes da CPU com caixa sobrando investem na estrutura (fim de temporada): CT, base ou
  * estádio (se ele for pequeno para o tamanho do clube). No máximo 2 obras por temporada.
  */
 export function aiInvest(w: World, c: Club): void {
@@ -253,7 +275,7 @@ export function aiInvest(w: World, c: Club): void {
   const weekly = financeProfile(w, c).revenue;
   for (let k = 0; k < 2; k++) {
     if (c.money < weekly * 30) return;
-    const options: UpgradeKey[] = (['training', 'academy', 'scouting'] as const).filter((key) => UPGRADES[key].level(c) < UPGRADES[key].max);
+    const options: UpgradeKey[] = (['training', 'academy'] as const).filter((key) => UPGRADES[key].level(c) < UPGRADES[key].max);
     if (c.cap < c.rep * 800 && c.cap < UPGRADES.stadium.max) options.push('stadium');
     if (!options.length) return;
     const key = options.sort((a, b) => UPGRADES[a].cost(c) - UPGRADES[b].cost(c))[0];

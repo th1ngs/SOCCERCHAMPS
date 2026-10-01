@@ -11,6 +11,7 @@ export * from './competitions';
 export * from './market';
 export * from './migrate';
 export * from './scouting';
+export * from './scouts';
 export * from './transfers';
 export * from './finance';
 export * from './tactics';

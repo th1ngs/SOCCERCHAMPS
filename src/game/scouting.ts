@@ -6,6 +6,7 @@ import { askingPrice } from './market';
 import type { AcademyFocus, AttrKey, Player, PotentialRange, ScoutLevel, ScoutRequestResult, TraitKey, World } from './types';
 import { clamp } from './util';
 import { addMoney, clubPlayers, pushMessage, user } from './world';
+import { bestScoutSkill, reportWeeks, scoutForPlayer, scoutStaff } from './scouts';
 
 /** Largura da faixa de potencial para jogadores de outros clubes, por nível de conhecimento. */
 export const SCOUT_WIDTH: Record<ScoutLevel, number> = { 0: 22, 1: 12, 2: 0 };
@@ -46,10 +47,13 @@ function place(p: Player, width: number): PotentialRange {
   return { min, max, exact: false };
 }
 
+/** Largura inicial da faixa de potencial na base: 24 − 3·base − 2·nível do olheiro-chefe (mín. 4). */
+export const youthRangeWidth = (academy: number, scoutSkill: number): number => Math.max(4, 24 - 3 * academy - 2 * scoutSkill);
+
 /** Largura da faixa de um garoto da base do usuário. */
 function youthWidth(w: World, p: Player): number {
   const u = user(w);
-  const base = Math.max(4, 24 - 3 * u.academy - 2 * (u.scouting || 1));
+  const base = youthRangeWidth(u.academy, Math.max(1, bestScoutSkill(w)));
   const seasons = Math.max(0, w.season - (p.start?.season ?? w.season));
   return base * Math.pow(YOUTH_NARROW, seasons);
 }
@@ -57,7 +61,7 @@ function youthWidth(w: World, p: Player): number {
 /**
  * Faixa de potencial que o usuário enxerga. Sempre contém o potencial real (posição estável por hash do id).
  * - Elenco do usuário: exato após 10 semanas no clube.
- * - Base do usuário: largura 24 − 3·academy − 2·scouting (mín. 4), −40% por temporada; exato com relatório.
+ * - Base do usuário: largura 24 − 3·academy − 2·olheiro-chefe (mín. 4), −40% por temporada; exato com relatório.
  * - Outros: 22 (básico), 12 (observado), exato (relatório).
  */
 export function potentialRange(w: World, p: Player): PotentialRange {
@@ -114,8 +118,8 @@ export const isGem = (p: Player): boolean => p.pot >= 80 && p.age <= 17;
 
 /** Custo de um relatório de olheiro. */
 export const scoutCost = (w: World): number => Math.round((60000 * LEAGUES[user(w).league].wealth) / 1000) * 1000;
-/** Relatórios simultâneos (= nível do departamento). */
-export const scoutSlots = (w: World): number => Math.max(1, user(w).scouting || 1);
+/** Relatórios simultâneos: um por olheiro contratado. */
+export const scoutSlots = (w: World): number => scoutStaff(w).length;
 
 /** Marca o jogador como observado (nível 1) de graça; chame ao abrir a ficha de um jogador de outro clube. */
 export function observe(w: World, pid: string): void {
@@ -124,7 +128,7 @@ export function observe(w: World, pid: string): void {
   if (scoutLevel(w, pid) < 1) w.scouting[pid] = { level: 1, season: w.season };
 }
 
-/** Encomenda um relatório completo (pronto em 1-2 semanas; 1 semana com departamento nível 3+). */
+/** Encomenda um relatório completo a um olheiro livre (1 semana com especialista ou nível 3+; senão 2). */
 export function requestScoutReport(w: World, pid: string): ScoutRequestResult {
   const p = w.players[pid];
   const u = user(w);
@@ -134,12 +138,14 @@ export function requestScoutReport(w: World, pid: string): ScoutRequestResult {
   if (scoutLevel(w, pid) === 2) return { ok: false, reason: 'Você já tem o relatório completo deste jogador.' };
   const queued = w.scoutQueue.find((j) => j.pid === pid);
   if (queued) return { ok: false, reason: 'Relatório já encomendado.', readyWeek: queued.readyWeek };
-  if (w.scoutQueue.length >= scoutSlots(w)) return { ok: false, reason: `Todos os ${scoutSlots(w)} olheiros estão ocupados.` };
+  if (!scoutSlots(w)) return { ok: false, reason: 'Contrate um olheiro na Base para pedir relatórios.' };
+  const scout = scoutForPlayer(w, p);
+  if (!scout) return { ok: false, reason: `Todos os ${scoutSlots(w)} olheiros estão ocupados.` };
   const cost = scoutCost(w);
   if (u.money < cost) return { ok: false, reason: 'Dinheiro insuficiente para enviar o olheiro.' };
   addMoney(w, u.id, -cost, 'other');
-  const readyWeek = w.week + (u.scouting >= 3 ? 1 : 2);
-  w.scoutQueue.push({ pid, readyWeek, season: w.season });
+  const readyWeek = w.week + reportWeeks(scout, p, w);
+  w.scoutQueue.push({ pid, readyWeek, season: w.season, scoutId: scout.id });
   observe(w, pid);
   return { ok: true, readyWeek };
 }
@@ -169,10 +175,11 @@ export function processScoutQueue(w: World): void {
     const top = ATTRS_FOR[p.pos].map((k) => ({ k, v: attr(p, k) })).sort((a, b) => b.v - a.v).slice(0, 3)
       .map(({ k, v }) => `${ATTRS[k].name} ${v}`).join(', ');
     const club = p.clubId ? w.clubs[p.clubId].name : 'sem clube';
+    const by = scoutStaff(w).find((s) => s.id === job.scoutId);
     pushMessage(w, {
       kind: 'info',
       pid: p.id,
-      title: `Relatório do olheiro: ${p.name}`,
+      title: `Relatório ${by ? `de ${by.name}` : 'do olheiro'}: ${p.name}`,
       body: `${p.name} (${p.pos}, ${p.age} anos, ${club}): overall ${Math.round(p.ovr)}, potencial ${Math.round(p.pot)}. Pontos fortes: ${top}. Habilidades: ${traits}${p.star ? ' • Craque' : ''}. Veredito: ${scoutVerdict(w, p)}.`,
     });
   }

@@ -2,9 +2,11 @@ import { BookOpen, ChevronDown } from "lucide-react";
 
 const ITEMS: [string, string][] = [
   ["Safra", "Toda pré-temporada chegam novos garotos de 15–16 anos. Quanto maior o nível da base, mais garotos e mais potencial. O foco define as posições mais comuns."],
-  ["Potencial", "Você vê uma faixa, não o número exato. Base e olheiros melhores estreitam a faixa inicial; ela fecha 40% por temporada e fica exata com o relatório completo do olheiro."],
+  ["Potencial", "Você vê uma faixa, não o número exato. Base melhor e um olheiro-chefe de nível alto estreitam a faixa inicial; ela fecha 40% por temporada e fica exata com o relatório completo do olheiro."],
+  ["Olheiros", "Contrate até 6 olheiros (nível 1 a 5, cada um especialista num país). Cada olheiro faz um relatório por vez; o especialista entrega em 1 semana e barateia a peneira no país dele. O mercado de olheiros muda a cada temporada."],
   ["Joias", "O selo aparece quando o mínimo da faixa conhecida é 78 ou mais — aí não tem erro."],
-  ["Peneira", "Uma por temporada. Escolha a região (no exterior custa ×1,8 e traz garotos daquele país) e, se quiser, a posição."],
+  ["Peneira", "Três por temporada (quatro com um olheiro nível 4+). Escolha a região (no exterior custa ×1,8, ou ×1,2 com especialista) e, se quiser, a posição."],
+  ["Salário", "Garotos da base recebem conforme o overall e a liga do clube; o salário é reajustado a cada temporada."],
   ["Evolução", "Garotos evoluem com o CT e o treino; os do setor em foco, 15% mais rápido. Emprestado como titular, o garoto evolui ainda mais."],
   ["19 anos", "Na virada da temporada, quem completa 19 anos sobe ao profissional se houver vaga no elenco; senão é dispensado. Decida antes: promova, empreste ou negocie."],
   ["Propostas", "Clubes podem fazer propostas pelos seus garotos mais promissores. Elas chegam na caixa de entrada."],

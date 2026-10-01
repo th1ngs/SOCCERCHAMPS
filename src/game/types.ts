@@ -240,7 +240,7 @@ export interface Club extends ClubStatic {
   sponsor: number;
   /** Teto da folha salarial semanal definido pela diretoria (v5). */
   wageCap: number;
-  /** Nível do departamento de olheiros (1-5). */
+  /** Nível do departamento de olheiros (1-5) da CPU. O usuário contrata olheiros (World.scoutStaff). */
   scouting: number;
   academyFocus: AcademyFocus;
 }
@@ -437,6 +437,23 @@ export interface ScoutJob {
   pid: string;
   readyWeek: number;
   season: number;
+  /** Olheiro encarregado (v8). */
+  scoutId?: string;
+}
+
+/** Olheiro contratado (ou candidato no mercado de olheiros). */
+export interface Scout {
+  id: string;
+  name: string;
+  /** País de especialidade. */
+  nat: LeagueId;
+  /** Nível de 1 a 5. */
+  skill: number;
+  age: number;
+  /** Salário semanal. */
+  wage: number;
+  /** Contratação (só na equipe). */
+  since?: { season: number; week: number };
 }
 
 export interface Payable {
@@ -814,7 +831,14 @@ export interface World {
   finance: FinanceEntry[];
   finWeek: FinanceLog;
   finSeason: FinanceLog;
-  trialUsed: boolean;
+  /** Legado (até a v7): peneira já feita na temporada. */
+  trialUsed?: boolean;
+  /** Peneiras feitas na temporada (v8). */
+  trialsUsed?: number;
+  /** Olheiros contratados pelo usuário (v8). */
+  scoutStaff?: Scout[];
+  /** Candidatos do mercado de olheiros (v8). */
+  scoutMarket?: Scout[];
   started: boolean;
   fired?: Fired | null;
   pendingSeason?: SeasonSummary | null;
@@ -1024,7 +1048,7 @@ export interface BidResult {
   ask?: number;
 }
 
-export type UpgradeKey = 'academy' | 'training' | 'stadium' | 'scouting';
+export type UpgradeKey = 'academy' | 'training' | 'stadium';
 
 export interface Upgrade {
   name: string;
