@@ -1,8 +1,9 @@
 "use client";
 
-import { ChevronDown, UserRound } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, ChevronDown, UserRound } from "lucide-react";
 import type { Message } from "@/game/types";
-import { Button } from "@/components/ui/Button";
+import { Button, buttonClasses } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/primitives";
 import { useWorld } from "@/components/game/GameProvider";
 import { cn } from "@/lib/cn";
@@ -62,6 +63,11 @@ export function MessageItem({ m, open, onToggle }: MessageItemProps) {
             </div>
           )}
           {m.talk && <TalkActions msgId={m.id} talk={m.talk} />}
+          {m.link && (
+            <Link href={m.link.href} className={buttonClasses("secondary", "sm", false, "mt-3 mr-2")}>
+              <ArrowRight aria-hidden /> {m.link.label}
+            </Link>
+          )}
           {linked && !m.offer && (
             <Button variant="ghost" size="sm" icon={<UserRound />} className="mt-3" onClick={() => setOverlay({ kind: "player", pid: linked })}>
               Ver ficha do jogador

@@ -1,6 +1,7 @@
 // Escalação: disponibilidade, escalação automática e validação.
 import { FORMATIONS, SECTOR } from './data';
 import { assignNumbers, attr, hasTrait, newPlayer, playerFit } from './gen';
+import { clubBaseOvr } from './leagues';
 import { promoteYouth } from './market';
 import { aiInstructions } from './tactics';
 import type { Club, Player, Position, SectorStrength, World } from './types';
@@ -185,7 +186,7 @@ export function ensureLineup(w: World, club: Club): string[] {
   return changes;
 }
 
-/** Força média aproximada do time titular (para exibição e expectativas). */
+/** Força média aproximada do time titular (para exibição e expectativas): a escalação, com o encaixe de cada um. */
 export function teamRating(w: World, club: Club): number {
   const slots = FORMATIONS[club.formation];
   const ids = club.lineup && club.lineup.length === 11 ? club.lineup : null;
@@ -195,6 +196,25 @@ export function teamRating(w: World, club: Club): number {
   }
   return avg(ids.map((id, i) => ({ p: id ? w.players[id] : undefined, s: slots[i] })), (x) => (x.p ? x.p.ovr * playerFit(x.p, x.s.pos) : 40));
 }
+
+/**
+ * Força esperada do time titular só pelos dados fixos do clube (reputação + qualidade da liga e da divisão),
+ * para quando ainda não há mundo: escolha de clube, arcade e online. O titular rende ~3,5 acima da média do elenco.
+ */
+export const expectedXi = (c: { rep: number; league: Club['league']; div: Club['div'] }): number => clubBaseOvr(c) + 3.5;
+
+/**
+ * Estrelas (0,5 a 5, de meia em meia) pela força do time TITULAR, numa escala global entre ligas:
+ * ~58 = 0,5★ (fundo das divisões de baixo) e ~86 = 5★ (elite das ligas mais fortes). Assim, o melhor clube
+ * de uma liga fraca fica com ~3★ e só a elite das grandes ligas chega a 5★.
+ */
+export function strengthStars(xi: number): number {
+  const v = 0.5 + ((xi - 58) * 4.5) / 28;
+  return Math.max(0.5, Math.min(5, Math.round(v * 2) / 2));
+}
+
+/** Estrelas de um clube no jogo: pela escalação titular atual (o banco não conta). */
+export const clubStars = (w: World, club: Club): number => strengthStars(teamRating(w, club));
 
 /** Força por setor do time titular (tela de tática: "força por setor"). */
 export function sectors(w: World, club: Club): SectorStrength {

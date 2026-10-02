@@ -10,19 +10,24 @@ import { LoanBadge, PromiseBadge } from "./TransferMarkBadges";
 import { useTransferMarks } from "./transferMarks";
 import { TraitChips } from "@/components/player/TraitChips";
 import { PlayerAvatar } from "@/components/player/PlayerAvatar";
+import { cn } from "@/lib/cn";
 
-/** Lista compacta do elenco para celulares (< 640 px): cada cartão abre a ficha. */
-export function SquadCards({ rows, onOpen }: { rows: SquadRow[]; onOpen: (pid: string) => void }) {
+/** Cartões do elenco (celular e visão por posição): cada cartão abre a ficha; a faixa verde marca os titulares. */
+export function SquadCards({ rows, onOpen, className }: { rows: SquadRow[]; onOpen: (pid: string) => void; className?: string }) {
   const marks = useTransferMarks(rows.map((r) => r.p));
   return (
-    <ul className="space-y-2">
+    <ul className={cn("space-y-2", className)}>
       {rows.map(({ p, value, tags }) => (
         <li key={p.id}>
           <button
             type="button"
             onClick={() => onOpen(p.id)}
-            className="flex w-full items-center gap-3 rounded-xl bg-ink-800 px-3 py-2.5 text-left shadow-card ring-1 ring-inset ring-white/8 transition-colors hover:bg-ink-700 focus-visible:outline-2 focus-visible:outline-gold-400"
+            className={cn(
+              "relative flex h-full w-full items-center gap-3 overflow-hidden rounded-xl bg-ink-800 px-3 py-2.5 text-left shadow-card ring-1 ring-inset ring-white/8 transition-colors hover:bg-ink-700 focus-visible:outline-2 focus-visible:outline-gold-400",
+              (p.inj > 0 || p.susp > 0) && "opacity-75",
+            )}
           >
+            {tags.some((t) => t.key === "tit") && <span className="absolute inset-y-0 left-0 w-1 bg-pitch-400" aria-hidden />}
             <div className="flex w-9 shrink-0 flex-col items-center gap-1">
               <PosBadge pos={p.pos} />
               <span className="text-xs tabular text-mist">{p.num || "—"}</span>
@@ -33,17 +38,21 @@ export function SquadCards({ rows, onOpen }: { rows: SquadRow[]; onOpen: (pid: s
                 <Flag code={p.nat} />
                 <span className="truncate font-semibold">{p.name}</span>
               </div>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-mist">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-mist">
                 <span>{p.age} anos</span>
-                <Meter value={p.fitness} label={`Condição ${Math.round(p.fitness)}%`} className="w-12" />
+                <span aria-hidden>•</span>
                 <span className="tabular">{formatMoney(value)}</span>
+                <span aria-hidden>•</span>
                 <span className={p.contract <= 1 ? "text-warn-400" : undefined}>{contractText(p.contract)}</span>
+                <Meter value={p.fitness} label={`Condição ${Math.round(p.fitness)}%`} className="w-10" />
               </div>
-              <div className="flex flex-wrap gap-x-3 text-xs tabular text-mist">
-                <span>Jogos <b className="text-snow">{p.s.apps}</b></span>
-                <span>Gols <b className="text-snow">{p.s.goals}</b></span>
-                <span>Assistências <b className="text-snow">{p.s.assists}</b></span>
-              </div>
+              {p.s.apps > 0 && (
+                <div className="flex flex-wrap gap-x-3 text-xs tabular text-mist">
+                  <span title="Jogos">Jogos <b className="text-snow">{p.s.apps}</b></span>
+                  <span title="Gols">Gols <b className="text-snow">{p.s.goals}</b></span>
+                  <span title="Assistências">Assist. <b className="text-snow">{p.s.assists}</b></span>
+                </div>
+              )}
               <span className="flex flex-wrap items-center gap-1">
                 <StatusTags tags={tags} />
                 <TraitChips traits={p.traits} />

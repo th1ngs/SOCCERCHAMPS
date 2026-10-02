@@ -244,6 +244,12 @@ export function negotiateContract(w: World, pid: string, terms: Terms): Contract
   return r;
 }
 
+/**
+ * Temporadas restantes (contando a atual) depois de renovar por `years` anos: os anos novos começam na próxima
+ * temporada, senão renovar por 1 ano no último ano de contrato não mudaria nada.
+ */
+export const renewedContract = (_w: World, years: number): number => Math.max(1, years) + 1;
+
 /** Renovação com o mesmo motor de negociação. */
 export function negotiateRenewal(w: World, pid: string, terms: Terms): ContractResponse {
   const p = w.players[pid];
@@ -256,7 +262,7 @@ export function negotiateRenewal(w: World, pid: string, terms: Terms): ContractR
   const u = user(w);
   if (terms.bonus > 0) addMoney(w, u.id, -terms.bonus, 'other');
   p.wage = terms.wage;
-  p.contract = terms.years;
+  p.contract = renewedContract(w, terms.years);
   p.promise = terms.role;
   delete p.promiseChecked;
   p.releaseClause = terms.releaseClause ?? round10k(valueOf(p) * 2.5);

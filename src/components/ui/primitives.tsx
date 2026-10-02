@@ -106,7 +106,7 @@ export function Meter({ value, className, label }: { value: number; className?: 
   const v = Math.max(0, Math.min(100, value));
   const color = v < 55 ? "bg-danger-500" : v < 75 ? "bg-warn-400" : "bg-pitch-400";
   return (
-    <span role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(v)} aria-label={label} className={cn("inline-block h-2 w-16 overflow-hidden rounded-full bg-white/10 align-middle", className)}>
+    <span role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(v)} aria-label={label} className={cn("inline-block overflow-hidden rounded-full bg-white/10 align-middle", !/(^|\s)h-/.test(className ?? "") && "h-2", !/(^|\s)w-/.test(className ?? "") && "w-16", className)}>
       <span className={cn("block h-full rounded-full", color)} style={{ width: `${v}%` }} />
     </span>
   );

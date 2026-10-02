@@ -14,7 +14,7 @@ import { oppGoalProb, planChances, type SeriesOutcome, type SeriesPlan } from "@
 import { LancesSeries } from "@/components/lances/LancesSeries";
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { Crest } from "@/components/ui/Crest";
-import { Card } from "@/components/ui/primitives";
+import { Card, Stars } from "@/components/ui/primitives";
 import { Segmented } from "@/components/ui/Segmented";
 import { cn } from "@/lib/cn";
 import { CHANCE_OPTIONS, loadSettings, saveSettings, type ArcadeSettings } from "./settings";
@@ -56,7 +56,7 @@ function TeamPicker({ league, onLeague, value, onChange, exclude }: { league: Le
               <Crest club={t.club} size={26} />
               <span className="min-w-0 leading-tight">
                 <span className="block truncate text-sm font-semibold">{t.name}</span>
-                <span className="text-[11px] text-gold-400">{"★".repeat(teamStars(t))}</span>
+                <Stars value={teamStars(t)} className="text-[11px]" />
               </span>
             </button>
           </li>

@@ -8,14 +8,26 @@ import { ESP_CLUBS } from './esp';
 import { ITA_CLUBS } from './ita';
 import { POR_CLUBS } from './por';
 import { EXPANDED_CLUBS } from './expanded';
+import { lowerClubs } from './lower';
 
 export { DIVISIONS, LEAGUES } from '../leagues';
 
-/** Dados brutos por liga (ordenados por prestígio). */
-export const CLUB_SEEDS: Record<LeagueId, ClubSeed[]> = {
+const BASE_SEEDS: Record<LeagueId, ClubSeed[]> = {
   bra: BRA_CLUBS, arg: ARG_CLUBS, por: POR_CLUBS, esp: ESP_CLUBS, eng: ENG_CLUBS, ita: ITA_CLUBS,
   ...EXPANDED_CLUBS,
 };
+
+/**
+ * Dados brutos por liga (ordenados por prestígio): os clubes originais e, depois deles, os das divisões
+ * de baixo da expansão (a reputação continua caindo a partir do último original).
+ */
+export const CLUB_SEEDS: Record<LeagueId, ClubSeed[]> = Object.fromEntries(LEAGUE_IDS.map((lg) => {
+  const base = BASE_SEEDS[lg];
+  const last = base[base.length - 1].rep;
+  const deepest = LEAGUES[lg].divisions.length >= 4 ? 20 : LEAGUES[lg].divisions.length >= 3 ? 28 : last - 5;
+  const used = new Set(base.map((c) => c.short));
+  return [lg, [...base, ...lowerClubs(lg, base.length, last - 1, deepest, used)]];
+})) as Record<LeagueId, ClubSeed[]>;
 
 function toStatic(seed: ClubSeed, league: LeagueId, index: number): ClubStatic {
   const divs = LEAGUES[league].divisions;

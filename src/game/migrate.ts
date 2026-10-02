@@ -13,7 +13,7 @@ import { DIVISIONS, LEAGUES } from './leagues';
 import { pickCaptain, pickFkTaker, pickPenTaker } from './squad';
 import { DEFAULT_INSTRUCTIONS } from './tactics';
 import type { Club, Player, World } from './types';
-import { pushMessage, startSeason } from './world';
+import { pushMessage, rebalanceDivisions, startSeason } from './world';
 
 /** Save de uma versão antiga (sem ligas) ou malformado. */
 export class IncompatibleSaveError extends Error {
@@ -178,6 +178,19 @@ export function migrateWorld(w: World): World {
   if (typeof lw.trialsUsed !== 'number') w.trialsUsed = lw.trialUsed ? 1 : 0;
   if ((lw.version ?? 0) < 8) {
     for (const c of Object.values(w.clubs)) for (const id of c.youth) { const p = w.players[id]; if (p) p.wage = Math.max(p.wage, youthWage(p.ovr, c.league)); }
+  }
+  // v9: 20 clubes por divisão, mais divisões e temporada de 38 rodadas. Na pré-temporada a expansão entra já;
+  // no meio da temporada, a atual termina no calendário antigo e a próxima começa com as ligas novas.
+  if ((lw.version ?? 0) < 9 && Object.keys(w.clubs).length < CLUBS.length) {
+    if (w.week === 0 && !w.pendingSeason) {
+      seedMissingClubs(w);
+      rebalanceDivisions(w);
+      startSeason(w);
+      const u = w.clubs[w.userClub];
+      pushMessage(w, { kind: 'info', title: 'As ligas cresceram', body: `Agora cada divisão tem 20 clubes (38 rodadas) e várias ligas ganharam uma divisão a mais. ${u ? `O ${u.name} começa a temporada na ${DIVISIONS[u.div]?.name ?? u.div}.` : ''}` });
+    } else {
+      pushMessage(w, { kind: 'info', title: 'As ligas vão crescer', body: 'Na próxima temporada cada divisão passa a ter 20 clubes (38 rodadas) e várias ligas ganham uma divisão a mais. A temporada atual continua como começou.' });
+    }
   }
   if (!(typeof lw.version === 'number' && lw.version >= WORLD_VERSION)) w.version = WORLD_VERSION;
   return w;

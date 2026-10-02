@@ -19,7 +19,7 @@ export type CupStatus = "playing" | "out" | "champion" | "runnerUp";
 /**
  * Sorteio dos participantes:
  * - "mixed": clubes das primeiras divisões de todas as ligas, misturados;
- * - "league": os 16 clubes da divisão do time escolhido.
+ * - "league": clubes da divisão do time escolhido (completando com o resto da liga).
  */
 export type CupScope = "mixed" | "league";
 

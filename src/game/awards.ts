@@ -3,11 +3,11 @@ import { NAMES_BY_NAT } from './names';
 import type { AwardPlayer, AwardRankingEntry, Competition, DivisionId, Player, Position, SeasonAwards, TableRow, World } from './types';
 
 const avg = (p: Player): number => p.s.apps ? p.s.rsum / p.s.apps : 0;
-const DIVISION_WEIGHT = [1, 0.72, 0.52];
+const DIVISION_WEIGHT = [1, 0.72, 0.52, 0.4];
 /** Importância da liga: nível da divisão domina; prestígio do país só desempata ligas do mesmo nível. */
 const divisionWeight = (div: DivisionId): number => {
   const info = DIVISIONS[div];
-  return (DIVISION_WEIGHT[info.level - 1] ?? 0.52) * (0.92 + (LEAGUES[info.league].wealth - 0.75) * 0.16);
+  return (DIVISION_WEIGHT[info.level - 1] ?? 0.4) * (0.92 + (LEAGUES[info.league].wealth - 0.75) * 0.16);
 };
 
 interface Contribution { goals: number; assists: number; goalPoints: number; assistPoints: number }

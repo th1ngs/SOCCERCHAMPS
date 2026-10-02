@@ -1,24 +1,22 @@
 // Times do modo arcade e do online: os clubes do Manager, com a força para resultados simulados.
 import { CLUBS } from "@/game/clubs";
 import { LEAGUE_IDS, divisionLevel } from "@/game/leagues";
+import { expectedXi, strengthStars } from "@/game/squad";
 import type { ClubStatic, LeagueId } from "@/game/types";
 
 export interface ArcadeTeam {
   id: string;
   name: string;
   club: ClubStatic;
-  /** Força para os resultados simulados da Copa (escala 70-92 do legado). */
+  /** Força esperada do time titular (reputação + qualidade da liga/divisão): ~58 a ~86. */
   rating: number;
 }
-
-const REP_MIN = Math.min(...CLUBS.map((c) => c.rep));
-const REP_MAX = Math.max(...CLUBS.map((c) => c.rep));
 
 export const ARCADE_TEAMS: ArcadeTeam[] = CLUBS.map((club) => ({
   id: club.id,
   name: club.name,
   club,
-  rating: Math.round(70 + ((club.rep - REP_MIN) / Math.max(1, REP_MAX - REP_MIN)) * 22),
+  rating: Math.round(expectedXi(club)),
 }));
 
 /** Times de uma liga, da primeira divisão para baixo e por prestígio (ordem de CLUBS). */
@@ -35,5 +33,5 @@ export const LEAGUE_CODE: Record<LeagueId, string> = { bra: "BRA", arg: "ARG", p
 
 export const teamById = (id: string | null | undefined): ArcadeTeam | undefined => (id ? ARCADE_TEAMS.find((t) => t.id === id) : undefined);
 
-/** Estrelas de 1 a 4 (legado: round((rating - 70) / 5)). */
-export const teamStars = (t: ArcadeTeam): number => Math.max(1, Math.round((t.rating - 70) / 5));
+/** Estrelas de 0,5 a 5 (mesma escala global do Manager: força do time titular). */
+export const teamStars = (t: ArcadeTeam): number => strengthStars(t.rating);

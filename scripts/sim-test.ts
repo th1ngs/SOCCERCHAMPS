@@ -1,4 +1,4 @@
-// Teste de balanceamento headless do motor do Manager (13 ligas, World v8).
+// Teste de balanceamento headless do motor do Manager (13 ligas, World v9).
 //   npx tsx scripts/sim-test.ts [clubId] [--seasons N] [--checks]
 // Sem --checks: simula N temporadas (padrão 3) com todos os clubes no automático e imprime
 // campeões, gols por jogo e artilheiros por liga, tempo por temporada e tamanho do JSON.
@@ -13,7 +13,7 @@ import { postMatchInsights } from '../src/components/match/postMatch';
 import { calendarHighlights } from '../src/components/home/calendarEvents';
 import * as G from '../src/game';
 import {
-  CLUBS, DIVISIONS, DIVISION_IDS, DIVISION_SIZE, IncompatibleSaveError, LEAGUES, LEAGUE_IDS, LOAN_OPTIONS, Sim, TRAITS,
+  CLUBS, DIVISIONS, DIVISION_IDS, DIVISION_SIZE, LEAGUE_ROUNDS, PROMOTION_SPOTS, IncompatibleSaveError, LEAGUES, LEAGUE_IDS, LOAN_OPTIONS, Sim, TRAITS,
   UPGRADES, WORLD_VERSION, advanceCalendarDay, autoLineup, applyResult, calendarDate, clubPlayers, completeBuy, competitionName, contEntrants,
   currentWeek, cupId, divisionFullName, endWeek, ensureLineup, evaluateBid, expectedGate, firstDivisions, formatMoney,
   injuryLabel, injuryWeeks, isCompatible, marketPlayers, isDerby, isDivision, jobOffers, loanBalance, migrateWorld, newSeason,
@@ -84,8 +84,8 @@ function checkCalendar(): void {
     const matches = w.weeks.flatMap((week) => week?.matches.filter((m) => m.comp === div) ?? []);
     for (const club of Object.values(w.clubs).filter((c) => c.div === div)) {
       const sequence = matches.filter((m) => m.h === club.id || m.a === club.id).map((m) => m.h === club.id ? 'H' : 'A').join('');
-      assert(sequence.length === 30, `${club.id}: 30 jogos de liga`);
-      assert((sequence.match(/H/g) ?? []).length === 15, `${club.id}: 15 mandos`);
+      assert(sequence.length === LEAGUE_ROUNDS, `${club.id}: ${LEAGUE_ROUNDS} jogos de liga`);
+      assert((sequence.match(/H/g) ?? []).length === LEAGUE_ROUNDS / 2, `${club.id}: metade dos jogos em casa`);
       assert(Math.max(...(sequence.match(/H+|A+/g) ?? []).map((run) => run.length)) <= 2, `${club.id}: sem longa sequência de mandos`);
     }
   }
@@ -102,7 +102,7 @@ function checkCalendar(): void {
   for (const week of legacy.weeks) {
     if (week?.type !== 'league') continue;
     const match = week.matches.find((m) => m.h === legacy.userClub || m.a === legacy.userClub)!;
-    if ((round < 15 && match.h === legacy.userClub) || (round >= 15 && match.a === legacy.userClub)) [match.h, match.a] = [match.a, match.h];
+    if ((round < LEAGUE_ROUNDS / 2 && match.h === legacy.userClub) || (round >= LEAGUE_ROUNDS / 2 && match.a === legacy.userClub)) [match.h, match.a] = [match.a, match.h];
     if (round < 3) match.played = true;
     round++;
   }
@@ -110,7 +110,7 @@ function checkCalendar(): void {
   migrateWorld(legacy);
   const repaired = legacy.weeks.flatMap((week) => week?.type === 'league' ? week.matches.filter((m) => m.h === legacy.userClub || m.a === legacy.userClub) : []);
   assert(repaired.slice(0, 3).every((m) => m.played && m.a === legacy.userClub), 'migração preserva jogos disputados');
-  assert((repaired.filter((m) => m.h === legacy.userClub)).length === 15, 'migração mantém 15 mandos');
+  assert((repaired.filter((m) => m.h === legacy.userClub)).length === LEAGUE_ROUNDS / 2, 'migração mantém metade dos mandos');
   const future = repaired.slice(3).map((m) => m.h === legacy.userClub ? 'H' : 'A').join('');
   assert(Math.max(...(future.match(/H+|A+/g) ?? []).map((run) => run.length)) <= 3, 'migração intercala jogos futuros');
 }
@@ -288,7 +288,7 @@ const adhoc = (w: World, h: string, a: string): Match => ({ id: 'chk' + h + a, h
 
 function runV2Checks(w: World): void {
   const u = user(w);
-  assert(w.version === WORLD_VERSION && WORLD_VERSION === 8, 'World v8');
+  assert(w.version === WORLD_VERSION && WORLD_VERSION === 9, 'World v9');
 
   // Características e Craque
   const all = Object.values(w.players);
@@ -378,7 +378,7 @@ function runV2Checks(w: World): void {
   }
   delete (old as Record<string, unknown>).finWeek;
   const mig = migrateWorld(old);
-  assert(mig.version === 8, 'migrateWorld -> v8');
+  assert(mig.version === WORLD_VERSION, 'migrateWorld -> versão atual');
   assert(Object.values(mig.clubs).every((c) => c.fans === 60 && c.ticketPrice === 'normal' && c.loan === null && !!c.captain && !!c.penTaker && typeof c.rival === 'string'), 'clubes migrados');
   assert(Object.values(mig.players).every((p) => Array.isArray(p.traits) && typeof p.star === 'boolean' && !!p.nat && (p.inj > 0 ? !!p.injType : p.injType === null)), 'jogadores migrados');
   const once = JSON.stringify(mig);
@@ -441,8 +441,8 @@ function runLeagueQualityChecks(w: World): void {
 /** Temporada completa com todas as ligas: acesso/rebaixamento, copas, Copa dos Campeões, histórico, mercado. */
 function runLeagueChecks(w: World): void {
   // Estrutura
-  for (const div of DIVISION_IDS) assert(Object.values(w.clubs).filter((c) => c.div === div).length === DIVISION_SIZE, `${div} com 16 clubes`);
-  assert(CLUBS.length === 432 && new Set(CLUBS.map((c) => c.id)).size === 432, '432 clubes com ids únicos');
+  for (const div of DIVISION_IDS) assert(Object.values(w.clubs).filter((c) => c.div === div).length === DIVISION_SIZE, `${div} com ${DIVISION_SIZE} clubes`);
+  assert(CLUBS.length === DIVISION_IDS.length * DIVISION_SIZE && new Set(CLUBS.map((c) => c.id)).size === CLUBS.length, `${CLUBS.length} clubes com ids únicos`);
   for (const c of CLUBS) assert(w.clubs[c.rival] && w.clubs[c.rival].league === c.league && c.rival !== c.id, `rival de ${c.id} na mesma liga`);
   const comps = userCompetitions(w);
   assert(comps[0] === user(w).div, 'userCompetitions começa pela divisão');
@@ -471,7 +471,7 @@ function runLeagueChecks(w: World): void {
   for (const lg of LEAGUE_IDS) {
     const divs = LEAGUES[lg].divisions;
     const mv = ps.moves.filter((m) => DIVISIONS[m.from].league === lg);
-    assert(mv.length === (divs.length - 1) * 6, `${lg}: ${mv.length} trocas de divisão`);
+    assert(mv.length === (divs.length - 1) * PROMOTION_SPOTS * 2, `${lg}: ${mv.length} trocas de divisão`);
     for (const m of mv) assert(Math.abs(DIVISIONS[m.from].level - DIVISIONS[m.to].level) === 1 && DIVISIONS[m.to].league === lg, 'troca entre divisões vizinhas');
   }
   // Classificação continental
@@ -500,7 +500,7 @@ function runLeagueChecks(w: World): void {
   const divBefore: Record<string, DivisionId> = {};
   for (const c of Object.values(w.clubs)) divBefore[c.id] = c.div;
   newSeason(w);
-  for (const div of DIVISION_IDS) assert(Object.values(w.clubs).filter((c) => c.div === div).length === DIVISION_SIZE, `${div} com 16 clubes após newSeason`);
+  for (const div of DIVISION_IDS) assert(Object.values(w.clubs).filter((c) => c.div === div).length === DIVISION_SIZE, `${div} com ${DIVISION_SIZE} clubes após newSeason`);
   const moved = Object.values(w.clubs).filter((c) => c.div !== divBefore[c.id]).length;
   assert(moved === ps.moves.length, 'newSeason aplica as trocas');
   assert(contEntrants(w).slice().sort().join() === ps.contNext.slice().sort().join(), 'Copa dos Campeões usa os classificados');
@@ -722,16 +722,16 @@ function runV4Checks(): void {
   const id2 = w.nextMsg;
   advance(w);
   assert(w.inbox.some((m) => m.id >= id2 && m.pid === wp.id && /trocou de clube/.test(m.body)), 'aviso: trocou de clube');
-  advanceTo(w, 5);
-  assert(w.inbox.some((m) => m.title === 'Dia do fechamento da janela' && m.week === 4), 'notícia do dia do fechamento (semana 4)');
+  advanceTo(w, G.WINDOWS[0][1] + 1);
+  assert(w.inbox.some((m) => m.title === 'Dia do fechamento da janela' && m.week === G.WINDOWS[0][1]), 'notícia do dia do fechamento');
   console.log(`scout/watch/deadline ok: "${rep.body.slice(0, 90)}…"`);
 
   // ---- cooldown expira na janela do meio; parcelas pagas; promessa cobrada ----
-  advanceTo(w, 15);
+  advanceTo(w, G.WINDOWS[1][0]);
   const again = G.negotiateTransfer(w, nt.id, { fee: G.askingPrice(w, nt), installments: 1 });
   assert(w.week - ntWeek >= 4 && again.status === 'accepted' && again.patience === 3, 'após o cooldown o clube volta a negociar');
   delete w.negotiations[nt.id];
-  advanceTo(w, 21);
+  advanceTo(w, G.PROMISE_CHECK_WEEK + 1);
   assert((w.payables.length as number) === 0, 'parcelas pagas no endWeek');
   const paid = G.transferHistory(w, { clubId: u.id }).length > 0 && w.inbox.filter((m) => m.title === 'Parcela paga').length === 2;
   assert(paid, 'duas parcelas pagas com mensagem');
@@ -741,7 +741,7 @@ function runV4Checks(): void {
   const rp = clubPlayers(w, u).find((p) => !p.loan && p.id !== bt.id) as G.Player;
   const ra = G.renewAsk(w, rp.id);
   const rr = G.negotiateRenewal(w, rp.id, { ...ra, wage: Math.round(ra.wage * 1.3), years: ra.years });
-  assert(rr.status === 'accepted' && rp.contract === ra.years && rp.releaseClause === ra.releaseClause && rp.promise === ra.role, 'negotiateRenewal');
+  assert(rr.status === 'accepted' && rp.contract === G.renewedContract(w, ra.years) && rp.releaseClause === ra.releaseClause && rp.promise === ra.role, 'negotiateRenewal');
 
   // ---- fim da temporada: empréstimos voltam ----
   const season = w.season;
@@ -773,7 +773,7 @@ function runV4Checks(): void {
   }
   assert(isCompatible(v3), 'v3 é compatível');
   const m4 = migrateWorld(v3);
-  assert(m4.version === 8 && Array.isArray(m4.transfers) && Array.isArray(m4.scoutQueue) && m4.negotiations && m4.scouting, 'campos de World v4');
+  assert(m4.version === WORLD_VERSION && Array.isArray(m4.transfers) && Array.isArray(m4.scoutQueue) && m4.negotiations && m4.scouting, 'campos de World v4');
   assert(Object.values(m4.clubs).every((c) => c.scouting >= 1 && c.scouting <= 5 && c.academyFocus === 'balanced'), 'clubes v4');
   assert(Object.values(m4.players).every((p) => p.start && p.loan === null && typeof p.releaseClause === 'number'), 'jogadores v4');
   const j4 = JSON.stringify(m4);
@@ -869,6 +869,7 @@ function runV5Checks(): void {
   assert(ren.before === before && ren.after > 0 && ren.after <= before * 1.45 + 1000 && ren.after >= before * 0.7 - 1000, 'renovação do patrocínio limitada');
   runV6Checks();
   runV8Checks();
+  runV9Checks();
   runPlayerCareerChecks();
   console.log(`finance ok: receita/sem 1ª div eng ${formatMoney(rev('eng'))}, bra ${formatMoney(rev('bra'))}, arg ${formatMoney(rev('arg'))}; teto ${formatMoney(u.wageCap)}`);
 }
@@ -963,7 +964,7 @@ function runV6Checks(): void {
   assert(car[0].current && car.some((r) => !r.current), 'carreira do jogador: atual + passadas');
   assert(G.clubIdols(w, u.id, 5).length > 0, 'ídolos do clube');
   const json = JSON.stringify(w);
-  assert(JSON.stringify(G.migrateWorld(JSON.parse(json))) === json, 'migrateWorld v8 idempotente');
+  assert(JSON.stringify(G.migrateWorld(JSON.parse(json))) === json, 'migrateWorld idempotente');
   console.log(`v7 ok: cruzamentos ${crosses}, conversas ${talks}, histórico ${withHist}, Copa das Nações ${e.season}: ${e.champion}`);
 }
 
@@ -1073,4 +1074,81 @@ function runPlayerCareerChecks(): void {
   const json = JSON.stringify(w);
   assert(JSON.stringify(G.migrateWorld(JSON.parse(json))) === json, 'migrateWorld preserva a carreira de jogador');
   console.log(`player career ok: ${reports} jogos, ${row.apps} em campo, ${row.goals} gols, ${accepted} transferência(s), ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+}
+
+/** Expansão (20 clubes por divisão, mais divisões), estrelas pela força dos titulares e renovações em lote (World v9). */
+function runV9Checks(): void {
+  const w = freshWorld();
+  const u = user(w);
+  // Estrutura e calendário
+  assert(G.seasonWeeks(w) === G.TOTAL_WEEKS && G.leagueRounds(w) === LEAGUE_ROUNDS && LEAGUE_ROUNDS === (DIVISION_SIZE - 1) * 2, `temporada de ${G.TOTAL_WEEKS} semanas e ${LEAGUE_ROUNDS} rodadas`);
+  for (const lg of LEAGUE_IDS) {
+    const cup = w.cups[cupId(lg)]!;
+    assert(cup.entrants.length === 32 && new Set(cup.entrants).size === 32, `${lg}: Copa Nacional com 32 clubes`);
+  }
+  // Estrelas: até 5, ligas fracas e divisões de baixo com menos estrelas.
+  const stars = (div: DivisionId) => Object.values(w.clubs).filter((c) => c.div === div).map((c) => G.clubStars(w, c));
+  const eng1 = stars('eng1'), gre1 = stars('gre1'), bra4 = stars('bra4');
+  assert(Math.max(...eng1) >= 4.5 && Math.max(...eng1) <= 5, `estrelas até 5 (eng1 máx ${Math.max(...eng1)})`);
+  assert(Math.max(...gre1) <= 3.5 && Math.max(...bra4) <= 2.5, `ligas fracas sem tantas estrelas (gre1 ${Math.max(...gre1)}, bra4 ${Math.max(...bra4)})`);
+  // A força é a dos titulares: reservas ruins não mudam, titulares sim.
+  const xi0 = G.teamRating(w, u);
+  const benchGuy = w.players[u.squad.find((id) => !u.lineup.includes(id))!];
+  const ovr0 = benchGuy.ovr;
+  benchGuy.ovr = 30;
+  assert(G.teamRating(w, u) === xi0, 'reserva não muda a força do time');
+  benchGuy.ovr = ovr0;
+  const starter = w.players[u.lineup.find(Boolean)!];
+  starter.ovr -= 20;
+  assert(G.teamRating(w, u) < xi0, 'titular muda a força do time');
+  starter.ovr += 20;
+
+  // Migração v8 -> v9 na pré-temporada: clubes novos e divisões de 20.
+  const old = JSON.parse(JSON.stringify(w)) as World;
+  // Save antigo: sem os clubes novos e com 16 clubes por divisão.
+  const legacyWorld = (x: World) => {
+    for (const id of Object.keys(x.clubs)) if (/-n\d\d$/.test(id)) delete x.clubs[id];
+    for (const lg of LEAGUE_IDS) {
+      const divs = LEAGUES[lg].divisions;
+      Object.values(x.clubs).filter((c) => c.league === lg).sort((a, b) => b.rep - a.rep).forEach((c, i) => { c.div = divs[Math.floor(i / 16)]; });
+    }
+  };
+  legacyWorld(old);
+  old.version = 8;
+  old.week = 0;
+  const mig = G.migrateWorld(old);
+  assert(Object.keys(mig.clubs).length === CLUBS.length && DIVISION_IDS.every((d) => Object.values(mig.clubs).filter((c) => c.div === d).length === DIVISION_SIZE), 'migração v9: 20 clubes em cada divisão');
+  assert(mig.inbox[0].title === 'As ligas cresceram' && mig.weeks.length === G.TOTAL_WEEKS + 1, 'migração v9 refaz o calendário e avisa');
+  const mid = JSON.parse(JSON.stringify(w)) as World;
+  legacyWorld(mid);
+  mid.version = 8;
+  mid.week = 12;
+  const mig2 = G.migrateWorld(mid);
+  assert(Object.keys(mig2.clubs).length < CLUBS.length && mig2.inbox[0].title === 'As ligas vão crescer', 'no meio da temporada a expansão fica para a próxima');
+  const added = G.seedMissingClubs(mig2);
+  assert(added > 0 && G.rebalanceDivisions(mig2) && DIVISION_IDS.every((d) => Object.values(mig2.clubs).filter((c) => c.div === d).length === DIVISION_SIZE), 'newSeason completa e reorganiza as divisões');
+
+  // Renovações: plano, lote e avisos.
+  const mine = clubPlayers(w, u).filter((p) => !p.loan).sort((a, b) => b.ovr - a.ovr).slice(0, 6);
+  for (const p of mine) { p.contract = 1; p.renewAsk = null; p.morale = 70; }
+  u.money += 50_000_000;
+  const plan = G.renewalPlan(w, 1.12);
+  assert(plan.length >= 6 && plan.every((r) => r.terms.wage > 0 && r.chance >= 0 && r.chance <= 1), 'renewalPlan');
+  const wk = G.renewalWeeks(w);
+  w.week = wk.first;
+  const m0 = w.nextMsg;
+  G.renewalReminders(w);
+  const warn = w.inbox.find((m) => m.id >= m0 && m.link?.href.includes('renovacoes'));
+  assert(warn && /contratos? no último ano/.test(warn.title), 'aviso de contratos no início da temporada');
+  const ids = mine.slice(0, 4).map((p) => p.id);
+  const res = G.bulkRenew(w, ids, 1.12);
+  assert(res.renewed.length + res.failed.length === 4 && res.renewed.length >= 2, `renovação em lote (${res.renewed.length}/4)`);
+  assert(res.renewed.every((r) => w.players[r.pid].contract === G.renewedContract(w, r.years) && w.players[r.pid].wage === r.wage), 'renovados com os novos termos');
+  w.autoRenew = 'all';
+  w.week = wk.last;
+  const m1 = w.nextMsg;
+  G.renewalReminders(w);
+  const auto = w.inbox.find((m) => m.id >= m1);
+  assert(auto && auto.title.startsWith('Renovação automática'), 'renovação automática na reta final');
+  console.log(`v9 ok: ${CLUBS.length} clubes, ${DIVISION_IDS.length} divisões; estrelas eng1 ${Math.min(...eng1)}–${Math.max(...eng1)}, gre1 ${Math.min(...gre1)}–${Math.max(...gre1)}, bra4 ${Math.min(...bra4)}–${Math.max(...bra4)}; lote ${res.renewed.length}/4; "${auto.title}"`);
 }

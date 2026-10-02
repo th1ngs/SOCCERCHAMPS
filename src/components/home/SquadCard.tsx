@@ -75,7 +75,7 @@ export function SquadCard() {
         )}
         {a.expiring.length > 0 && (
           <AlertLine icon={<FileClock />} tone="text-info-400">
-            <b>{a.expiring.length}</b> contrato(s) terminam nesta temporada. <Link href="/jogo/elenco" className={link}>Renovar</Link>
+            <b>{a.expiring.length}</b> contrato(s) terminam nesta temporada. <Link href="/jogo/elenco#renovacoes" className={link}>Renovar</Link>
           </AlertLine>
         )}
         {a.clean && (

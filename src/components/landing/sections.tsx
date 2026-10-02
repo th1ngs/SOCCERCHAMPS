@@ -126,7 +126,7 @@ export function LeaguesShowcase() {
               <li key={d} className="flex items-center gap-2 text-sm">
                 <span className={cn("grid size-5 place-items-center rounded font-display text-xs font-bold", i === 0 ? "bg-gold-400 text-ink-950" : "bg-white/8 text-mist")}>{i + 1}</span>
                 <span className={i === 0 ? "font-semibold text-snow" : "text-mist"}>{d}</span>
-                <span className="ml-auto text-xs text-mist/70">16 clubes</span>
+                <span className="ml-auto text-xs text-mist/70">20 clubes</span>
               </li>
             ))}
           </ol>

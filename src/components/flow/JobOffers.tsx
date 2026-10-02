@@ -1,12 +1,11 @@
 "use client";
 
 import { ChevronRight, MapPin } from "lucide-react";
-import { divisionFullName, divisionLevel } from "@/game";
+import { clubStars, divisionFullName, divisionLevel } from "@/game";
 import { Crest } from "@/components/ui/Crest";
 import { Flag } from "@/components/ui/Flag";
 import { Badge, Stars } from "@/components/ui/primitives";
 import { useWorld } from "@/components/game/GameProvider";
-import { prestigeStars } from "@/components/start/clubTiers";
 
 /** Cartões de propostas de emprego: o cartão inteiro é o botão "Assumir o clube". */
 export function JobOffers({ ids, onPick }: { ids: string[]; onPick: (id: string) => void }) {
@@ -34,7 +33,7 @@ export function JobOffers({ ids, onPick }: { ids: string[]; onPick: (id: string)
               </span>
               <span className="flex items-center gap-2">
                 <Badge tone={divisionLevel(c.div) === 1 ? "gold" : "blue"}>{divisionLevel(c.div)}ª divisão</Badge>
-                <Stars value={prestigeStars(c.rep)} />
+                <Stars value={clubStars(w, c)} />
               </span>
               <span className="mt-auto inline-flex items-center gap-1 pt-1 font-display text-sm font-bold uppercase tracking-wide text-gold-400">
                 Assumir o clube <ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />

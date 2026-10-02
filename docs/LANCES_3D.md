@@ -145,7 +145,7 @@ As qualidades do jogador (as mesmas do Manager) mudam o lance. As de quem conduz
   - **Simular os lances restantes** decide o resto pela chance do nível;
   - **mata-mata empatado:** lances decisivos (um de cada lado até alguém fazer e o outro não), que viram os pênaltis da súmula.
 - **Arcade (`/arcade`):**
-  - amistoso e Copa (16 clubes, mata-mata);
+  - amistoso e Copa (16 clubes, mata-mata; o modo "liga" sorteia da divisão do time escolhido);
   - escolha de 5, 7 ou 9 lances por partida;
   - os gols do adversário são sorteados pela dificuldade e pela força relativa dos times.
 - **Online (`/multiplayer`):** duelo de lances, descrito em `CARREIRA_JOGADOR_E_MULTIPLAYER.md`.

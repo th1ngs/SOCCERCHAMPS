@@ -1,4 +1,26 @@
-# Ligas e divisões — contrato (World v3)
+# Ligas e divisões — contrato (World v3, expandido na v9)
+
+## Expansão (World v9) — vale sobre o resto deste documento
+- **20 clubes por divisão**, 38 rodadas (turno e returno) e **4 sobem / 4 caem** (`DIVISION_SIZE`, `LEAGUE_ROUNDS`, `PROMOTION_SPOTS`).
+- **Divisões:** Brasil 4 (Série D nova); Argentina, Portugal, Espanha, Inglaterra, Itália, Alemanha e França 3
+  (Primera B, Liga 3, Primera Federación, Second Division, Serie C, 3. Liga, National); as demais 2. São 35 divisões e 700 clubes.
+- **Clubes novos:** `src/game/clubs/lower.ts` (ids `<liga>-nNN`), com reputação caindo a partir do último clube original;
+  `CLUB_SEEDS` junta originais + novos e `toStatic` reparte em blocos de 20.
+- **Calendário (47 semanas, `TOTAL_WEEKS`):** Copa Nacional nas semanas 5, 13, 21, 29 e 37; Copa dos Campeões em 9, 17, 25 e 33;
+  janelas 0–5 e 19–24; promessas cobradas na semana 24. `seasonWeeks(w)`/`leagueRounds(w)` leem o calendário do save,
+  então uma temporada antiga (39 semanas) termina no formato em que começou.
+- **Copa Nacional:** 32 clubes — a primeira divisão inteira e os 12 de maior reputação da segunda.
+- **Evolução dos jogadores:** o ganho por treino é escalado por `LEGACY_SEASON_WEEKS / seasonWeeks`, para a evolução por temporada continuar a mesma.
+- **Força e estrelas:** a força de um time é a dos **titulares** (`teamRating`, com encaixe na posição), nunca a do banco.
+  `strengthStars(xi)` vai de 0,5 a 5 estrelas (58 → 0,5; 86 → 5); `clubStars(w, c)` no jogo e `expectedXi(c)` sem mundo
+  (escolha de clube, arcade, online). Ligas fracas e divisões de baixo ficam com poucas estrelas.
+- **Migração v8 → v9:** na pré-temporada, `seedMissingClubs` + `rebalanceDivisions` + `startSeason` na hora; no meio da
+  temporada, só um aviso — a expansão entra no `newSeason`. `rebalanceDivisions` ordena por divisão atual e reputação e
+  reparte em blocos de 20 (os melhores de baixo sobem para completar as vagas).
+- **Renovações (`src/game/renewals.ts`):** `renewalPlan` (recomendação por jogador), `bulkRenew` (renovação em lote com o
+  pedido do jogador + acréscimo; aceita contraproposta até 10% acima), avisos nas semanas 2, n−12 e n−3 e a
+  renovação automática opcional (`w.autoRenew`: `off` | `key` | `all`) na semana n−3. Renovar por N anos dá N temporadas
+  depois da atual (`renewedContract`).
 
 ## Estrutura
 Seis ligas nacionais. Cada divisão tem **16 clubes** e 30 rodadas (turno e returno).

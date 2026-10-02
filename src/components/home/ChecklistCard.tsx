@@ -84,8 +84,8 @@ function checklist(w: World): Item[] {
       tone: "todo",
       icon: <FileClock />,
       title: `${a.expiring.length} contrato${a.expiring.length > 1 ? "s" : ""} no último ano`,
-      detail: "Renove quem você quer manter antes que saia de graça.",
-      href: "/jogo/elenco",
+      detail: w.autoRenew && w.autoRenew !== "off" ? "A renovação automática roda perto do fim da temporada; revise antes se quiser." : "Renove vários de uma vez no Elenco, ou ligue a renovação automática.",
+      href: "/jogo/elenco#renovacoes",
     });
   }
 

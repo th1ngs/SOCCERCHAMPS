@@ -6,7 +6,7 @@ import { clubWage, newPlayer, newWorld, releaseClauseFor, valueOf } from './gen'
 import { LEAGUES, clubBaseOvr, competitionName, divisionFullName, prestigeOf } from './leagues';
 import { formatMoney } from './util';
 import { transfer } from './market';
-import { ROLE_NAME } from './transfers';
+import { ROLE_NAME, renewedContract } from './transfers';
 import { seasonTitles } from './career';
 import { autoLineup } from './squad';
 import type {
@@ -181,7 +181,7 @@ function weeklyOffers(w: World, p: Player): void {
     if (chance(prob)) addOffers(w, p, 'transfer', 1);
   }
   // Último ano de contrato: a partir da semana 18 o clube decide se renova.
-  if (p.contract <= 1 && w.week >= 18 && c.renewSeason !== w.season) {
+  if (p.contract <= 1 && w.week >= 22 && c.renewSeason !== w.season) {
     c.renewSeason = w.season;
     if (c.trust >= 35 || p.ovr >= clubBaseOvr(club) - 3) {
       const o = makeOffer(w, p, club, 'renew');
@@ -210,7 +210,7 @@ export function acceptCareerOffer(w: World, id: number): OfferResult {
   if (!club) return { ok: false, reason: 'Clube não encontrado.' };
   if (o.kind === 'transfer' && !windowOpen(w)) return { ok: false, reason: 'A janela de transferências está fechada.' };
   if (o.kind === 'renew') {
-    p.contract = o.years;
+    p.contract = renewedContract(w, o.years);
     p.wage = o.wage;
     p.releaseClause = releaseClauseFor(p);
     c.trust = clamp(c.trust + 3, 0, 100);

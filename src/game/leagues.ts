@@ -14,14 +14,14 @@ export const LEAGUE_IDS: LeagueId[] = ['bra', 'arg', 'por', 'esp', 'eng', 'ita',
  *   têm poucos clubes ricos e cotas concentradas.
  */
 export const LEAGUES: Record<LeagueId, LeagueInfo> = {
-  bra: { id: 'bra', name: 'Brasil', country: 'Brasil', flag: '🇧🇷', wealth: 1.0, tv: 1.0, tvSplit: 0.55, commercial: 1.0, ticket: 1.0, quality: -0.5, talent: 1.3, domestic: 0.92, wages: 1.0, debt: 0.4, divisions: ['bra1', 'bra2', 'bra3'] },
-  arg: { id: 'arg', name: 'Argentina', country: 'Argentina', flag: '🇦🇷', wealth: 0.75, tv: 0.55, tvSplit: 0.5, commercial: 0.65, ticket: 0.6, quality: -1.5, talent: 1.25, domestic: 0.93, wages: 0.65, debt: 0.45, divisions: ['arg1', 'arg2'] },
-  por: { id: 'por', name: 'Portugal', country: 'Portugal', flag: '🇵🇹', wealth: 0.85, tv: 0.6, tvSplit: 0.75, commercial: 0.8, ticket: 0.85, quality: -0.5, talent: 1.1, domestic: 0.55, wages: 0.68, debt: 0.3, divisions: ['por1', 'por2'] },
-  esp: { id: 'esp', name: 'Espanha', country: 'Espanha', flag: '🇪🇸', wealth: 1.35, tv: 1.45, tvSplit: 0.45, commercial: 1.4, ticket: 1.45, quality: 3.5, talent: 1.1, domestic: 0.72, wages: 0.81, debt: 0.3, divisions: ['esp1', 'esp2'] },
-  eng: { id: 'eng', name: 'Inglaterra', country: 'Inglaterra', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', wealth: 1.6, tv: 2.3, tvSplit: 0.25, commercial: 1.6, ticket: 1.9, quality: 4, talent: 1.0, domestic: 0.58, wages: 1.0, debt: 0.15, divisions: ['eng1', 'eng2'] },
-  ita: { id: 'ita', name: 'Itália', country: 'Itália', flag: '🇮🇹', wealth: 1.25, tv: 1.25, tvSplit: 0.45, commercial: 1.2, ticket: 1.2, quality: 2.5, talent: 1.0, domestic: 0.65, wages: 0.77, debt: 0.4, divisions: ['ita1', 'ita2'] },
-  ger: { id: 'ger', name: 'Alemanha', country: 'Alemanha', flag: '🇩🇪', wealth: 1.45, tv: 1.65, tvSplit: 0.35, commercial: 1.5, ticket: 1.55, quality: 3, talent: 1.05, domestic: 0.62, wages: 1.02, debt: 0.2, divisions: ['ger1', 'ger2'] },
-  fra: { id: 'fra', name: 'França', country: 'França', flag: '🇫🇷', wealth: 1.2, tv: 1.2, tvSplit: 0.5, commercial: 1.25, ticket: 1.2, quality: 1, talent: 1.3, domestic: 0.72, wages: 1.03, debt: 0.28, divisions: ['fra1', 'fra2'] },
+  bra: { id: 'bra', name: 'Brasil', country: 'Brasil', flag: '🇧🇷', wealth: 1.0, tv: 1.0, tvSplit: 0.55, commercial: 1.0, ticket: 1.0, quality: -0.5, talent: 1.3, domestic: 0.92, wages: 1.0, debt: 0.4, divisions: ['bra1', 'bra2', 'bra3', 'bra4'] },
+  arg: { id: 'arg', name: 'Argentina', country: 'Argentina', flag: '🇦🇷', wealth: 0.75, tv: 0.55, tvSplit: 0.5, commercial: 0.65, ticket: 0.6, quality: -1.5, talent: 1.25, domestic: 0.93, wages: 0.65, debt: 0.45, divisions: ['arg1', 'arg2', 'arg3'] },
+  por: { id: 'por', name: 'Portugal', country: 'Portugal', flag: '🇵🇹', wealth: 0.85, tv: 0.6, tvSplit: 0.75, commercial: 0.8, ticket: 0.85, quality: -0.5, talent: 1.1, domestic: 0.55, wages: 0.68, debt: 0.3, divisions: ['por1', 'por2', 'por3'] },
+  esp: { id: 'esp', name: 'Espanha', country: 'Espanha', flag: '🇪🇸', wealth: 1.35, tv: 1.45, tvSplit: 0.45, commercial: 1.4, ticket: 1.45, quality: 3.5, talent: 1.1, domestic: 0.72, wages: 0.81, debt: 0.3, divisions: ['esp1', 'esp2', 'esp3'] },
+  eng: { id: 'eng', name: 'Inglaterra', country: 'Inglaterra', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', wealth: 1.6, tv: 2.3, tvSplit: 0.25, commercial: 1.6, ticket: 1.9, quality: 4, talent: 1.0, domestic: 0.58, wages: 1.0, debt: 0.15, divisions: ['eng1', 'eng2', 'eng3'] },
+  ita: { id: 'ita', name: 'Itália', country: 'Itália', flag: '🇮🇹', wealth: 1.25, tv: 1.25, tvSplit: 0.45, commercial: 1.2, ticket: 1.2, quality: 2.5, talent: 1.0, domestic: 0.65, wages: 0.77, debt: 0.4, divisions: ['ita1', 'ita2', 'ita3'] },
+  ger: { id: 'ger', name: 'Alemanha', country: 'Alemanha', flag: '🇩🇪', wealth: 1.45, tv: 1.65, tvSplit: 0.35, commercial: 1.5, ticket: 1.55, quality: 3, talent: 1.05, domestic: 0.62, wages: 1.02, debt: 0.2, divisions: ['ger1', 'ger2', 'ger3'] },
+  fra: { id: 'fra', name: 'França', country: 'França', flag: '🇫🇷', wealth: 1.2, tv: 1.2, tvSplit: 0.5, commercial: 1.25, ticket: 1.2, quality: 1, talent: 1.3, domestic: 0.72, wages: 1.03, debt: 0.28, divisions: ['fra1', 'fra2', 'fra3'] },
   ned: { id: 'ned', name: 'Holanda', country: 'Holanda', flag: '🇳🇱', wealth: 1.0, tv: 0.95, tvSplit: 0.55, commercial: 1.1, ticket: 1.15, quality: -1, talent: 1.2, domestic: 0.6, wages: 1.11, debt: 0.22, divisions: ['ned1', 'ned2'] },
   bel: { id: 'bel', name: 'Bélgica', country: 'Bélgica', flag: '🇧🇪', wealth: 0.95, tv: 0.85, tvSplit: 0.55, commercial: 1.0, ticket: 1.05, quality: -2, talent: 1.15, domestic: 0.52, wages: 1.17, debt: 0.25, divisions: ['bel1', 'bel2'] },
   tur: { id: 'tur', name: 'Turquia', country: 'Turquia', flag: '🇹🇷', wealth: 0.9, tv: 0.85, tvSplit: 0.6, commercial: 1.05, ticket: 0.9, quality: -3, talent: 1.0, domestic: 0.66, wages: 1.28, debt: 0.45, divisions: ['tur1', 'tur2'] },
@@ -31,7 +31,7 @@ export const LEAGUES: Record<LeagueId, LeagueInfo> = {
 
 // ---------- Qualidade e prestígio ----------
 /** Quanto da qualidade da liga vale em cada divisão (a diferença entre países é menor nas divisões de baixo). */
-const QUALITY_BY_LEVEL = [1, 0.75, 0.6];
+const QUALITY_BY_LEVEL = [1, 0.75, 0.6, 0.5];
 /** Pontos de prestígio por ponto de qualidade da liga (para comparar clubes de países diferentes). */
 export const PRESTIGE_PER_QUALITY = 2;
 
@@ -51,14 +51,14 @@ export const clubBaseOvr = (c: { rep: number; league: LeagueId; div: DivisionId 
 export const prestigeOf = (c: { rep: number; league: LeagueId }): number => c.rep + LEAGUES[c.league].quality * PRESTIGE_PER_QUALITY;
 
 const DIV_NAMES: Record<DivisionId, string> = {
-  bra1: 'Série A', bra2: 'Série B', bra3: 'Série C',
-  arg1: 'Primera División', arg2: 'Primera Nacional',
-  por1: 'Primeira Liga', por2: 'Segunda Liga',
-  esp1: 'Primera División', esp2: 'Segunda División',
-  eng1: 'Premier Division', eng2: 'First Division',
-  ita1: 'Serie A', ita2: 'Serie B',
-  ger1: 'Bundesliga', ger2: '2. Bundesliga',
-  fra1: 'Ligue 1', fra2: 'Ligue 2',
+  bra1: 'Série A', bra2: 'Série B', bra3: 'Série C', bra4: 'Série D',
+  arg1: 'Primera División', arg2: 'Primera Nacional', arg3: 'Primera B',
+  por1: 'Primeira Liga', por2: 'Segunda Liga', por3: 'Liga 3',
+  esp1: 'Primera División', esp2: 'Segunda División', esp3: 'Primera Federación',
+  eng1: 'Premier Division', eng2: 'First Division', eng3: 'Second Division',
+  ita1: 'Serie A', ita2: 'Serie B', ita3: 'Serie C',
+  ger1: 'Bundesliga', ger2: '2. Bundesliga', ger3: '3. Liga',
+  fra1: 'Ligue 1', fra2: 'Ligue 2', fra3: 'National',
   ned1: 'Eredivisie', ned2: 'Eerste Divisie',
   bel1: 'Pro League', bel2: 'Challenger Pro League',
   tur1: 'Süper Lig', tur2: '1. Lig',
@@ -74,10 +74,10 @@ for (const lg of LEAGUE_IDS) {
   });
 }
 export const DIVISION_IDS = Object.keys(DIVISIONS) as DivisionId[];
-/** Clubes por divisão. */
-export const DIVISION_SIZE = 16;
+/** Clubes por divisão (38 rodadas, turno e returno). */
+export const DIVISION_SIZE = 20;
 /** Quantos sobem/caem entre divisões vizinhas. */
-export const PROMOTION_SPOTS = 3;
+export const PROMOTION_SPOTS = 4;
 
 export const leagueOf = (div: DivisionId): LeagueId => DIVISIONS[div].league;
 export const divisionName = (div: DivisionId): string => DIVISIONS[div]?.name ?? div;
@@ -106,10 +106,13 @@ export function competitionName(comp: string): string {
 
 // ---------- Copas ----------
 /** Semanas das Copas Nacionais e da Copa dos Campeões. */
-export const CUP_WEEKS = [4, 10, 16, 22, 28];
-export const CONT_WEEKS = [7, 13, 19, 25];
-export const TOTAL_WEEKS = 39;
-export const LEAGUE_ROUNDS = 30;
+export const CUP_WEEKS = [5, 13, 21, 29, 37];
+export const CONT_WEEKS = [9, 17, 25, 33];
+/** Semanas da temporada: 38 rodadas de liga + 5 da Copa Nacional + 4 da Copa dos Campeões. */
+export const TOTAL_WEEKS = 47;
+export const LEAGUE_ROUNDS = 38;
+/** Semanas da temporada antiga (16 clubes por divisão), para escalas calibradas nela. */
+export const LEGACY_SEASON_WEEKS = 39;
 
 /** Nome da fase pelo número de clubes vivos (32 → "1ª fase" … 2 → "Final"). */
 export function roundNameBySize(size: number): string {
@@ -131,9 +134,9 @@ export const CUP_PRIZE = [1e6, 2e6, 3.5e6, 6e6, 12e6];
 /** Prêmio por fase vencida na Copa dos Campeões (sem fator wealth). */
 export const CONT_PRIZE = [4e6, 8e6, 15e6, 30e6];
 /** Cota de TV semanal por nível de divisão (× wealth). */
-export const TV_BASE = [380000, 190000, 140000];
+export const TV_BASE = [380000, 190000, 140000, 90000];
 /** Prêmio da liga por posição: (17 − posição) × base[nível] × wealth. */
-export const LEAGUE_PRIZE_BASE = [0.8e6, 0.25e6, 0.1e6];
+export const LEAGUE_PRIZE_BASE = [0.8e6, 0.25e6, 0.1e6, 0.05e6];
 /** Vagas por primeira divisão na Copa dos Campeões (antes do corte para 16). */
 export const CONT_SPOTS = 3;
 export const CONT_SIZE = 16;

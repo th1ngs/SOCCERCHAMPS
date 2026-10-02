@@ -2,11 +2,11 @@
 
 import { useMemo } from "react";
 import { ChevronRight, Flame, Users } from "lucide-react";
-import { divisionFullName, expectedGate, formatMoney, isDerby, isKnockout, nextFixture, position, table, teamRating, user, userForm } from "@/game";
+import { divisionFullName, expectedGate, formatMoney, isDerby, isKnockout, nextFixture, position, strengthStars, table, teamRating, user, userForm } from "@/game";
 import type { Club } from "@/game/types";
 import { Button } from "@/components/ui/Button";
 import { Crest } from "@/components/ui/Crest";
-import { Badge, Card, EmptyState, FormChips } from "@/components/ui/primitives";
+import { Badge, Card, EmptyState, FormChips, Stars } from "@/components/ui/primitives";
 import { useWorld } from "@/components/game/GameProvider";
 import { useFlow } from "@/components/game/useFlow";
 import { Flag } from "@/components/ui/Flag";
@@ -111,8 +111,9 @@ export function NextMatchCard() {
             </>
           )}
         </Fact>
-        <Fact label="Força">
+        <Fact label="Força (titulares)">
           {oppStr}
+          <Stars value={strengthStars(oppStr)} className="text-[11px]" />
           <span className={diff >= 0 ? "text-xs text-pitch-400" : "text-xs text-danger-400"}>
             ({diff >= 0 ? "você +" : "você "}{diff})
           </span>

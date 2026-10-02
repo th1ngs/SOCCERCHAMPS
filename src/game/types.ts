@@ -26,13 +26,13 @@ export interface InstructionOption {
 export type TrainingKey = 'low' | 'mid' | 'high';
 export type LeagueId = 'bra' | 'arg' | 'por' | 'esp' | 'eng' | 'ita' | 'ger' | 'fra' | 'ned' | 'bel' | 'tur' | 'sco' | 'gre';
 export type DivisionId =
-  | 'bra1' | 'bra2' | 'bra3'
-  | 'arg1' | 'arg2'
-  | 'por1' | 'por2'
-  | 'esp1' | 'esp2'
-  | 'eng1' | 'eng2'
-  | 'ita1' | 'ita2'
-  | 'ger1' | 'ger2' | 'fra1' | 'fra2' | 'ned1' | 'ned2' | 'bel1' | 'bel2'
+  | 'bra1' | 'bra2' | 'bra3' | 'bra4'
+  | 'arg1' | 'arg2' | 'arg3'
+  | 'por1' | 'por2' | 'por3'
+  | 'esp1' | 'esp2' | 'esp3'
+  | 'eng1' | 'eng2' | 'eng3'
+  | 'ita1' | 'ita2' | 'ita3'
+  | 'ger1' | 'ger2' | 'ger3' | 'fra1' | 'fra2' | 'fra3' | 'ned1' | 'ned2' | 'bel1' | 'bel2'
   | 'tur1' | 'tur2' | 'sco1' | 'sco2' | 'gre1' | 'gre2';
 /** @deprecated use DivisionId. */
 export type Division = DivisionId;
@@ -633,6 +633,13 @@ export interface Message {
   pid?: string;
   /** Conversa com um jogador, com opções de resposta (v6). */
   talk?: Talk;
+  /** Atalho para uma tela do jogo (ex.: renovações no Elenco). */
+  link?: MessageLink;
+}
+
+export interface MessageLink {
+  href: string;
+  label: string;
 }
 
 export type TalkKind = 'bench' | 'raise' | 'leave';
@@ -676,6 +683,7 @@ export interface MessageInput {
   offer?: Offer;
   pid?: string;
   talk?: Talk;
+  link?: MessageLink;
   read?: boolean;
 }
 
@@ -867,6 +875,8 @@ export interface World {
   teamTalk?: TeamTalk | null;
   /** Carreira de jogador (v8): o usuário é um jogador, e o clube dele é dirigido pela CPU. */
   playerCareer?: PlayerCareer | null;
+  /** Renovação automática perto do fim da temporada (ausente = desligada). */
+  autoRenew?: 'off' | 'key' | 'all';
 }
 
 export interface WeekReport {

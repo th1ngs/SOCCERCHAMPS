@@ -1,20 +1,20 @@
 // Realidade financeira por clube (v5): cada receita e despesa depende da liga, da divisão,
 // da reputação, do estádio e da torcida. Valores semanais em R$.
 import { LOAN_INTEREST, TICKET_PRICES } from './data';
-import { DIVISIONS, LEAGUES, LEAGUE_PRIZE_BASE, TV_BASE } from './leagues';
+import { DIVISIONS, DIVISION_SIZE, LEAGUES, LEAGUE_PRIZE_BASE, TOTAL_WEEKS, TV_BASE } from './leagues';
 import type { Club, LeagueInfo, Loan, World } from './types';
 import { clamp, formatMoney, rand, randi } from './util';
 
 /** Peso de cada divisão nas receitas comerciais (1ª, 2ª, 3ª). */
-const LEVEL_COMMERCIAL = [1, 0.7, 0.5];
+const LEVEL_COMMERCIAL = [1, 0.7, 0.5, 0.38];
 /** Escala geral das receitas (calibrada para a folha média ficar perto de 90% da receita livre). */
 export const REVENUE_SCALE = 1.3;
 /** Fração da receita livre (receita − manutenção − dívida) que a diretoria libera para salários. */
 export const WAGE_RATIO = 0.95;
-/** Semanas por temporada usadas nas médias (calendário de 39 semanas). */
-const SEASON_WEEKS = 39;
-/** Jogos em casa por temporada (15 da liga + copas, em média). */
-const HOME_GAMES = 16;
+/** Semanas por temporada usadas nas médias. */
+const SEASON_WEEKS = TOTAL_WEEKS;
+/** Jogos em casa por temporada (os da liga + copas, em média). */
+const HOME_GAMES = DIVISION_SIZE;
 
 const lg = (c: Club): LeagueInfo => LEAGUES[c.league];
 const levelOf = (c: Club): number => DIVISIONS[c.div].level;

@@ -5,7 +5,7 @@ import {
   LEAGUES,
   POS,
   SQUAD_MAX,
-  TOTAL_WEEKS,
+  seasonWeeks,
   UPGRADES,
   formatMoney,
   knownTraits,
@@ -263,7 +263,7 @@ export function academySummary(w: World, views: YouthView[]): AcademySummary {
     youthCount: views.length,
     gems: views.filter((v) => v.gem).length,
     arrivedThisSeason: views.filter((v) => v.startSeason === w.season).length,
-    weeksToIntake: Math.max(1, TOTAL_WEEKS - w.week + 1),
+    weeksToIntake: Math.max(1, seasonWeeks(w) - w.week + 1),
     nextSeason: w.season + 1,
     decideCount: views.filter((v) => v.decide).length,
   };

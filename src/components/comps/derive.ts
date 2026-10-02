@@ -10,7 +10,7 @@ import {
   knockoutStatus,
   LEAGUES,
   PROMOTION_SPOTS,
-  TOTAL_WEEKS,
+  seasonWeeks,
   user,
 } from "@/game";
 import type { Competition, DivisionId, FormResult, KnockoutId, Match, Week, World } from "@/game/types";
@@ -45,7 +45,7 @@ export function winnerSide(m: Match): number {
 
 /** Última semana de liga (até a atual) com jogos disputados na divisão. */
 export function lastLeagueRound(w: World, div: DivisionId): { week: number; wk: Week } | null {
-  for (let i = Math.min(w.week, TOTAL_WEEKS); i >= 1; i--) {
+  for (let i = Math.min(w.week, seasonWeeks(w)); i >= 1; i--) {
     const wk = w.weeks[i];
     if (wk && wk.type === "league" && wk.matches.some((m) => m.played && m.comp === div)) return { week: i, wk };
   }
@@ -62,7 +62,10 @@ export interface CupRound {
 
 /** Fases de uma copa (Copa Nacional: 5; Copa dos Campeões: 4), com a semana e os confrontos já sorteados. */
 export function knockoutRounds(w: World, comp: KnockoutId): CupRound[] {
-  const weeks = comp === "cont" ? CONT_WEEKS : CUP_WEEKS;
+  // Semanas da copa pelo calendário montado (vale também para saves do calendário antigo).
+  const type = comp === "cont" ? "cont" : "cup";
+  const found = w.weeks.map((wk, i) => (wk && wk.type === type ? i : -1)).filter((i) => i > 0);
+  const weeks = found.length ? found : comp === "cont" ? CONT_WEEKS : CUP_WEEKS;
   return weeks.map((week, round) => {
     const wk = w.weeks[week];
     return { round, name: cupRoundName(comp, round), week, matches: wk ? wk.matches.filter((m) => m.comp === comp) : [] };
@@ -89,7 +92,7 @@ export function userFixtures(w: World): FixtureRow[] {
   const rows: FixtureRow[] = [];
   const u = user(w);
   const natCup = cupId(u.league);
-  for (let i = 1; i <= TOTAL_WEEKS; i++) {
+  for (let i = 1; i <= seasonWeeks(w); i++) {
     const wk = w.weeks[i];
     if (!wk) continue;
     const m = wk.matches.find((x) => x.h === w.userClub || x.a === w.userClub) ?? null;

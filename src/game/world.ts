@@ -10,12 +10,13 @@ import { clubWages, commercialWeekly, renewClubFinances, ticketBase, tvShare, up
 export const RELEASE_MIN_MULT = 1.8;
 import {
   CONT_PRIZE, CONT_WEEKS, CUP_PRIZE, CUP_WEEKS, DIVISIONS, DIVISION_IDS, LEAGUES, LEAGUE_IDS, LEAGUE_PRIZE_BASE,
-  LEAGUE_ROUNDS, PROMOTION_SPOTS, TOTAL_WEEKS, competitionName, compLeague, cupId, cupRoundName,
+  LEAGUE_ROUNDS, LEGACY_SEASON_WEEKS, PROMOTION_SPOTS, TOTAL_WEEKS, DIVISION_SIZE, competitionName, compLeague, cupId, cupRoundName,
   clubBaseOvr, divisionFullName, firstDivisions, isKnockout, prestigeOf,
 } from './leagues';
 import { aiInvest, aiListPlayers, aiOffersToUser, aiTransfers, promoteYouth, transfer } from './market';
 import { potentialRange, processScoutQueue } from './scouting';
 import { refreshScoutMarket, scoutPayroll } from './scouts';
+import { renewalReminders } from './renewals';
 import { checkChancePromises, expireTalks, generateTalks } from './talks';
 import { runNationsCup } from './nations';
 import { onUserMatch, recordSeasonHistory, rememberLegend, seasonAchievements, seasonTitles, weeklyAchievements } from './career';
@@ -34,7 +35,7 @@ import { chance, clamp, formatMoney, gauss, pick, rand, randi, shuffle } from '.
 const round2 = (v: number): number => Math.round(v * 100) / 100;
 const round3 = (v: number): number => Math.round(v * 1000) / 1000;
 
-export const WINDOWS: [number, number][] = [[0, 4], [15, 19]];
+export const WINDOWS: [number, number][] = [[0, 5], [19, 24]];
 export const windowOpen = (w: World): boolean => WINDOWS.some(([a, b]) => w.week >= a && w.week <= b);
 export const nextWindow = (w: World): number | null => {
   const nx = WINDOWS.find(([a]) => a > w.week);
@@ -50,7 +51,7 @@ const FANS_START = 60;
 /** Puxão semanal da torcida de volta ao patamar inicial (evita saturar em 0 ou 100). */
 const FANS_DRIFT = 0.03;
 /** Variação de reputação por posição na tabela, por nível de divisão. */
-const REP_BY_POS = [0.35, 0.25, 0.2];
+const REP_BY_POS = [0.35, 0.25, 0.2, 0.16];
 /** Máximo de garotos na base de um clube da CPU após a nova safra. */
 const AI_YOUTH_MAX = 8;
 
@@ -136,11 +137,13 @@ export function startSeason(w: World): void {
       li++;
     }
   }
-  // Copas Nacionais: as duas primeiras divisões de cada liga.
+  // Copas Nacionais: 32 clubes — a primeira divisão inteira e os de maior reputação da segunda.
   w.cups = {};
   for (const lg of LEAGUE_IDS) {
-    const divs = LEAGUES[lg].divisions.slice(0, 2);
-    const entrants = Object.values(w.clubs).filter((c) => divs.includes(c.div)).map((c) => c.id);
+    const [d1, d2] = LEAGUES[lg].divisions;
+    const first = Object.values(w.clubs).filter((c) => c.div === d1);
+    const second = Object.values(w.clubs).filter((c) => c.div === d2).sort((a, b) => b.rep - a.rep).slice(0, Math.max(0, 32 - first.length));
+    const entrants = [...first, ...second].map((c) => c.id);
     w.cups[cupId(lg)] = { entrants, alive: shuffle(entrants.slice()), champion: null };
   }
   // Copa dos Campeões: classificados da temporada anterior (ou os de maior reputação na 1ª temporada).
@@ -219,9 +222,17 @@ export function userMatch(w: World): Match | null {
   return wk.matches.find((m) => (m.h === w.userClub || m.a === w.userClub) && !m.played) || null;
 }
 
+/**
+ * Semanas da temporada atual pelo calendário montado (um save antigo termina a temporada no calendário de 39
+ * semanas em que começou; a partir da seguinte, vale o de 47).
+ */
+export const seasonWeeks = (w: World): number => (w.weeks?.length ? Math.max(1, w.weeks.length - 1) : TOTAL_WEEKS);
+/** Rodadas de liga da temporada atual. */
+export const leagueRounds = (w: World): number => (w.weeks ?? []).filter((x) => x && x.type === 'league').length || LEAGUE_ROUNDS;
+
 /** Próximo jogo do usuário a partir da semana atual (antes em views.js). */
 export function nextFixture(w: World): Fixture | null {
-  for (let i = Math.max(1, w.week); i <= TOTAL_WEEKS; i++) {
+  for (let i = Math.max(1, w.week); i <= seasonWeeks(w); i++) {
     const wk = w.weeks[i];
     if (!wk) continue;
     const m = wk.matches.find((x) => !x.played && (x.h === w.userClub || x.a === w.userClub));
@@ -237,7 +248,7 @@ export function weekLabel(w: World): string {
   if (!wk) return 'Fim de temporada';
   if (wk.type === 'cup') return `Copa Nacional • ${cupRoundName(cupId(user(w).league), wk.round)}`;
   if (wk.type === 'cont') return `${competitionName('cont')} • ${cupRoundName('cont', wk.round)}`;
-  return `Rodada ${wk.round} de ${LEAGUE_ROUNDS}`;
+  return `Rodada ${wk.round} de ${leagueRounds(w)}`;
 }
 
 // ---------- Tabela ----------
@@ -444,7 +455,7 @@ export function simulateWeek(w: World): void {
 
 // ---------- Evolução ----------
 /** Semana em que as promessas de titular são cobradas. */
-export const PROMISE_CHECK_WEEK = 20;
+export const PROMISE_CHECK_WEEK = 24;
 
 function develop(p: Player, club: Club | undefined, share = 1): void {
   const trainLvl = club ? club.training : 2;
@@ -475,13 +486,15 @@ function processCalendarDay(w: World, day: number): void {
     for (const id of club.youth) ownerOf[id] = club;
   }
   const u = user(w);
+  // Evolução calibrada para a temporada de 39 semanas: numa temporada mais longa, cada treino rende proporcionalmente menos.
+  const devShare = (1 / 3) * (LEGACY_SEASON_WEEKS / seasonWeeks(w));
   for (const p of Object.values(w.players)) {
     const club = ownerOf[p.id];
     const tr = club ? TRAINING[club.trainingInt] : TRAINING.mid;
     const rec = clamp(0.8 + attr(p, 'fol') / 250, 0.9, 1.2) + (hasTrait(p, 'motorzinho') ? 0.08 : 0);
     p.fitness = clamp(p.fitness + tr.recover * DAILY_RECOVERY[day] * rec, 0, 100);
     if (!trainingDay) continue;
-    develop(p, club, 1 / 3);
+    develop(p, club, devShare);
     if (club && !p.youth && !p.inj && chance(0.0035 * tr.injury / 3)) {
       const sev = randi(1, 3);
       p.inj = injuryWeeks(sev, club.training);
@@ -652,7 +665,8 @@ export function endWeek(w: World): WeekReport {
   w.week++;
   processScoutQueue(w);
   if (w.week === WINDOWS[1][0]) aiListPlayers(w);
-  if (w.week > TOTAL_WEEKS) {
+  if (w.week <= seasonWeeks(w)) renewalReminders(w);
+  if (w.week > seasonWeeks(w)) {
     report.seasonEnd = seasonEnd(w);
   } else {
     const next = currentWeek(w);
@@ -761,6 +775,28 @@ export function seasonEnd(w: World): SeasonSummary {
   });
   w.pendingSeason = summary;
   return summary;
+}
+
+/**
+ * Deixa cada divisão com o tamanho certo (expansão para 20 clubes e novas divisões): por liga, ordena os clubes
+ * pela divisão atual e, dentro dela, pela reputação, e redistribui em blocos de DIVISION_SIZE. Quem estava em cima
+ * continua em cima; os melhores de baixo sobem para completar as vagas. Devolve se mudou alguém de divisão.
+ */
+export function rebalanceDivisions(w: World): boolean {
+  let moved = false;
+  for (const lg of LEAGUE_IDS) {
+    const divs = LEAGUES[lg].divisions;
+    const clubs = Object.values(w.clubs).filter((c) => c.league === lg);
+    const sizes = divs.map((d) => clubs.filter((c) => c.div === d).length);
+    if (sizes.every((n) => n === DIVISION_SIZE) && clubs.every((c) => divs.includes(c.div))) continue;
+    const lvl = (d: DivisionId) => { const i = divs.indexOf(d); return i < 0 ? divs.length : i; };
+    clubs.sort((a, b) => lvl(a.div) - lvl(b.div) || b.rep - a.rep);
+    clubs.forEach((c, i) => {
+      const div = divs[Math.min(divs.length - 1, Math.floor(i / DIVISION_SIZE))];
+      if (c.div !== div) { c.div = div; moved = true; }
+    });
+  }
+  return moved;
 }
 
 export function newSeason(w: World): void {
@@ -873,7 +909,10 @@ export function newSeason(w: World): void {
   w.season++;
   w.week = 0;
   const added = seedMissingClubs(w);
-  if (added) pushMessage(w, { kind: 'info', title: 'Sete novas ligas chegaram', body: 'Alemanha, França, Holanda, Bélgica, Turquia, Escócia e Grécia entram no calendário desta temporada com duas divisões e Copa Nacional cada.' });
+  if (rebalanceDivisions(w) || added) {
+    const u0 = user(w);
+    pushMessage(w, { kind: 'info', title: 'As ligas cresceram', body: `A partir desta temporada, cada divisão tem ${DIVISION_SIZE} clubes (${LEAGUE_ROUNDS} rodadas) e várias ligas ganharam uma divisão a mais. ${added ? `${added} clubes novos entraram nas divisões de baixo. ` : ''}O ${u0.name} começa na ${divisionFullName(u0.div)}.` });
+  }
   processScoutQueue(w);
   // Limpeza de referências a jogadores que saíram do mundo.
   for (const pid of Object.keys(w.scouting)) if (!w.players[pid]) delete w.scouting[pid];

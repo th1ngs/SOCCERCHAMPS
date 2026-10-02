@@ -1,5 +1,6 @@
 // Nível das ligas: estrelas e rótulos (estáticos, pela qualidade) e o ranking vivo (pelos elencos atuais).
 import { LEAGUES, LEAGUE_IDS } from './leagues';
+import { teamRating } from './squad';
 import type { Club, LeagueId, World } from './types';
 
 const QUALITIES = LEAGUE_IDS.map((l) => LEAGUES[l].quality);
@@ -25,11 +26,11 @@ export function leagueTier(league: LeagueId): string {
 export interface LeagueRankRow {
   id: LeagueId;
   rank: number;
-  /** Overall médio dos 11 melhores de cada clube da primeira divisão. */
+  /** Força média dos times titulares (escalação) dos clubes da primeira divisão. */
   strength: number;
   stars: number;
   tier: string;
-  /** Melhor clube da primeira divisão (pelos 11 melhores). */
+  /** Melhor clube da primeira divisão (pelo time titular). */
   top: Club | null;
   /** Fração de estrangeiros nos elencos da primeira divisão. */
   foreign: number;
@@ -52,7 +53,7 @@ export function leagueRanking(w: World): LeagueRankRow[] {
   const rows = LEAGUE_IDS.filter((id) => Object.values(w.clubs).some((c) => c.league === id)).map((id) => {
     const div = LEAGUES[id].divisions[0];
     const clubs = Object.values(w.clubs).filter((c) => c.div === div);
-    const rated = clubs.map((c) => ({ c, ovr: avg(c.squad.map((pid) => w.players[pid]?.ovr ?? 0).sort((a, b) => b - a).slice(0, 11)) }));
+    const rated = clubs.map((c) => ({ c, ovr: teamRating(w, c) }));
     rated.sort((a, b) => b.ovr - a.ovr);
     let players = 0, abroad = 0;
     for (const c of clubs) for (const pid of c.squad) { const p = w.players[pid]; if (p) { players++; if (p.nat !== id) abroad++; } }

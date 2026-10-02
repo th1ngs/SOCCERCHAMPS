@@ -3,7 +3,7 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import { CalendarDays, ChartNoAxesColumn, Flag as FlagIcon, Goal, History, Trophy } from "lucide-react";
-import { cupId, divisionName, DIVISIONS, LEAGUE_IDS, LEAGUES, PROMOTION_SPOTS, leagueRanking, leagueStars, leagueTier, user } from "@/game";
+import { cupId, divisionName, DIVISIONS, LEAGUE_IDS, LEAGUES, PROMOTION_SPOTS, DIVISION_SIZE, leagueRanking, leagueStars, leagueTier, user } from "@/game";
 import type { DivisionId, LeagueId } from "@/game/types";
 import { PageHeader } from "@/components/ui/primitives";
 import { Flag } from "@/components/ui/Flag";
@@ -36,7 +36,7 @@ const GLOBAL_SUBTITLE: Record<GlobalTab, string> = {
 
 function divisionSubtitle(div: DivisionId): string {
   const info = DIVISIONS[div];
-  const parts = [`${LEAGUES[info.league].name} • 16 clubes em turno e returno.`];
+  const parts = [`${LEAGUES[info.league].name} • ${DIVISION_SIZE} clubes em turno e returno.`];
   if (info.level === 1) parts.push("O campeão vai à Copa dos Campeões; vice e terceiro disputam as vagas restantes.");
   if (info.up) parts.push(`Os ${PROMOTION_SPOTS} primeiros sobem para a ${divisionName(info.up)}.`);
   if (info.down) parts.push(`Os ${PROMOTION_SPOTS} últimos caem para a ${divisionName(info.down)}.`);
