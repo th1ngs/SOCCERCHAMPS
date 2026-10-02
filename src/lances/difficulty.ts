@@ -49,7 +49,7 @@ type Numeric = Omit<BotParams, "aids">;
 const PRESETS: Numeric[] = [
   { defSpeed: 4.9, press: 0.7, tackle: 0.55, interceptR: 0.6, blockR: 0.45, gkReact: 0.38, gkDive: 4.4, gkReach: 1.1, think: 0.45, defenders: 2, lineGap: 9.5, cover: 3, trap: 0 },
   { defSpeed: 5.9, press: 0.88, tackle: 1.15, interceptR: 0.9, blockR: 0.58, gkReact: 0.27, gkDive: 5.0, gkReach: 1.12, think: 0.32, defenders: 3, lineGap: 8, cover: 2.2, trap: 0.04 },
-  { defSpeed: 6.4, press: 0.97, tackle: 1.7, interceptR: 1.08, blockR: 0.68, gkReact: 0.18, gkDive: 6.2, gkReach: 1.27, think: 0.22, defenders: 3, lineGap: 7, cover: 1.2, trap: 0.1 },
+  { defSpeed: 6.4, press: 0.97, tackle: 1.6, interceptR: 0.98, blockR: 0.66, gkReact: 0.21, gkDive: 5.6, gkReach: 1.18, think: 0.22, defenders: 3, lineGap: 7, cover: 1.2, trap: 0.1 },
   { defSpeed: 7.3, press: 1.05, tackle: 2.5, interceptR: 1.35, blockR: 0.8, gkReact: 0.12, gkDive: 7.2, gkReach: 1.48, think: 0.14, defenders: 4, lineGap: 6, cover: 0.6, trap: 0.16 },
 ];
 

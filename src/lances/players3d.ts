@@ -6,6 +6,7 @@ import { canvasTex, hash, luminance } from "./tex";
 
 const SKINS = ["#f6d0b1", "#e2ad84", "#c68a5e", "#9a6442", "#764a33", "#553524"];
 const HAIR = ["#1b1512", "#3a2416", "#6b4424", "#b07d45", "#2a2a2a", "#d9b06a"];
+const GLOVES = ["#f8fafc", "#a3e635", "#22d3ee", "#f472b6", "#fb923c"];
 const BOOTS = ["#111418", "#f4f4f4", "#ff6a1a", "#1e88ff", "#e11d48", "#22c55e"];
 
 // ---------- Materiais e geometrias compartilhados ----------
@@ -66,7 +67,8 @@ function makeGeo() {
     upper: new THREE.CapsuleGeometry(0.052, 0.14, 4, 10),
     fore: new THREE.CapsuleGeometry(0.047, 0.17, 4, 10),
     hand: new THREE.SphereGeometry(0.054, 10, 8),
-    glove: new THREE.SphereGeometry(0.072, 10, 8),
+    glove: new THREE.SphereGeometry(1, 14, 10).scale(0.085, 0.095, 0.06),
+    cuff: new THREE.TorusGeometry(0.055, 0.02, 6, 16).rotateX(Math.PI / 2),
     ring: new THREE.RingGeometry(0.5, 0.62, 40),
   };
 }
@@ -82,7 +84,15 @@ function shirtTexture(kit: LanceKit, num: number, gk: [string, string] | null): 
     c.scale(2, 2);
     c.fillStyle = p; c.fillRect(0, 0, 256, 128);
     c.fillStyle = s;
-    if (pattern === "v") for (let x = 0; x < 256; x += 32) c.fillRect(x, 0, 14, 128);
+    if (gk) {
+      // Goleiro: degradê de cima para baixo, faixas diagonais finas e ombros na cor secundária.
+      const g = c.createLinearGradient(0, 0, 0, 128);
+      g.addColorStop(0, "rgba(255,255,255,0.28)"); g.addColorStop(0.55, "rgba(255,255,255,0)"); g.addColorStop(1, "rgba(0,0,0,0.25)");
+      c.fillStyle = g; c.fillRect(0, 0, 256, 128);
+      c.strokeStyle = s; c.globalAlpha = 0.35; c.lineWidth = 3;
+      for (let x = -128; x < 256; x += 14) { c.beginPath(); c.moveTo(x, 128); c.lineTo(x + 128, 0); c.stroke(); }
+      c.globalAlpha = 1; c.fillStyle = s; c.fillRect(0, 0, 256, 16);
+    } else if (pattern === "v") for (let x = 0; x < 256; x += 32) c.fillRect(x, 0, 14, 128);
     else if (pattern === "h") for (let y = 0; y < 128; y += 28) c.fillRect(0, y, 256, 12);
     else if (pattern === "half") c.fillRect(0, 0, 128, 128);
     else if (pattern === "sash") { c.beginPath(); c.moveTo(150, 0); c.lineTo(190, 0); c.lineTo(110, 128); c.lineTo(70, 128); c.fill(); }
@@ -234,9 +244,10 @@ export function buildPlayer(kit: LanceKit, num: number, id: string, gk: [string,
     elbow.position.y = -0.27;
     const fore = part(G.fore, gk ? toon(prim) : skin);
     fore.position.y = -0.11;
-    const hand = part(gk ? G.glove : G.hand, gk ? toon(sec) : skin);
-    hand.position.y = -0.245;
+    const hand = part(gk ? G.glove : G.hand, gk ? toon(GLOVES[(h >>> 16) % GLOVES.length]) : skin);
+    hand.position.y = gk ? -0.26 : -0.245;
     elbow.add(fore, hand);
+    if (gk) { const cuff = part(G.cuff, toon("#111418"), false); cuff.position.y = -0.2; elbow.add(cuff); }
     sh.add(sleeve, up, elbow);
     return { sh, elbow };
   };
@@ -352,38 +363,54 @@ export function poseRig(r: PlayerRig, a: Actor, ch: Chance, pulse: number, now: 
     }
     rate = 11;
   } else if (a.role === "gk") {
-    if (a.dive && a.dive.t >= 0) {
+    const holding = ch.ball.owner === a.i;
+    if (a.dive && a.dive.t >= 0 && !a.dive.stand) {
       const f = clamp(a.dive.t / a.dive.dur, 0, 1);
-      const e = ease(Math.min(1, f * 1.3));
+      const e = ease(Math.min(1, f * 1.25));
       if (a.dive.y > 2.2 && Math.abs(a.dive.x - a.dive.x0) < 1.2) {
         // Bola por cima: volta e salta para trás com os braços esticados.
         T.brx = -0.3 * e; T.by = Math.sin(f * Math.PI) * 0.45;
         T.aLx = -3; T.aRx = -3; T.aLz = -0.2; T.aRz = 0.2; T.eL = T.eR = -0.05;
         T.lLx = 0.3; T.lRx = -0.2; T.kL = 0.5; T.kR = 0.2;
       } else {
-        // Mergulho: impulsão na perna de dentro, corpo deita no ar, braços esticados para a bola; depois cai de lado.
+        // Mergulho: impulsão na perna de dentro, corpo deita no ar com os dois braços esticados para a bola
+        // (baixa: mãos rente ao chão; alta: braços acima da cabeça); depois cai de lado e fica no chão.
         const s = a.dive.side;
-        const low = a.dive.y < 0.6;
-        T.brz = s * 1.45 * e;
-        T.brx = low ? 0.15 : -0.1;
-        T.by = f < 1 ? Math.min(0.55, e * 0.75) : 0.22;
-        T.aLx = -3.05 + (low ? 0.5 : 0); T.aRx = -3.05 + (low ? 0.5 : 0);
-        T.aLz = -0.15 + s * 0.15; T.aRz = 0.15 + s * 0.15; T.eL = T.eR = -0.05;
-        T.lLx = 0.15; T.lRx = -0.3; T.kL = s > 0 ? 0.15 : 0.9; T.kR = s > 0 ? 0.9 : 0.15;
-        T.lLz = -0.25; T.lRz = 0.25;
+        const low = a.dive.y < 0.6, high = a.dive.y > 1.6;
+        T.brz = s * (high ? 1.25 : 1.5) * e;
+        T.brx = low ? 0.2 : -0.08;
+        T.by = f < 1 ? Math.min(0.6, e * (high ? 0.85 : 0.6)) : 0.2;
+        T.aLx = T.aRx = low ? -2.5 : -3.1;
+        T.aLz = -0.1 + s * 0.12; T.aRz = 0.1 + s * 0.12; T.eL = T.eR = -0.04;
+        // Perna de impulsão estica, a outra encolhe.
+        T.lLx = 0.15; T.lRx = -0.35; T.kL = s > 0 ? 0.1 : 1; T.kR = s > 0 ? 1 : 0.1;
+        T.lLz = -0.3; T.lRz = 0.3;
         T.hy = 0; T.hx = -0.15;
+        if (holding) { T.eL = T.eR = -1.2; T.aLx = T.aRx = -2.2; }
       }
       rate = 24;
+    } else if (a.dive && a.dive.t >= 0) {
+      // Bola em cima dele: mãos na altura dela, sem mergulhar.
+      const y = a.dive.y;
+      T.by = y < 0.5 ? -0.25 : -0.05; T.brx = y < 0.5 ? 0.45 : -0.05;
+      T.kL = T.kR = y < 0.5 ? 1.1 : 0.3;
+      T.aLx = T.aRx = -(0.6 + Math.min(1.9, y) * 1.15); T.aLz = -0.2; T.aRz = 0.2; T.eL = T.eR = -0.25;
+      if (holding) { T.aLx = T.aRx = -1.1; T.eL = T.eR = -1.5; T.aLz = -0.35; T.aRz = 0.35; T.hx = 0.25; }
+      rate = 22;
+    } else if (holding) {
+      // Encaixou em pé: bola no peito.
+      T.aLx = T.aRx = -1.1; T.eL = T.eR = -1.5; T.aLz = -0.35; T.aRz = 0.35; T.hx = 0.25; T.brx = 0.05;
     } else {
-      // Base do goleiro (mais agachado durante a reação ao chute), quicando nas pontas dos pés.
+      // Base: agachado, mãos à frente na altura da cintura, quicando nas pontas dos pés; lendo o chute, agacha mais.
       const ready = a.dive && a.dive.t < 0 ? 1 : 0;
-      const hop = Math.abs(Math.sin(now * 5.5 + a.i)) * 0.025 * (1 - side);
-      T.by = -0.08 - ready * 0.07 + hop; T.brx = 0.18 + ready * 0.08;
-      T.kL += 0.45 + ready * 0.25; T.kR += 0.45 + ready * 0.25; T.lLx -= 0.25 + ready * 0.12; T.lRx -= 0.25 + ready * 0.12;
-      T.aLx = -0.55; T.aRx = -0.55; T.aLz = -0.75; T.aRz = 0.75; T.eL = T.eR = -0.45;
+      const hop = Math.abs(Math.sin(now * 5.5 + a.i)) * 0.03 * (1 - side) * (1 - ready);
+      T.by = -0.1 - ready * 0.08 + hop; T.brx = 0.22 + ready * 0.08;
+      T.kL += 0.5 + ready * 0.25; T.kR += 0.5 + ready * 0.25; T.lLx -= 0.28 + ready * 0.12; T.lRx -= 0.28 + ready * 0.12;
+      T.aLx = T.aRx = -0.85 - ready * 0.15; T.aLz = -0.5; T.aRz = 0.5; T.eL = T.eR = -0.75;
       // Passadas de lado: abre e fecha as pernas.
-      T.lLz = -(0.12 + 0.2 * Math.max(0, s1)) * Math.min(1, side * v / 2.5);
-      T.lRz = (0.12 + 0.2 * Math.max(0, -s1)) * Math.min(1, side * v / 2.5);
+      T.lLz = -(0.14 + 0.22 * Math.max(0, s1)) * Math.min(1, side * v / 2.2);
+      T.lRz = (0.14 + 0.22 * Math.max(0, -s1)) * Math.min(1, side * v / 2.2);
+      rate = 18;
     }
   } else if (a.role === "def") {
     // Marcador perto de quem tem a bola: agachado, de frente para ela, braços abertos.

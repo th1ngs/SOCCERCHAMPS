@@ -3,7 +3,7 @@
 // segurar no companheiro = passe por cima; tocar no gramado = conduzir até lá; segurar e arrastar = conduzir
 // seguindo o dedo (em velocidade); dois toques em quem tem a bola = drible.
 import { Audio } from "@/arcade/audio";
-import { BALL_R, Chance, GOAL_Z, type ChanceSetup, type LanceResult, type Phase } from "./engine";
+import { BALL_R, Chance, GOAL_Z, type ChanceSetup, type LanceAttrs, type LanceResult, type Phase } from "./engine";
 import { LanceScene, type CameraView } from "./render3d";
 
 export interface LanceHud {
@@ -14,9 +14,12 @@ export interface LanceHud {
   result: LanceResult | null;
   /** Drible disponível (sem recarga). */
   dribble: boolean;
+  /** Qualidades de quem conduz e o fôlego dele (0 a 1). */
+  attrs: LanceAttrs | null;
+  stamina: number;
 }
 
-const EMPTY: LanceHud = { phase: "intro", timeLeft: 0, timeFrac: 1, carrier: "", result: null, dribble: true };
+const EMPTY: LanceHud = { phase: "intro", timeLeft: 0, timeFrac: 1, carrier: "", result: null, dribble: true, attrs: null, stamina: 1 };
 
 /** Segurar no companheiro por este tempo = passe por cima (ms). */
 export const LOB_HOLD_MS = 320;
@@ -168,8 +171,10 @@ export class LanceRunner {
       carrier: `${c.actors[c.carrier].p.num || ""} ${c.actors[c.carrier].p.name}`.trim(),
       result: c.result,
       dribble: c.dribbleCd === 0,
+      attrs: c.actors[c.carrier].p.attrs,
+      stamina: Math.round(c.actors[c.carrier].stamina * 20) / 20,
     };
-    const key = `${next.phase}|${next.timeLeft}|${next.timeFrac}|${next.carrier}|${next.result?.outcome ?? ""}|${next.dribble}`;
+    const key = `${next.phase}|${next.timeLeft}|${next.timeFrac}|${next.carrier}|${next.result?.outcome ?? ""}|${next.dribble}|${next.stamina}`;
     if (!force && key === this.hudKey) return;
     this.hudKey = key;
     this.hud = next;

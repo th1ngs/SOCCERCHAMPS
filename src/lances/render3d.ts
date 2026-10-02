@@ -332,7 +332,7 @@ export class LanceScene {
       const kit = a.role === "att" ? chance.setup.attack.kit : chance.setup.defense.kit;
       const label = a.role === "att" ? `${a.p.num || ""} ${a.p.name}`.trim() : null;
       const rig = buildPlayer(kit, a.p.num, a.p.id, a.role === "gk" ? gkKit : null, label, "#ffd23f");
-      rig.root.scale.setScalar(1.2);
+      rig.root.scale.setScalar(a.role === "gk" ? 1.27 : 1.2);
       rig.prevHeading = a.heading;
       this.scene.add(rig.root);
       this.rigs.push(rig);

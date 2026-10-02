@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { CircleHelp, Hand, MousePointerClick, MoveUpRight, Video, X, Zap } from "lucide-react";
+import { CircleHelp, Hand, MousePointerClick, MoveUpRight, RotateCw, Video, X, Zap } from "lucide-react";
 import type { ChanceSetup, LanceResult } from "@/lances/engine";
 import type { CameraView } from "@/lances/render3d";
 import { LanceRunner } from "@/lances/runner";
@@ -16,6 +16,11 @@ const HINT_KEY = "scm.lances.hint";
 const CAM_KEY = "scm.lances.cam";
 const CAM_NAME: Record<CameraView, string> = { top: "Câmera alta", back: "Câmera atrás" };
 
+/** Qualidades mostradas de quem conduz (as que mais mudam o lance). */
+const ATTR_CHIPS: [keyof NonNullable<ReturnType<LanceRunner["getSnapshot"]>["attrs"]>, string][] = [["vel", "VEL"], ["fin", "FIN"], ["pas", "PAS"], ["dri", "DRI"], ["cab", "CAB"]];
+const attrTone = (v: number) => (v >= 80 ? "text-pitch-300" : v >= 65 ? "text-gold-300" : "text-mist");
+type Orientation = ScreenOrientation & { lock?: (o: "landscape") => Promise<void>; unlock?: () => void };
+
 /** Todos os controles (ajuda do botão "?"). */
 const CONTROLS: [string, string][] = [
   ["Deslizar para cima", "Chute: a direção escolhe o canto, o comprimento a altura e a velocidade a força. Curve o gesto para dar efeito."],
@@ -28,6 +33,10 @@ const CONTROLS: [string, string][] = [
   ["Segurar e arrastar no gramado", "Conduz em velocidade, seguindo o dedo."],
   ["Dois toques em quem tem a bola", "Drible: finta e arrancada; pode deixar o marcador no chão (também no botão Drible)."],
   ["Impedimento", "Quem estiver à frente do penúltimo defensor na hora do passe está impedido (anel vermelho). Nos níveis fácil e médio a linha aparece no gramado."],
+  ["Fôlego", "Arrancar com a bola (joystick no fim do curso, segurar e arrastar, drible) gasta o fôlego; quem tem pouco fôlego cansa mais rápido. Sem fôlego, não arranca: solte um pouco para recuperar."],
+  ["Qualidades", "Valem no lance: velocidade (corrida e aceleração), finalização (força e precisão do chute), passe, drible (proteção da bola e sucesso do drible), cabeceio (cabeçadas), bola parada (efeito) e fôlego. Na defesa, marcação e velocidade; no goleiro, reflexo e colocação."],
+  ["Goleiro", "Ele lê o chute, dá passadas de lado e só mergulha no fim. Só é defesa se a mão dele chegar onde a bola passa; chute fraco em cima dele, ele encaixa."],
+  ["Tela deitada (celular)", "O botão de girar coloca em tela cheia e deitada, quando o aparelho deixa; senão, é só girar o celular."],
   ["Teclado", "WASD ou setas conduzem, Shift arranca, Espaço dribla."],
 ];
 
@@ -47,6 +56,35 @@ export function LanceStage({ setup, onDone, top, className }: { setup: ChanceSet
   });
   useEffect(() => { runner.setView(view); }, [runner, view]);
   const [help, setHelp] = useState(false);
+  // Tela deitada (celular): tela cheia + rotação para paisagem, quando o aparelho deixa.
+  const [touch] = useState(() => typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches);
+  const [land, setLand] = useState(() => typeof document !== "undefined" && !!document.fullscreenElement);
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    const onFs = () => setLand(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
+  const toggleLand = async () => {
+    const o = screen.orientation as Orientation | undefined;
+    if (land) {
+      try { o?.unlock?.(); } catch { /* sem trava */ }
+      if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+      setLand(false);
+      return;
+    }
+    let locked = false;
+    try {
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen?.({ navigationUI: "hide" });
+      await o?.lock?.("landscape");
+      locked = true;
+    } catch { /* o aparelho não deixa girar sozinho */ }
+    setLand(!!document.fullscreenElement || locked);
+    if (!locked) {
+      setNotice("Gire o celular para jogar com a tela deitada (deixe a rotação automática ligada).");
+      setTimeout(() => setNotice(null), 4500);
+    }
+  };
   const toggleHelp = (open: boolean) => { setHelp(open); runner.setPaused(open); };
   const toggleView = () => {
     const v: CameraView = view === "top" ? "back" : "top";
@@ -94,6 +132,18 @@ export function LanceStage({ setup, onDone, top, className }: { setup: ChanceSet
           >
             <Video className="size-4" />
           </button>
+          {touch && (
+            <button
+              type="button"
+              onClick={() => void toggleLand()}
+              className={cn("pointer-events-auto grid size-8 shrink-0 place-items-center rounded-full bg-ink-950/75 ring-1 ring-white/15 hover:text-gold-300 focus-visible:outline-2 focus-visible:outline-gold-400", land ? "text-gold-300" : "text-snow")}
+              aria-label={land ? "Sair da tela deitada" : "Jogar com a tela deitada"}
+              aria-pressed={land}
+              title="Tela deitada"
+            >
+              <RotateCw className="size-4" />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => toggleHelp(true)}
@@ -104,10 +154,17 @@ export function LanceStage({ setup, onDone, top, className }: { setup: ChanceSet
             <CircleHelp className="size-4" />
           </button>
         </div>
+        {hud.attrs && (hud.phase === "play" || hud.phase === "intro") && (
+          <div className="mx-auto mt-1.5 flex w-fit max-w-xl items-center gap-2 rounded-full bg-ink-950/70 px-3 py-0.5 font-display text-[11px] font-bold tabular ring-1 ring-white/10" aria-label="Qualidades de quem conduz">
+            {ATTR_CHIPS.map(([k, l]) => (
+              <span key={k} className={attrTone(hud.attrs![k])}>{l} {hud.attrs![k]}</span>
+            ))}
+          </div>
+        )}
       </div>
 
       {hint && !help && (hud.phase === "intro" || hud.phase === "play") && (
-        <div className="pointer-events-none absolute inset-x-0 top-[6.75rem] flex justify-center px-3 sm:top-28">
+        <div className="pointer-events-none absolute inset-x-0 top-[8.25rem] flex justify-center px-3 sm:top-32 [@media(max-height:500px)]:top-auto [@media(max-height:500px)]:bottom-2 [@media(max-height:500px)]:px-40">
           <ul className="flex max-w-xl flex-col gap-1 rounded-2xl bg-ink-950/80 px-4 py-2.5 text-xs text-snow ring-1 ring-white/10 sm:text-sm">
             <li className="flex items-center gap-1.5"><MoveUpRight className="size-4 shrink-0 text-gold-400" /> Deslize = chute • devagar e comprido = cavadinha</li>
             <li className="flex items-center gap-1.5"><MousePointerClick className="size-4 shrink-0 text-gold-400" /> Toque no companheiro = passe • segure = por cima</li>
@@ -117,7 +174,15 @@ export function LanceStage({ setup, onDone, top, className }: { setup: ChanceSet
       )}
 
       {(hud.phase === "intro" || hud.phase === "play" || hud.phase === "pass") && !help && (
-        <Joystick className="absolute bottom-4 left-4" active={hud.phase === "play"} onChange={(v) => runner.setStick(v)} />
+        <div className="pointer-events-none absolute bottom-4 left-4 flex flex-col items-center gap-1.5 [@media(max-height:500px)]:bottom-2">
+          <div className="w-28 [@media(max-height:500px)]:w-24" aria-label={`Fôlego ${Math.round(hud.stamina * 100)}%`} role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(hud.stamina * 100)}>
+            <span className="mb-0.5 block text-center font-display text-[10px] font-bold uppercase tracking-wider text-snow/80">Fôlego</span>
+            <div className="h-1.5 overflow-hidden rounded-full bg-black/50 ring-1 ring-white/15">
+              <div className={cn("h-full rounded-full transition-[width] duration-200", hud.stamina <= 0.12 ? "bg-danger-500" : hud.stamina < 0.4 ? "bg-gold-400" : "bg-sky-400")} style={{ width: `${hud.stamina * 100}%` }} />
+            </div>
+          </div>
+          <Joystick className="relative [@media(max-height:500px)]:size-28" active={hud.phase === "play"} onChange={(v) => runner.setStick(v)} />
+        </div>
       )}
 
       {hud.phase === "play" && !help && (
@@ -130,6 +195,12 @@ export function LanceStage({ setup, onDone, top, className }: { setup: ChanceSet
         >
           <span className="flex flex-col items-center leading-none"><Zap className="mb-0.5 size-5" />Drible</span>
         </button>
+      )}
+
+      {notice && (
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 flex justify-center px-4" role="status">
+          <p className="max-w-sm rounded-xl bg-ink-950/90 px-4 py-2 text-center text-sm text-snow ring-1 ring-white/15">{notice}</p>
+        </div>
       )}
 
       {help && (

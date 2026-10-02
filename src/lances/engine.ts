@@ -18,14 +18,27 @@ const BOX_Z = GOAL_Z - 16.5;
 /** Tolerância da linha de impedimento (mesma linha = em condição). */
 const OFFSIDE_TOL = 0.25;
 
+/** Qualidades que pesam no lance (as mesmas do Manager, de 1 a 99). */
 export interface LanceAttrs {
+  /** Finalização: precisão e força do chute. */
   fin: number;
+  /** Passe: precisão e velocidade do passe. */
   pas: number;
+  /** Drible: proteção contra o desarme, sucesso do drible e domínio de bola. */
   dri: number;
+  /** Velocidade: velocidade máxima e aceleração. */
   vel: number;
+  /** Marcação: desarme e corte de passe (defensores). */
   mar: number;
+  /** Reflexo e colocação: goleiro. */
   ref: number;
   col: number;
+  /** Fôlego: quanto aguenta de arrancada. */
+  fol: number;
+  /** Cabeceio: cabeçadas (de primeira) e cortes de cabeça. */
+  cab: number;
+  /** Bola parada: efeito (curva) do chute. */
+  bp: number;
 }
 
 export interface LancePlayer {
@@ -82,8 +95,15 @@ export interface Actor {
   /** Fase da animação de corrida (radianos). */
   stride: number;
   state: ActorState;
-  /** Mergulho do goleiro: destino e progresso (z: recua para a linha na cavadinha). */
-  dive: { x0: number; x: number; z0: number; z: number; y: number; t: number; dur: number; side: number } | null;
+  /**
+   * Mergulho do goleiro: destino (centro do corpo), altura da bola, progresso e lado. `t` começa negativo
+   * (reação + passadas laterais) e o mergulho em si dura `dur`; `stand` = defesa em pé (bola em cima dele).
+   */
+  dive: { x0: number; x: number; z0: number; z: number; y: number; t: number; dur: number; side: number; react: number; start: number; stand: boolean } | null;
+  /** Aceleração (m/s²): vem da velocidade do jogador. */
+  accel: number;
+  /** Fôlego para arrancar (0 a 1): gasta na arrancada, mais rápido com pouco fôlego, e recupera devagar. */
+  stamina: number;
   /** Altura do corpo (pulo do goleiro, comemoração). */
   y: number;
   /** Segundos desde o último chute/passe (animação da perna); negativo = nenhum. */
@@ -183,7 +203,8 @@ const LAYOUTS: Record<ScenarioKind, Layout> = {
   },
 };
 
-const attackSpeed = (p: LancePlayer) => 5.6 + (p.attrs.vel / 99) * 2.4;
+/** Velocidade máxima do atacante (m/s): de ~6,6 (velocidade 50) a ~8,1 (velocidade 90). */
+const attackSpeed = (p: LancePlayer) => 4.9 + (p.attrs.vel / 99) * 3.5;
 
 export class Chance {
   readonly setup: ChanceSetup;
@@ -229,7 +250,10 @@ export class Chance {
   private rng: Rng;
   private thinkT = 0;
   private grace = 0;
-  private shotPlan: { save: boolean; blockAt: number | null; blocker: number | null; arrive: number; t: number; shooter: number } | null = null;
+  private shotPlan: {
+    save: boolean; catch: boolean; saved: boolean; saveZ: number; side: number;
+    blockAt: number | null; blocker: number | null; arrive: number; t: number; shooter: number;
+  } | null = null;
   private readonly mx: number;
 
   constructor(setup: ChanceSetup, rng: Rng = Math.random) {
@@ -245,6 +269,7 @@ export class Chance {
         i: this.actors.length, role, p, x, z, vx: 0, vz: 0, tx: x, tz: z, pace: 0, maxSpeed, heading: role === "att" ? 0 : Math.PI,
         stride: rng() * 6, state: "idle", dive: null, y: 0, kickT: -1, feintT: -1, stunT: 0, lane: null,
         wx: x, wz: z, lungeT: -1, lungeCd: rng(), feintSide: 1, fallSide: 1,
+        accel: (role === "att" ? 8 : 9) + (p.attrs.vel / 99) * (role === "att" ? 6 : 5), stamina: 1,
       };
       this.actors.push(a);
       return a;
@@ -256,7 +281,7 @@ export class Chance {
       if (s.run) a.lane = { x: s.run[0] * this.mx, z: s.run[1] };
     });
     const nDef = Math.max(1, Math.min(L.defs.length, this.bot.defenders - (setup.kind === "contra" ? 1 : 0)));
-    setup.defense.players.slice(0, nDef).forEach((p, k) => mk("def", p, L.defs[k], this.bot.defSpeed * (0.88 + (p.attrs.vel / 99) * 0.2)));
+    setup.defense.players.slice(0, nDef).forEach((p, k) => mk("def", p, L.defs[k], this.bot.defSpeed * (0.8 + (p.attrs.vel / 99) * 0.35)));
     mk("gk", setup.defense.gk, { x: 0, z: GOAL_Z - 1.2 }, 5);
     this.carrier = 0;
     const c = this.actors[0];
@@ -376,7 +401,7 @@ export class Chance {
     this.sprint = true;
     this.emit("dribble");
     if (!near) return true;
-    const p = clamp(0.32 + (c.p.attrs.dri - 55) / 90 - (this.bot.tackle - 0.55) * 0.17, 0.12, 0.88);
+    const p = clamp(0.32 + (c.p.attrs.dri - 55) / 90 - (near.p.attrs.mar - 60) / 220 - (this.bot.tackle - 0.55) * 0.17, 0.12, 0.88);
     if (this.rng() < p) {
       near.stunT = 0.9 + this.rng() * 0.5;
       near.state = "down";
@@ -407,14 +432,19 @@ export class Chance {
     const dGoal = dist(b.x, b.z, cmd.tx, GOAL_Z);
     // Cavadinha: gesto lento e comprido (pouca força, mira alta) de fora da pequena área.
     if (kind === "normal" && power < 0.5 && cmd.ty >= 1.6 && dGoal > 7) kind = "chip";
-    if (kind === "header") power = Math.min(power, 0.55);
-    const kindErr = kind === "header" ? 1.5 : kind === "volley" ? 1.25 : kind === "chip" ? 1.1 : 1;
-    const sigma = (0.22 + dGoal * 0.017) * (1.45 - fin / 100) * (1 + pressure * 0.9) * kindErr;
+    const cab = c.p.attrs.cab, bp = c.p.attrs.bp;
+    // Cabeçada: força e precisão vêm do cabeceio; de primeira, da finalização.
+    if (kind === "header") power = Math.min(power, 0.4 + (cab / 99) * 0.3);
+    const kindErr = kind === "header" ? 2.1 - cab / 100 : kind === "volley" ? 1.45 - (fin / 100) * 0.3 : kind === "chip" ? 1.1 : 1;
+    // Efeito: quem tem boa bola parada curva mais e erra menos ao curvar.
+    const curveAbs = kind === "header" ? 0 : Math.min(1, Math.abs(cmd.curve));
+    const sigma = (0.22 + dGoal * 0.017) * (1.45 - fin / 100) * (1 + pressure * 0.9) * kindErr * (1 + curveAbs * (0.55 - bp / 200));
     const tx = cmd.tx + gauss(this.rng) * sigma;
     const aimY = kind === "chip" ? Math.min(2.1, cmd.ty) : kind === "header" ? Math.min(cmd.ty, 1.6) : cmd.ty;
     const ty = Math.max(0.12, aimY + gauss(this.rng) * sigma * 0.6);
     const curve = kind === "header" ? 0 : clamp(cmd.curve, -1, 1);
-    const speed = kind === "header" ? 11 + power * 8 : 16 + power * 15 + (fin / 99) * 3;
+    // Força: a finalização soma até 5 m/s ao chute; de cabeça, o cabeceio.
+    const speed = kind === "header" ? 10 + power * 8 + (cab / 99) * 3 : 14 + power * 15 + (fin / 99) * 5;
     const dz = GOAL_Z - b.z, dx = tx - b.x;
     const dh = Math.sqrt(dx * dx + dz * dz);
     let T = Math.max(0.25, dh / speed);
@@ -426,7 +456,7 @@ export class Chance {
     }
     // Curva: aceleração lateral perpendicular; a direção inicial compensa para terminar no alvo.
     const nx = dz / dh, nz = -dx / dh; // perpendicular (à direita de quem chuta)
-    const ac = curve * 7;
+    const ac = curve * (4.5 + (bp / 99) * 4.5);
     const lat = 0.5 * ac * T * T;
     const ax0 = tx - nx * lat, az0 = GOAL_Z - nz * lat;
     const hx = ax0 - b.x, hz = az0 - b.z;
@@ -454,37 +484,73 @@ export class Chance {
       const t = along / (dh / T);
       const yAt = b.y + b.vy * t - 0.5 * G * t * t;
       // Nem todo chute na direção do defensor é bloqueado: depende do tempo de reação dele (e da bola baixa).
-      if (off < this.bot.blockR && yAt < 1.6 && this.rng() < 0.6 && (blockAt === null || t < blockAt)) { blockAt = t; blocker = d.i; }
+      if (off < this.bot.blockR && yAt < 1.6 && this.rng() < 0.5 && (blockAt === null || t < blockAt)) { blockAt = t; blocker = d.i; }
     }
-    // Goleiro: alcança o ponto de chegada se der tempo de reagir e mergulhar.
-    const inFrame = Math.abs(tx) < GOAL_HALF + 0.35 && ty < BAR + 0.35;
+    // Goleiro: onde a bola passa por ele e onde cruza a linha (trajetória real, com curva e gravidade).
     const ref = k.p.attrs.ref, col = k.p.attrs.col;
-    const react = this.bot.gkReact * (1.25 - ref / 100 * 0.45) * (1 + Math.abs(curve) * 0.35);
-    const reach = this.bot.gkReach * (0.85 + (col / 100) * 0.3) * (1 - power * 0.12) + Math.max(0, T - react) * this.bot.gkDive;
-    const dxk = Math.abs(tx - k.x), dyk = Math.max(0, ty - 1.85) * 1.3 + Math.max(0, 0.35 - ty) * 0.6;
-    const need = Math.sqrt(dxk * dxk + dyk * dyk);
-    let save = inFrame && reach * (0.88 + this.rng() * 0.2) >= need;
-    let backTo = k.z;
-    // Bola por cima do goleiro (cavadinha): ele só salva se der tempo de voltar para a linha.
-    const tK = clamp((k.z - b.z) / Math.max(1, dz / T), 0, T);
-    const yAtK = b.y + b.vy * tK - 0.5 * G * tK * tK;
-    if (yAtK > 2.55) {
-      // Andando de costas ele é lento (~3,6 m/s) e ainda precisa saltar: longe do gol, a cavadinha é mortal.
+    const react = this.bot.gkReact * (1.25 - (ref / 100) * 0.45) * (1 + Math.abs(curve) * 0.35);
+    const kz = Math.min(k.z, GOAL_Z - 0.4);
+    // (Chute de ângulo fechado, com a bola já na altura dele: vale a linha do gol.)
+    const atK = (b.z < kz - 0.3 ? this.predict(kz) : this.predict(GOAL_Z - BALL_R - 0.05)) ?? { x: tx, y: ty, t: T * 0.95 };
+    const atGoal = this.predict(GOAL_Z - BALL_R - 0.05);
+    const onTarget = !!atGoal && Math.abs(atGoal.x) < GOAL_HALF - BALL_R && atGoal.y < BAR - BALL_R;
+    // Cavadinha (a bola passa acima dele): só defende se der tempo de voltar para a linha.
+    const lob = atK.y > 2.55 && !!atGoal;
+    const pt = lob && atGoal ? atGoal : atK;
+    const lateral = pt.x - k.x;
+    const side = lateral >= 0 ? 1 : -1;
+    let save: boolean;
+    if (lob && atGoal) {
       const back = Math.max(0, GOAL_Z - 0.6 - k.z);
-      const margin = T - react - (back / 3.6 + 0.15);
-      save = inFrame && this.rng() < clamp(0.15 + margin * 0.8, 0.06, 0.75);
-      backTo = GOAL_Z - 0.6;
+      const margin = atGoal.t - react - (back / 3.6 + 0.15);
+      save = onTarget && this.rng() < clamp(0.15 + margin * 0.8, 0.06, 0.75);
+    } else {
+      // Alcance: braços (colocação) + mergulho depois da reação, com limite de extensão; a chance cai suave
+      // conforme a bola fica além do alcance (canto de longe ainda pode ser defendido por um goleiro rápido).
+      const arms = this.bot.gkReach * (0.85 + (col / 100) * 0.3) * (1 - power * 0.12);
+      const diveCap = 1.7 + (col - 60) / 100;
+      const reach = arms + Math.min(diveCap, Math.max(0, pt.t - react) * this.bot.gkDive * 0.5);
+      const dyk = Math.max(0, pt.y - 1.9) * 1.3 + Math.max(0, 0.3 - pt.y) * 0.6;
+      const need = Math.sqrt(Math.max(0, Math.abs(lateral) - 0.35) ** 2 + dyk * dyk);
+      save = onTarget && this.rng() < 1 / (1 + Math.exp(-(reach - need - 0.15) / 0.3));
     }
-    this.shotPlan = { save, blockAt, blocker, arrive: T, t: 0, shooter: this.carrier };
-    // Mergulho do goleiro (animação), depois do tempo de reação.
-    const side = tx >= k.x ? 1 : -1;
+    // Encaixe: bola não muito forte, perto do corpo e na altura das mãos.
+    const hs = Math.sqrt(b.vx * b.vx + b.vz * b.vz);
+    const grab = save && !lob && hs < 21 && Math.abs(lateral) < 1.3 && pt.y > 0.25 && pt.y < 1.9 && this.rng() < 0.35 + col / 250;
+    this.shotPlan = { save, catch: grab, saved: false, saveZ: lob ? GOAL_Z - 0.6 : kz, side, blockAt, blocker, arrive: T, t: 0, shooter: this.carrier };
+    // Bola claramente fora (mais de meio metro além da trave ou do travessão): ele só acompanha, não se atira.
+    const wideBy = atGoal ? Math.max(Math.abs(atGoal.x) - GOAL_HALF, atGoal.y - BAR) : 9;
+    const letGo = !onTarget && wideBy > 0.5;
+    // Mergulho no tempo certo: reage, dá passadas de lado e só se atira no fim (não cai antes da bola chegar).
+    const stand = letGo || (!lob && Math.abs(lateral) < 0.55 && pt.y < 2);
+    const diveDur = stand ? 0.22 : clamp(0.26 + Math.abs(lateral) * 0.09, 0.3, 0.55);
+    const start = Math.max(react, pt.t - diveDur);
+    // Centro do corpo no fim: mãos na bola (defende) ou um pouco antes dela (não alcança).
+    const short = save ? 0 : 0.45 + this.rng() * 0.5;
+    const cx = letGo ? k.x + clamp(lateral, -0.6, 0.6) : stand ? (save ? pt.x : k.x) : pt.x - side * (0.95 + short);
     k.dive = {
-      x0: k.x, z0: k.z, z: backTo,
-      x: clamp(save ? tx : k.x + side * Math.min(need, reach), -GOAL_HALF - 0.6, GOAL_HALF + 0.6),
-      y: Math.min(2.4, ty), t: -react, dur: Math.max(0.2, T - react), side,
+      x0: k.x, z0: k.z, z: lob ? GOAL_Z - 0.6 : k.z,
+      x: clamp(cx, -GOAL_HALF - 0.8, GOAL_HALF + 0.8),
+      y: Math.min(2.5, pt.y), t: -start, dur: Math.max(0.15, Math.min(diveDur, pt.t - react)), side, react, start, stand,
     };
     this.phase = "shot";
     this.emit("kick");
+  }
+
+  /** Simula a bola livre (mesmo passo e física do motor) até ela cruzar o plano z; null se não chegar. */
+  private predict(zPlane: number): { x: number; y: number; t: number } | null {
+    const b = this.ball, h = 1 / 120;
+    let x = b.x, y = b.y, z = b.z, vx = b.vx, vy = b.vy, vz = b.vz, ct = b.curveT;
+    for (let t = 0; t < 4; t += h) {
+      if (z >= zPlane) return { x, y, t };
+      if (ct > 0) { vx += b.ax * h; vz += b.az * h; ct -= h; }
+      vy -= G * h;
+      x += vx * h; y += vy * h; z += vz * h;
+      if (y < BALL_R) { y = BALL_R; if (vy < -1.2) { vy = -vy * 0.5; vx *= 0.8; vz *= 0.8; } else vy = 0; }
+      if (y <= BALL_R + 1e-3) { const f = Math.max(0, 1 - 0.55 * h); vx *= f; vz *= f; }
+      if (vz < 0.3) return null;
+    }
+    return null;
   }
 
   // ---------- Atualização ----------
@@ -507,6 +573,7 @@ export class Chance {
     const goal = outcome === "goal";
     for (const a of this.actors) {
       if (a.role === "att") a.state = goal ? "celebrate" : "sad";
+      else if (a.role === "gk" && this.ball.owner === a.i) { if (a.state !== "dive") a.state = "idle"; }
       else if (a.state !== "dive") a.state = goal ? "sad" : "celebrate";
       a.stunT = 0;
       a.pace = 0;
@@ -638,11 +705,19 @@ export class Chance {
       const dx = a.tx - a.x, dz = a.tz - a.z;
       const d = Math.sqrt(dx * dx + dz * dz);
       const withBall = this.ball.owner === a.i;
-      const burst = withBall && this.burstT > 0 ? 1.22 : 1;
-      const max = a.maxSpeed * a.pace * (withBall ? 0.92 : 1) * burst;
+      // Fôlego: arrancar com a bola gasta (mais rápido com pouco fôlego); sem fôlego, não arranca.
+      let pace = a.pace;
+      if (withBall && a.role === "att") {
+        const sprinting = pace >= 0.99 || this.burstT > 0;
+        if (sprinting && a.stamina > 0.1) a.stamina = Math.max(0, a.stamina - h * 0.3 * (1.35 - a.p.attrs.fol / 100));
+        else a.stamina = Math.min(1, a.stamina + h * (sprinting ? 0.03 : 0.1));
+        if (a.stamina <= 0.1) pace = Math.min(pace, 0.82);
+      } else a.stamina = Math.min(1, a.stamina + h * 0.12);
+      const burst = withBall && this.burstT > 0 && a.stamina > 0.1 ? 1.22 : 1;
+      const max = a.maxSpeed * pace * (withBall ? 0.92 - (1 - a.p.attrs.dri / 100) * 0.08 : 1) * burst;
       const want = d < 0.3 ? 0 : Math.min(max, d * 2.2);
       let wx = d > 1e-6 ? (dx / d) * want : 0, wz = d > 1e-6 ? (dz / d) * want : 0;
-      const acc = (withBall && this.burstT > 0 ? 18 : 11) * h;
+      const acc = (withBall && this.burstT > 0 ? a.accel + 6 : a.accel) * h;
       // Ninguém vira em cima da linha correndo: em velocidade, a direção gira aos poucos (e freia nas viradas bruscas).
       const cs = Math.sqrt(a.vx * a.vx + a.vz * a.vz);
       if (cs > 1.2 && want > 0.5) {
@@ -694,15 +769,26 @@ export class Chance {
   private moveKeeper(k: Actor, h: number): void {
     const b = this.ball;
     if (k.dive) {
-      k.dive.t += h;
-      if (k.dive.t > 0) {
-        k.state = "dive";
-        const f = Math.min(1, k.dive.t / k.dive.dur);
-        const e = 1 - (1 - f) * (1 - f);
-        k.x = k.dive.x0 + (k.dive.x - k.dive.x0) * e;
-        k.z = k.dive.z0 + (k.dive.z - k.dive.z0) * Math.min(1, f * 1.4);
-        k.y = Math.max(0, Math.sin(f * Math.PI) * Math.min(0.9, k.dive.y * 0.45));
+      const d = k.dive;
+      const before = d.t;
+      d.t += h;
+      if (d.t <= 0) {
+        // Leu o chute: passadas curtas de lado rumo à bola, ainda em pé.
+        if (d.t + d.start >= d.react) {
+          const step = clamp(d.x - k.x, -3.4 * h, 3.4 * h);
+          k.x += step; k.vx = step / h; k.vz = 0;
+          k.stride += Math.abs(step) * 2.6;
+        } else { k.vx = 0; k.vz = 0; }
+        return;
       }
+      if (before <= 0) { d.x0 = k.x; d.z0 = k.z; }
+      k.state = "dive";
+      const f = Math.min(1, d.t / d.dur);
+      const e = 1 - (1 - f) * (1 - f);
+      k.x = d.x0 + (d.x - d.x0) * e;
+      k.z = d.z0 + (d.z - d.z0) * Math.min(1, f * 1.4);
+      k.vx = 0; k.vz = 0;
+      k.y = d.stand ? 0 : Math.max(0, Math.sin(Math.min(1, f) * Math.PI) * Math.min(0.9, d.y * 0.45));
       return;
     }
     if (this.phase === "done") return;
@@ -737,6 +823,17 @@ export class Chance {
 
   private moveBall(h: number): void {
     const b = this.ball;
+    if (b.owner !== null && this.actors[b.owner].role === "gk") {
+      // Encaixou: bola nas mãos (deitado, ao lado do corpo; em pé, no peito).
+      const o = this.actors[b.owner];
+      const lying = o.state === "dive" && o.dive && !o.dive.stand;
+      const s = o.dive?.side ?? 1;
+      const tx = lying ? o.x + s * 1.05 : o.x + Math.sin(o.heading) * 0.35, tz = lying ? o.z - 0.1 : o.z + Math.cos(o.heading) * 0.35;
+      const ty = lying ? 0.3 + o.y : 1.25;
+      b.x += (tx - b.x) * Math.min(1, h * 20); b.z += (tz - b.z) * Math.min(1, h * 20); b.y += (ty - b.y) * Math.min(1, h * 20);
+      b.vx = 0; b.vy = 0; b.vz = 0;
+      return;
+    }
     if (b.owner !== null) {
       const o = this.actors[b.owner];
       const fx = Math.sin(o.heading), fz = Math.cos(o.heading);
@@ -774,7 +871,7 @@ export class Chance {
       // Bote (animação): o marcador estica a perna de vez em quando ao chegar perto.
       if (dd < 1.6 && d.lungeCd <= 0) { d.lungeT = 0; d.lungeCd = 0.9 + this.rng() * 0.7; }
       if (dd > 1.15) continue;
-      const p = this.bot.tackle * h * (1.3 - c.p.attrs.dri / 100) * (1.15 - dd / 1.15 * 0.5) * (this.exposedT > 0 ? 2.2 : 1);
+      const p = this.bot.tackle * h * (1.3 - c.p.attrs.dri / 100) * (1.15 - dd / 1.15 * 0.5) * (this.exposedT > 0 ? 2.2 : 1) * (0.7 + d.p.attrs.mar / 200);
       if (this.rng() < p) {
         d.state = "tackle";
         c.state = "down";
@@ -799,7 +896,7 @@ export class Chance {
         if (dist(d.x, d.z, b.x, b.z) < radius) {
           // Uma tentativa por defensor e por passe: reflexo e marcação dele contra o nível; de cabeça é mais difícil.
           this.passTries.add(d.i);
-          const p = clamp(0.5 + (this.bot.interceptR - 0.6) * 0.5 + (d.p.attrs.mar - 60) / 300, 0.3, 0.92) * (b.y > 1.2 ? 0.6 : 1);
+          const p = clamp(0.5 + (this.bot.interceptR - 0.6) * 0.5 + (d.p.attrs.mar - 60) / 300, 0.3, 0.92) * (b.y > 1.2 ? 0.25 + d.p.attrs.cab / 250 : 1);
           if (this.rng() >= p) continue;
           b.owner = d.i; d.state = "idle";
           this.emit("intercept");
@@ -852,16 +949,23 @@ export class Chance {
       this.finish("block", `${d.p.name} se jogou na frente e bloqueou o chute.`);
       return;
     }
-    if (b.z >= GOAL_Z - BALL_R - 0.05) {
+    // Defesa: acontece onde a bola passa pelo goleiro (as mãos dele estão lá), nunca depois dele.
+    if (plan.save && !plan.saved && b.z >= plan.saveZ - 0.12) {
+      plan.saved = true;
       const k = this.keeper;
-      const inside = Math.abs(b.x) < GOAL_HALF - BALL_R && b.y < BAR - BALL_R;
-      if (plan.save && Math.abs(b.x) < GOAL_HALF + 0.4 && b.y < BAR + 0.4) {
-        b.vz = -Math.abs(b.vz) * 0.25; b.vx = (b.x >= k.x ? 1 : -1) * (2 + this.rng() * 3); b.vy = Math.abs(b.vy) * 0.3 + 1.2; b.curveT = 0;
-        b.z = GOAL_Z - BALL_R - 0.06;
-        this.emit("save");
-        this.finish("save", this.shotKind === "chip" ? `${k.p.name} voltou a tempo e tirou a cavadinha!` : `Defesaça de ${k.p.name}!`);
+      this.emit("save");
+      if (plan.catch) {
+        b.owner = k.i; b.curveT = 0; b.vx = 0; b.vy = 0; b.vz = 0;
+        this.finish("save", `${k.p.name} encaixou firme.`);
         return;
       }
+      // Espalma para o lado (e para fora do gol).
+      b.vz = -Math.abs(b.vz) * 0.22; b.vx = plan.side * (2.5 + this.rng() * 3); b.vy = Math.abs(b.vy) * 0.3 + 1.4; b.curveT = 0;
+      this.finish("save", this.shotKind === "chip" ? `${k.p.name} voltou a tempo e tirou a cavadinha!` : `Defesaça de ${k.p.name}! Espalmou para o lado.`);
+      return;
+    }
+    if (b.z >= GOAL_Z - BALL_R - 0.05) {
+      const inside = Math.abs(b.x) < GOAL_HALF - BALL_R && b.y < BAR - BALL_R;
       if (inside) {
         this.emit("goal");
         const how = this.shotKind === "chip" ? " De cavadinha!" : this.shotKind === "header" ? " De cabeça!" : this.shotKind === "volley" ? " De primeira!" : "";

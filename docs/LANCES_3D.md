@@ -25,6 +25,33 @@ O jogo de botão saiu. No lugar dele entram as **chances de ataque em 3D**, no e
 - **Tempo:** cada lance tem 11 s (12,5 s no contra-ataque) para finalizar. Tempo esgotado = lance perdido.
 - **Durante o deslize:** um anel dourado mostra no gol onde a bola vai.
 
+## Qualidades no lance
+As qualidades do jogador (as mesmas do Manager) mudam o lance. As de quem conduz aparecem embaixo do tempo (VEL, FIN, PAS, DRI, CAB).
+
+| Qualidade | Efeito |
+|---|---|
+| **Velocidade** | Velocidade máxima (de ~6,6 m/s com 50 a ~8,1 m/s com 90) e aceleração. Na defesa, a velocidade do marcador. |
+| **Fôlego** | Barra acima do joystick. Arrancar com a bola gasta (mais rápido com pouco fôlego); sem fôlego não arranca, e recupera devagar. |
+| **Finalização** | Precisão e força do chute (até +5 m/s); de primeira, a precisão. |
+| **Bola parada** | Efeito: quanto o chute curva e quanto erra ao curvar. |
+| **Cabeceio** | Força e precisão da cabeçada; na defesa, o corte de cabeça. |
+| **Passe** | Velocidade e precisão do passe (rasteiro e por cima). |
+| **Drible** | Proteção contra o desarme, sucesso do drible e domínio de bola na corrida. |
+| **Marcação** | Desarme, corte de passe e resistência ao drible (defensores). |
+| **Reflexo e colocação** | Goleiro: reação ao chute, alcance e encaixe. |
+
+## Goleiro
+- **Previsão:** no chute, o motor simula a trajetória real (curva, gravidade e quique) até o plano do goleiro e até a linha do gol.
+- **Defesa ou não:** decidida pela distância da bola ao corpo contra o alcance (braços + mergulho, com limite de extensão), e a chance cai suave conforme a bola fica longe.
+- **No tempo certo:** reage, dá passadas de lado rumo à bola e só se atira no fim (o mergulho dura de 0,3 a 0,55 s antes da bola chegar). Num chute de longe ele não cai antes da hora.
+- **Coerência:** a defesa acontece no ponto em que a bola passa pelas mãos dele; se ele não alcança, a bola passa e entra (nunca "defesa" com a bola longe). Bola claramente para fora: ele acompanha e não se atira.
+- **Encaixe:** chute não muito forte, perto do corpo e na altura das mãos, ele segura (a bola fica nas mãos). Senão espalma para o lado.
+- **Visual:** um pouco maior que os de linha, camisa própria (degradê e faixas diagonais), luvas grandes coloridas com punho, base agachada com as mãos à frente, passadas laterais, defesa em pé com as mãos na altura da bola, mergulho deitado no ar e queda de lado.
+
+## Celular deitado
+- O botão de girar (ao lado da câmera, só em tela de toque) coloca o jogo em tela cheia e deitado, quando o aparelho deixa (Android). Senão (iPhone), aparece o aviso para girar o celular com a rotação automática ligada.
+- Em tela baixa (deitada), a dica vai para baixo, entre o joystick e o drible, e o joystick fica menor.
+
 ## Impedimento
 - **Regra:** quem estiver à frente do penúltimo adversário (normalmente o zagueiro mais recuado; o goleiro é o último) e da bola **no momento do passe** está impedido. Na mesma linha (até 25 cm) está em condição. Ao receber, o lance termina em "Impedimento!".
 - **Defesa:** segura uma linha alguns metros à frente da bola (`lineGap`), com a sobra um pouco atrás (`cover`). Nos níveis difícil e lendário, a linha às vezes **sobe em bloco** (`trap`) para deixar atacantes impedidos.

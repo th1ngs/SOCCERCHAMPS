@@ -166,6 +166,68 @@ const runOut = (c: Chance, max = 12) => { for (let t = 0; t < max && c.phase !==
   check(run(true) > run(false) + 0.3, 'segurar e arrastar corre mais que tocar no gramado');
 }
 
+// 2c) Goleiro: mergulha no tempo certo e só defende onde está.
+{
+  let early = 0, longShots = 0, badSaves = 0, saves = 0, letGo = 0, offTarget = 0;
+  for (let s = 0; s < 240; s++) {
+    const rng = seeded(900 + s);
+    const c = new Chance(genericChance(team('a', 75), team('b', 75), botParams(s % 4), rng, 'centro'), rng);
+    while (c.phase !== 'play') c.update(1 / 60);
+    for (const d of c.defenders) d.x = 30;
+    const car = c.actors[c.carrier];
+    const far = s % 2 === 0;
+    car.x = (rng() - 0.5) * 10; car.z = far ? GOAL_Z - 25 : GOAL_Z - 15;
+    c.ball.x = car.x; c.ball.z = car.z + 0.5;
+    for (let t = 0; t < 1; t += 1 / 60) { c.commandStop(); c.update(1 / 60); }
+    const wide = s % 5 === 4;
+    c.commandShot({ tx: wide ? 6 : (rng() - 0.5) * 6, ty: wide ? 1 : 0.3 + rng() * 1.6, power: 0.8, curve: 0 });
+    const k = c.keeper;
+    let diveAt = -1, passAt = -1, t = 0;
+    for (; t < 3 && (c.phase as string) === 'shot'; t += 1 / 120) {
+      c.update(1 / 120);
+      if (diveAt < 0 && k.state === 'dive' && !k.dive?.stand) diveAt = t;
+      if (passAt < 0 && c.ball.z >= k.z - 0.1) passAt = t;
+    }
+    if (far && diveAt >= 0 && passAt >= 0) { longShots++; if (passAt - diveAt > 0.65) early++; }
+    if (c.result?.outcome === 'save') { saves++; if (Math.abs(c.ball.x - k.x) > 2.1) badSaves++; }
+    if (wide && c.result?.outcome === 'miss') { offTarget++; if (k.dive?.stand) letGo++; }
+  }
+  check(longShots > 20 && early === 0, `goleiro não cai antes da bola chegar (${early}/${longShots} chutes de longe)`);
+  check(saves > 10 && badSaves === 0, `defesa só com a bola perto dele (${badSaves}/${saves})`);
+  check(offTarget > 5 && letGo === offTarget, `bola para fora: ele não se atira (${letGo}/${offTarget})`);
+}
+
+// 2d) Qualidades mudam o jogo: velocidade, fôlego e finalização.
+{
+  const withAttrs = (patch: Partial<Record<'vel' | 'fol' | 'fin', number>>, seed = 5) => {
+    const rng = seeded(seed);
+    const setup = genericChance(team('a', 70), team('b', 70), botParams(0), rng, 'contra');
+    Object.assign(setup.attack.players[0].attrs, patch);
+    const c = new Chance(setup, rng);
+    while (c.phase !== 'play') c.update(1 / 60);
+    for (const d of c.defenders) { d.x = 30; d.z = 10; }
+    return c;
+  };
+  const sprint = (c: Chance, secs: number) => {
+    const a = c.actors[c.carrier], z0 = a.z;
+    for (let t = 0; t < secs; t += 1 / 60) { c.commandMove(a.x, a.z + 6, true); c.update(1 / 60); }
+    return { dist: a.z - z0, stamina: a.stamina };
+  };
+  const slow = sprint(withAttrs({ vel: 45, fol: 70 }), 2), fast = sprint(withAttrs({ vel: 92, fol: 70 }), 2);
+  check(fast.dist > slow.dist + 1.5, `velocidade: rápido corre mais (${fast.dist.toFixed(1)} m x ${slow.dist.toFixed(1)} m em 2 s)`);
+  const tired = sprint(withAttrs({ vel: 70, fol: 35 }), 3), fit = sprint(withAttrs({ vel: 70, fol: 92 }), 3);
+  check(fit.stamina > tired.stamina + 0.12, `fôlego: quem tem mais cansa menos (${fit.stamina.toFixed(2)} x ${tired.stamina.toFixed(2)})`);
+  const exhausted = withAttrs({ vel: 80, fol: 30 });
+  const r1 = sprint(exhausted, 5), r2 = sprint(exhausted, 1);
+  check(r1.stamina <= 0.15 && r2.dist < 7.2, `sem fôlego não arranca (${r2.dist.toFixed(1)} m/s)`);
+  const shotSpeed = (fin: number) => {
+    const c = withAttrs({ fin }, 9);
+    c.commandShot({ tx: 1, ty: 1, power: 0.8, curve: 0 });
+    return Math.hypot(c.ball.vx, c.ball.vz);
+  };
+  check(shotSpeed(95) > shotSpeed(45) + 1.5, `finalização: chute mais forte (${shotSpeed(95).toFixed(1)} x ${shotSpeed(45).toFixed(1)} m/s)`);
+}
+
 // 3) Dificuldade automática: sobe com gols, desce com erros; fixa não muda.
 const auto = new Difficulty('auto', 1);
 for (let i = 0; i < 6; i++) auto.record(true);

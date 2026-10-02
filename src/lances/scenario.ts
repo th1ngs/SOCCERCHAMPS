@@ -34,7 +34,7 @@ export function contrastKit(def: LanceKit, att: LanceKit): LanceKit {
 
 const fromPlayer = (p: Player): LancePlayer => ({
   id: p.id, name: p.name.split(" ").slice(-1)[0], num: p.num || 0,
-  attrs: { fin: attr(p, "fin"), pas: attr(p, "pas"), dri: attr(p, "dri"), vel: attr(p, "vel"), mar: attr(p, "mar"), ref: attr(p, "ref"), col: attr(p, "col") },
+  attrs: { fin: attr(p, "fin"), pas: attr(p, "pas"), dri: attr(p, "dri"), vel: attr(p, "vel"), mar: attr(p, "mar"), ref: attr(p, "ref"), col: attr(p, "col"), fol: attr(p, "fol"), cab: attr(p, "cab"), bp: attr(p, "bp") },
 });
 
 function pickWeighted<T>(items: T[], w: (x: T) => number, rng: () => number): T | undefined {
@@ -84,11 +84,11 @@ export function genericSquad(id: string, league: LeagueId, rating: number): { at
   try {
     const mk = (num: number, off: Partial<Record<keyof LancePlayer["attrs"], number>>): LancePlayer => {
       const base = (k: keyof LancePlayer["attrs"]) => Math.round(Math.max(30, Math.min(97, rating + (off[k] ?? -12) + (rnd() - 0.5) * 8)));
-      return { id: `${id}:${num}`, name: makeName(league).split(" ").slice(-1)[0], num, attrs: { fin: base("fin"), pas: base("pas"), dri: base("dri"), vel: base("vel"), mar: base("mar"), ref: base("ref"), col: base("col") } };
+      return { id: `${id}:${num}`, name: makeName(league).split(" ").slice(-1)[0], num, attrs: { fin: base("fin"), pas: base("pas"), dri: base("dri"), vel: base("vel"), mar: base("mar"), ref: base("ref"), col: base("col"), fol: base("fol"), cab: base("cab"), bp: base("bp") } };
     };
     return {
-      att: [mk(9, { fin: 4, dri: 0, vel: 2, pas: -6 }), mk(10, { fin: -2, pas: 4, dri: 3, vel: -2 }), mk(11, { fin: -3, dri: 2, vel: 4, pas: -4 }), mk(7, { fin: -4, dri: 1, vel: 3, pas: -3 })],
-      def: [mk(4, { mar: 4, vel: -4 }), mk(3, { mar: 3, vel: -3 }), mk(2, { mar: 0, vel: 2 }), mk(5, { mar: 2, vel: 0 })],
+      att: [mk(9, { fin: 4, dri: 0, vel: 2, pas: -6, cab: 3, fol: -4, bp: -6 }), mk(10, { fin: -2, pas: 4, dri: 3, vel: -2, bp: 5, fol: -2, cab: -10 }), mk(11, { fin: -3, dri: 2, vel: 4, pas: -4, fol: 2, cab: -8, bp: -2 }), mk(7, { fin: -4, dri: 1, vel: 3, pas: -3, fol: 4, cab: -6, bp: 0 })],
+      def: [mk(4, { mar: 4, vel: -4, cab: 4 }), mk(3, { mar: 3, vel: -3, cab: 3 }), mk(2, { mar: 0, vel: 2, fol: 2 }), mk(5, { mar: 2, vel: 0, fol: 0 })],
       gk: mk(1, { ref: 4, col: 2, vel: -20 }),
     };
   } finally {
