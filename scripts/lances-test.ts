@@ -228,6 +228,77 @@ const runOut = (c: Chance, max = 12) => { for (let t = 0; t < max && c.phase !==
   check(shotSpeed(95) > shotSpeed(45) + 1.5, `finalização: chute mais forte (${shotSpeed(95).toFixed(1)} x ${shotSpeed(45).toFixed(1)} m/s)`);
 }
 
+// 2e) Dribles com opções (também correndo) e dedada com mais efeito.
+{
+  const running = (seed: number) => {
+    const rng = seeded(seed);
+    const c = new Chance(genericChance(team('a', 75), team('b', 75), botParams(0), rng, 'contra'), rng);
+    while (c.phase !== 'play') c.update(1 / 60);
+    for (const d of c.defenders) { d.x = 30; d.z = 10; }
+    const a = c.actors[c.carrier];
+    for (let t = 0; t < 1.2; t += 1 / 60) { c.commandMove(a.x, a.z + 6, true); c.update(1 / 60); }
+    return c;
+  };
+  const ang = (x: number, z: number) => Math.atan2(x, z);
+  // Pedalada correndo: não para.
+  let c = running(61);
+  let a = c.actors[c.carrier];
+  check(c.commandDribble('toque'), 'pedalada aceita correndo');
+  let minSp = 99;
+  for (let t = 0; t < 0.5; t += 1 / 60) { c.update(1 / 60); minSp = Math.min(minSp, Math.hypot(a.vx, a.vz)); }
+  check(minSp > 4.5, `pedalada correndo mantém a velocidade (${minSp.toFixed(1)} m/s)`);
+  // Corte: muda de direção de verdade.
+  c = running(62); a = c.actors[c.carrier];
+  const before = ang(a.vx, a.vz);
+  c.commandDribble('corte', undefined, 1);
+  for (let t = 0; t < 0.45; t += 1 / 60) c.update(1 / 60);
+  const turned = Math.abs(ang(a.vx, a.vz) - before);
+  check(turned > 0.6, `corte muda a direção (${(turned * 57.3).toFixed(0)}°)`);
+  // Chapéu: a bola sobe.
+  c = running(63);
+  c.commandDribble('chapeu');
+  let top = 0;
+  for (let t = 0; t < 0.5 && c.phase === 'play'; t += 1 / 60) { c.update(1 / 60); top = Math.max(top, c.ball.y); }
+  check(top > 1.2, `chapéu levanta a bola (${top.toFixed(1)} m)`);
+  // Roleta: com o marcador colado, não toma desarme durante o giro.
+  let safe = 0;
+  for (let k = 0; k < 30; k++) {
+    const c2 = running(700 + k), car = c2.actors[c2.carrier], d = c2.defenders[0];
+    d.x = car.x + 0.5; d.z = car.z + 0.7;
+    c2.commandDribble('roleta', undefined, 1);
+    let tackled = false;
+    for (let t = 0; t < 0.7; t += 1 / 60) { c2.update(1 / 60); if (c2.result?.outcome === 'tackle') tackled = true; }
+    if (!tackled) safe++;
+  }
+  check(safe === 30, `roleta protege durante o giro (${safe}/30)`);
+  // Dedada: mais curva com mais efeito; o colocado é reconhecido e é mais preciso.
+  c = running(64);
+  const bend = (curve: number) => {
+    const p = c.previewShot({ tx: 2, ty: 1, power: 0.6, curve })!.points;
+    const p0 = p[0], p1 = p[p.length - 1];
+    let m = 0;
+    for (const q of p) {
+      const t = (q.z - p0.z) / (p1.z - p0.z || 1);
+      m = Math.max(m, Math.abs(q.x - (p0.x + (p1.x - p0.x) * t)));
+    }
+    return m;
+  };
+  check(bend(1) > 1 && bend(1) > bend(0.3) * 2, `dedada curva bem (${bend(1).toFixed(2)} m com efeito máximo, ${bend(0.3).toFixed(2)} m com pouco)`);
+  check(c.previewShot({ tx: 2, ty: 1, power: 0.6, curve: 0.6 })!.kind === 'curl', 'chute com efeito e força moderada é colocado');
+  const spread = (curve: number, power: number) => {
+    const xs: number[] = [];
+    for (let k = 0; k < 200; k++) {
+      const c3 = running(800 + k);
+      c3.commandShot({ tx: 2, ty: 1, power, curve });
+      xs.push(c3.shotAim!.x - 2);
+    }
+    const m = xs.reduce((s2, v) => s2 + v, 0) / xs.length;
+    return Math.sqrt(xs.reduce((s2, v) => s2 + (v - m) ** 2, 0) / xs.length);
+  };
+  const curl = spread(0.6, 0.6), straight = spread(0, 0.9);
+  check(curl < straight * 0.92, `colocado é mais preciso (erro ${curl.toFixed(2)} m x ${straight.toFixed(2)} m)`);
+}
+
 // 3) Dificuldade automática: sobe com gols, desce com erros; fixa não muda.
 const auto = new Difficulty('auto', 1);
 for (let i = 0; i < 6; i++) auto.record(true);

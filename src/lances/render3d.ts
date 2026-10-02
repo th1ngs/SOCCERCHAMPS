@@ -371,6 +371,23 @@ export class LanceScene {
     this.camera.updateProjectionMatrix();
   }
 
+  private aimPath: THREE.Mesh | null = null;
+  /** Caminho previsto do chute (tubo pontilhado de luz): mostra a curva da dedada enquanto se desliza. */
+  setAimPath(points: { x: number; y: number; z: number }[] | null, curl = false): void {
+    if (this.aimPath) { this.scene.remove(this.aimPath); this.aimPath.geometry.dispose(); }
+    if (!points || points.length < 3) { if (this.aimPath) this.aimPath.visible = false; return; }
+    const pts = points.filter((_, i) => i % 2 === 0 || i === points.length - 1).map((p) => new THREE.Vector3(p.x, p.y + 0.05, p.z));
+    const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), Math.min(64, pts.length * 2), 0.08, 6, false);
+    if (!this.aimPath) {
+      const mat = new THREE.MeshBasicMaterial({ color: "#ffd23f", transparent: true, opacity: 0.7, depthWrite: false });
+      this.aimPath = new THREE.Mesh(geo, mat);
+      this.aimPath.renderOrder = 15;
+    } else this.aimPath.geometry = geo;
+    (this.aimPath.material as THREE.MeshBasicMaterial).color.set(curl ? "#7dd3fc" : "#ffd23f");
+    this.aimPath.visible = true;
+    this.scene.add(this.aimPath);
+  }
+
   setAim(p: { x: number; y: number } | null): void {
     this.aim.visible = !!p;
     if (p) this.aim.position.set(p.x, Math.max(0.05, p.y), GOAL_Z - 0.05);

@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { CircleHelp, Hand, MousePointerClick, MoveUpRight, RotateCw, Video, X, Zap } from "lucide-react";
+import { CircleHelp, Hand, MousePointerClick, MoveUpRight, RotateCw, Video, X } from "lucide-react";
 import type { ChanceSetup, LanceResult } from "@/lances/engine";
 import type { CameraView } from "@/lances/render3d";
 import { LanceRunner } from "@/lances/runner";
+import { DribblePad } from "./DribblePad";
 import { Joystick } from "./Joystick";
 import { cn } from "@/lib/cn";
 
@@ -31,13 +32,14 @@ const CONTROLS: [string, string][] = [
   ["Tocar no gramado", "Conduz a bola até o ponto."],
   ["Joystick (canto de baixo, à esquerda)", "Conduz quem tem a bola na direção em que você arrasta; pouco inclinado anda devagar, no fim do curso arranca. Dá para chutar e passar com o outro dedo ao mesmo tempo."],
   ["Segurar e arrastar no gramado", "Conduz em velocidade, seguindo o dedo."],
-  ["Dois toques em quem tem a bola", "Drible: finta e arrancada; pode deixar o marcador no chão (também no botão Drible)."],
+  ["Botão Drible (também correndo)", "Tocar = pedalada (finta e arrancada na direção da corrida ou do joystick). Arrastar a partir do botão: para os lados = corte para aquele lado (melhor com o marcador vindo em cima); para cima = chapéu (a bola passa por cima do marcador colado; se falhar, ele mata no peito); para baixo = roleta (gira protegendo: não toma desarme no giro, mas é mais lenta). Dois toques em quem tem a bola também fazem a pedalada."],
+  ["Dedada (chute com efeito)", "Curve o gesto do chute: quanto mais curvo, mais a bola faz a curva (bola parada alta curva mais). Com efeito e força moderada sai o chute colocado: mais preciso e o goleiro demora mais a ler. Enquanto você desliza, uma linha mostra o caminho da bola (azul = colocado)."],
   ["Impedimento", "Quem estiver à frente do penúltimo defensor na hora do passe está impedido (anel vermelho). Nos níveis fácil e médio a linha aparece no gramado."],
   ["Fôlego", "Arrancar com a bola (joystick no fim do curso, segurar e arrastar, drible) gasta o fôlego; quem tem pouco fôlego cansa mais rápido. Sem fôlego, não arranca: solte um pouco para recuperar."],
   ["Qualidades", "Valem no lance: velocidade (corrida e aceleração), finalização (força e precisão do chute), passe, drible (proteção da bola e sucesso do drible), cabeceio (cabeçadas), bola parada (efeito) e fôlego. Na defesa, marcação e velocidade; no goleiro, reflexo e colocação."],
   ["Goleiro", "Ele lê o chute, dá passadas de lado e só mergulha no fim. Só é defesa se a mão dele chegar onde a bola passa; chute fraco em cima dele, ele encaixa."],
   ["Tela deitada (celular)", "O botão de girar coloca em tela cheia e deitada, quando o aparelho deixa; senão, é só girar o celular."],
-  ["Teclado", "WASD ou setas conduzem, Shift arranca, Espaço dribla."],
+  ["Teclado", "WASD ou setas conduzem, Shift arranca, Espaço = pedalada, Q/E = corte para a esquerda/direita, R = chapéu, F = roleta."],
 ];
 
 /** Palco de um lance: canvas 3D, rastro do gesto, tempo, quem conduz e o resultado. */
@@ -168,7 +170,7 @@ export function LanceStage({ setup, onDone, top, className }: { setup: ChanceSet
           <ul className="flex max-w-xl flex-col gap-1 rounded-2xl bg-ink-950/80 px-4 py-2.5 text-xs text-snow ring-1 ring-white/10 sm:text-sm">
             <li className="flex items-center gap-1.5"><MoveUpRight className="size-4 shrink-0 text-gold-400" /> Deslize = chute • devagar e comprido = cavadinha</li>
             <li className="flex items-center gap-1.5"><MousePointerClick className="size-4 shrink-0 text-gold-400" /> Toque no companheiro = passe • segure = por cima</li>
-            <li className="flex items-center gap-1.5"><Hand className="size-4 shrink-0 text-gold-400" /> Joystick = conduzir (no fim, arrancada) • botão = drible</li>
+            <li className="flex items-center gap-1.5"><Hand className="size-4 shrink-0 text-gold-400" /> Joystick = conduzir • Drible: toque ou arraste (corte, chapéu, roleta)</li>
           </ul>
         </div>
       )}
@@ -186,15 +188,13 @@ export function LanceStage({ setup, onDone, top, className }: { setup: ChanceSet
       )}
 
       {hud.phase === "play" && !help && (
-        <button
-          type="button"
-          onClick={() => runner.dribble()}
-          disabled={!hud.dribble}
-          className="absolute bottom-4 right-4 grid size-16 place-items-center rounded-full bg-gold-400/90 font-display text-xs font-extrabold uppercase text-ink-950 shadow-lg ring-2 ring-gold-200/60 transition-opacity disabled:opacity-40"
-          aria-label="Driblar"
-        >
-          <span className="flex flex-col items-center leading-none"><Zap className="mb-0.5 size-5" />Drible</span>
-        </button>
+        <DribblePad className="absolute bottom-1 right-1" ready={hud.dribble} onMove={(m, side) => runner.dribble(m, side)} />
+      )}
+
+      {hud.flash && (
+        <div className="pointer-events-none absolute inset-x-0 top-[38%] flex justify-center" aria-live="polite">
+          <span key={hud.flash} className={cn("animate-pop rounded-xl bg-ink-950/70 px-3 py-1 font-display text-2xl font-extrabold uppercase italic", hud.flash.includes("Não") ? "text-danger-400" : hud.flash.includes("Passou") ? "text-gold-300" : "text-snow")}>{hud.flash}</span>
+        </div>
       )}
 
       {notice && (

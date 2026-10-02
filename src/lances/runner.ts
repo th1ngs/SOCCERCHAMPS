@@ -3,7 +3,7 @@
 // segurar no companheiro = passe por cima; tocar no gramado = conduzir até lá; segurar e arrastar = conduzir
 // seguindo o dedo (em velocidade); dois toques em quem tem a bola = drible.
 import { Audio } from "@/arcade/audio";
-import { BALL_R, Chance, GOAL_Z, type ChanceSetup, type LanceAttrs, type LanceResult, type Phase } from "./engine";
+import { BALL_R, Chance, DRIBBLE_NAME, GOAL_Z, type ChanceSetup, type DribbleMove, type LanceAttrs, type LanceResult, type Phase } from "./engine";
 import { LanceScene, type CameraView } from "./render3d";
 
 export interface LanceHud {
@@ -17,9 +17,11 @@ export interface LanceHud {
   /** Qualidades de quem conduz e o fôlego dele (0 a 1). */
   attrs: LanceAttrs | null;
   stamina: number;
+  /** Aviso rápido do drible ("Corte! Passou"). */
+  flash: string | null;
 }
 
-const EMPTY: LanceHud = { phase: "intro", timeLeft: 0, timeFrac: 1, carrier: "", result: null, dribble: true, attrs: null, stamina: 1 };
+const EMPTY: LanceHud = { phase: "intro", timeLeft: 0, timeFrac: 1, carrier: "", result: null, dribble: true, attrs: null, stamina: 1, flash: null };
 
 /** Segurar no companheiro por este tempo = passe por cima (ms). */
 export const LOB_HOLD_MS = 320;
@@ -61,8 +63,9 @@ export function swipeToShot(samples: Sample[], ball: { x: number; y: number }, g
     const d = (cx * (p.y - a.y) - cy * (p.x - a.x)) / chord;
     if (Math.abs(d) > Math.abs(dev)) dev = d;
   }
-  const curve = Math.max(-1, Math.min(1, (dev / chord) * 4.5));
-  return { screenX, screenY: goal.y, height, power, curve: Math.abs(curve) < 0.08 ? 0 : curve };
+  // Dedada: o gesto curvo vira bastante efeito (pouca curva já conta).
+  const curve = Math.max(-1, Math.min(1, (dev / chord) * 7));
+  return { screenX, screenY: goal.y, height, power, curve: Math.abs(curve) < 0.06 ? 0 : curve };
 }
 
 export class LanceRunner {
@@ -156,10 +159,46 @@ export class LanceRunner {
     c.commandMove(a.x + (dx / l) * 3, a.z + (dz / l) * 3, m > 0.88, 0.4 + m * 0.55);
   }
 
-  /** Drible pelo botão da tela (mesmo efeito de dois toques em quem tem a bola). */
-  dribble(): void {
-    this.chance?.commandDribble();
+  /** Direção da tela (px, y para baixo) → direção no gramado, a partir de quem conduz. */
+  private screenToGround(vx: number, vy: number): { x: number; z: number } | null {
+    const c = this.chance, s = this.scene;
+    if (!c || !s) return null;
+    const a = c.actors[c.carrier];
+    const p = s.toScreen(a.x, 0, a.z);
+    const l = Math.hypot(vx, vy) || 1;
+    const g0 = s.groundAt(p.x, p.y), g1 = s.groundAt(p.x + (vx / l) * 80, p.y + (vy / l) * 80);
+    if (!g0 || !g1) return null;
+    const dx = g1.x - g0.x, dz = g1.z - g0.z, m = Math.hypot(dx, dz) || 1;
+    return { x: dx / m, z: dz / m };
   }
+
+  /**
+   * Drible pelo botão (ou teclado): `move` e, para corte e roleta, o lado da tela (−1 esquerda, 1 direita).
+   * A saída segue a corrida (ou o joystick, se estiver em uso); o corte vira ~60° para o lado escolhido.
+   */
+  dribble(move: DribbleMove = "toque", screenSide?: -1 | 1): void {
+    const c = this.chance;
+    if (!c || c.phase !== "play") return;
+    const a = c.actors[c.carrier];
+    const sp = Math.hypot(a.vx, a.vz);
+    const fwd = this.stick && Math.hypot(this.stick.x, this.stick.y) > 0.15 ? this.screenToGround(this.stick.x, this.stick.y)
+      : sp > 1.2 ? { x: a.vx / sp, z: a.vz / sp } : { x: Math.sin(a.heading), z: Math.cos(a.heading) };
+    if (!fwd) { c.commandDribble(move); return; }
+    let dir: { x: number; z: number } | undefined = move === "toque" || move === "chapeu" ? fwd : undefined;
+    let side: number | undefined;
+    if (screenSide && (move === "corte" || move === "roleta")) {
+      const right = this.screenToGround(1, 0);
+      if (right) {
+        const k = move === "corte" ? 1.7 : 1.1;
+        dir = { x: fwd.x + right.x * screenSide * k, z: fwd.z + right.z * screenSide * k };
+        side = Math.sign(right.x * screenSide) || 1;
+      }
+    }
+    c.commandDribble(move, dir, side);
+  }
+
+  private flashText: string | null = null;
+  private flashUntil = 0;
 
   private computeHud(force = false): void {
     const c = this.chance;
@@ -171,10 +210,11 @@ export class LanceRunner {
       carrier: `${c.actors[c.carrier].p.num || ""} ${c.actors[c.carrier].p.name}`.trim(),
       result: c.result,
       dribble: c.dribbleCd === 0,
+      flash: this.flashText && performance.now() < this.flashUntil ? this.flashText : null,
       attrs: c.actors[c.carrier].p.attrs,
       stamina: Math.round(c.actors[c.carrier].stamina * 20) / 20,
     };
-    const key = `${next.phase}|${next.timeLeft}|${next.timeFrac}|${next.carrier}|${next.result?.outcome ?? ""}|${next.dribble}|${next.stamina}`;
+    const key = `${next.phase}|${next.timeLeft}|${next.timeFrac}|${next.carrier}|${next.result?.outcome ?? ""}|${next.dribble}|${next.stamina}|${next.flash ?? ""}`;
     if (!force && key === this.hudKey) return;
     this.hudKey = key;
     this.hud = next;
@@ -198,6 +238,25 @@ export class LanceRunner {
     return { x: cx + dx * k, y: cy + dy * k, edge: true, ang: Math.atan2(dy, dx) };
   }
 
+  /** Setas de borda do quadro (já afastadas umas das outras), usadas no desenho e no toque. */
+  private edgeLayout = new Map<number, { x: number; y: number; ang: number }>();
+  private layoutEdges(): void {
+    const c = this.chance;
+    this.edgeLayout.clear();
+    if (!c) return;
+    const placed: { x: number; y: number }[] = [];
+    for (const m of c.attackers) {
+      if (m.i === c.carrier) continue;
+      const sp = this.mateScreen(m.i);
+      if (!sp?.edge) continue;
+      let { y } = sp;
+      // Duas setas no mesmo lugar: empilha (para não esconder o número de ninguém).
+      for (let k = 0; k < 4 && placed.some((p) => Math.hypot(p.x - sp.x, p.y - y) < 38); k++) y += y > this.h / 2 ? -40 : 40;
+      placed.push({ x: sp.x, y });
+      this.edgeLayout.set(m.i, { x: sp.x, y, ang: sp.ang });
+    }
+  }
+
   /** Companheiro (não quem conduz) mais perto do ponto da tela, dentro de `radius` px. */
   private mateAt(x: number, y: number, radius = 60): number | null {
     const c = this.chance;
@@ -205,7 +264,7 @@ export class LanceRunner {
     let best: number | null = null, bd = radius;
     for (const p of c.attackers) {
       if (p.i === c.carrier) continue;
-      const sp = this.mateScreen(p.i);
+      const sp = this.edgeLayout.get(p.i) ?? this.mateScreen(p.i);
       if (!sp) continue;
       const d = Math.hypot(sp.x - x, sp.y - y);
       if (d < bd) { bd = d; best = p.i; }
@@ -272,9 +331,9 @@ export class LanceRunner {
       this.release(pr);
       this.press = null;
       this.steerAt = null;
-      scene.setAim(null);
+      scene.setAim(null); scene.setAimPath(null);
     };
-    const cancel = () => { this.press = null; this.steerAt = null; scene.setAim(null); };
+    const cancel = () => { this.press = null; this.steerAt = null; scene.setAim(null); scene.setAimPath(null); };
     canvas.addEventListener("pointerdown", down);
     canvas.addEventListener("pointermove", move);
     canvas.addEventListener("pointerup", up);
@@ -285,7 +344,10 @@ export class LanceRunner {
     const kd = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
       if (this.paused) return;
-      if (k === " ") { e.preventDefault(); this.chance?.commandDribble(); return; }
+      if (k === " ") { e.preventDefault(); this.dribble("toque"); return; }
+      if (k === "q" || k === "e") { this.dribble("corte", k === "q" ? -1 : 1); return; }
+      if (k === "r") { this.dribble("chapeu"); return; }
+      if (k === "f") { this.dribble("roleta", 1); return; }
       if (KEYS.includes(k)) { this.keys.add(k); if (k.startsWith("arrow")) e.preventDefault(); }
     };
     const ku = (e: KeyboardEvent) => { this.keys.delete(e.key.toLowerCase()); };
@@ -305,7 +367,13 @@ export class LanceRunner {
         this.keyboard();
         this.applyStick();
         c.update(dt);
-        for (const ev of c.drainEvents()) this.sound(ev.type);
+        for (const ev of c.drainEvents()) {
+          this.sound(ev.type);
+          if (ev.type === "dribble" && ev.move) {
+            this.flashText = `${DRIBBLE_NAME[ev.move]}!${ev.ok === true ? " Passou" : ev.ok === false ? " Não passou" : ""}`;
+            this.flashUntil = performance.now() + 1100;
+          }
+        }
         if (c.phase === "done" && c.doneT >= this.hold && !this.doneFired && c.result) {
           this.doneFired = true;
           this.onDone(c.result);
@@ -392,7 +460,7 @@ export class LanceRunner {
     if (pr.mate !== null) { c.commandPass(pr.mate, z.t - a.t >= LOB_HOLD_MS); return; }
     if (pr.onCarrier) {
       // Dois toques em quem tem a bola: drible; um toque: segura a bola.
-      if (z.t - this.lastCarrierTap < 380) { c.commandDribble(); this.lastCarrierTap = 0; }
+      if (z.t - this.lastCarrierTap < 380) { this.dribble("toque"); this.lastCarrierTap = 0; }
       else { c.commandStop(); this.lastCarrierTap = z.t; }
       return;
     }
@@ -432,6 +500,8 @@ export class LanceRunner {
     if (!c || (c.phase !== "play" && c.phase !== "pass") || !this.scene) return;
     const shot = this.shotFrom(samples);
     this.scene.setAim(shot ? { x: shot.tx, y: shot.ty } : null);
+    const path = shot ? c.previewShot(shot) : null;
+    this.scene.setAimPath(path ? path.points : null, path?.kind === "curl");
   }
 
   private drawOverlay(now: number): void {
@@ -441,10 +511,11 @@ export class LanceRunner {
     const pr = this.press, c = this.chance, s = this.scene;
     // Companheiros fora da tela: seta na borda com o número (vermelha se estiver impedido).
     if (c && s && (c.phase === "play" || c.phase === "pass")) {
+      this.layoutEdges();
       for (const m of c.attackers) {
         if (m.i === c.carrier) continue;
-        const sp = this.mateScreen(m.i);
-        if (!sp?.edge) continue;
+        const sp = this.edgeLayout.get(m.i);
+        if (!sp) continue;
         const off = c.isOffside(m);
         o.save();
         o.translate(sp.x, sp.y);

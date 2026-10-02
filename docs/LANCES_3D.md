@@ -14,8 +14,9 @@ O jogo de botão saiu. No lugar dele entram as **chances de ataque em 3D**, no e
 | **Joystick** (canto de baixo, à esquerda) | Conduz quem tem a bola na direção em que você arrasta (convertida pela câmera para o gramado). Pouco inclinado anda devagar; no fim do curso (anel dourado) arranca. Soltou, ele desacelera e para com a bola. Funciona junto com os outros gestos: um dedo conduz e o outro chuta ou passa. |
 | **Tocar no gramado** | Conduz a bola até o ponto. |
 | **Segurar e arrastar** (0,19 s parado) | Conduz **em velocidade seguindo o dedo**. Terminar com um puxão rápido para cima chuta no mesmo gesto. |
-| **Tocar em quem tem a bola** | Para e protege a bola. **Dois toques:** drible. |
-| **Botão Drible** | Finta e arrancada. Pode deixar o marcador no chão (recarga de 1,4 s). |
+| **Tocar em quem tem a bola** | Para e protege a bola. **Dois toques:** pedalada. |
+| **Botão Drible** (também correndo) | **Tocar:** pedalada (finta e arrancada na direção da corrida ou do joystick). **Arrastar a partir do botão:** para os lados = **corte** para aquele lado; para cima = **chapéu**; para baixo = **roleta**. Um aviso mostra o drible e se passou do marcador. |
+| **Curvar o gesto do chute (dedada)** | Efeito forte: até ~20 m/s² de curva (mais com boa bola parada). Com efeito e força moderada sai o **chute colocado** (mais preciso, o goleiro demora mais a ler). Enquanto desliza, uma linha mostra o caminho da bola (azul = colocado). |
 | **Setas de borda** | Companheiros fora da tela aparecem como setas com o número; tocar ou segurar nelas também passa. |
 | **Tocar depois do resultado** | Pula a comemoração. |
 | **Teclado** | WASD ou setas conduzem, Shift arranca, Espaço dribla. |
@@ -81,7 +82,16 @@ As qualidades do jogador (as mesmas do Manager) mudam o lance. As de quem conduz
   - os outros fecham as linhas de passe;
   - o que sobrar cobre a área.
 - **Desarme:** quando um defensor encosta (até 1,15 m), há uma chance por segundo de tomar a bola. Ela cresce com o nível do bot e cai com o drible de quem conduz. Logo depois de um drible que falhou, ela dobra.
-- **Drible:** dá certo conforme o drible de quem conduz contra o nível (de 12% a 88%). Se der certo, o marcador cai (0,9 a 1,4 s) e não pode desarmar, cortar ou bloquear.
+- **Dribles** (`commandDribble(move, dir, side)`): durante o drible a saída tem direção própria (o joystick volta depois), então dá para driblar correndo.
+
+  | Drible | Saída | Duração / recarga | Quando rende |
+  |---|---|---|---|
+  | **Pedalada** | Na direção da corrida (ou do joystick), com finta para um lado | 0,6 s / 1,2 s | Em velocidade (+8%) |
+  | **Corte** | ~60° para o lado escolhido, virando seco | 0,45 s / 1,0 s | Marcador perto, vindo em cima (+12%); longe, −10% |
+  | **Chapéu** | Bola sobe (~1,9 m) por cima e cai 1,4 m à frente | 0,55 s / 1,7 s | Marcador colado (+10%); longe, −25%. Se falhar, metade das vezes ele mata no peito (desarme) |
+  | **Roleta** | Gira 360° protegendo, mais devagar | 0,7 s / 1,4 s | Não toma desarme durante o giro |
+
+  A chance de passar vem do drible de quem conduz contra a marcação do defensor e o nível do bot (de 10% a 90%). Se passar, o marcador cai (0,6 a 1,4 s) para o lado em que mordeu e não pode desarmar, cortar ou bloquear; se não, quem dribla fica exposto ao desarme por 0,6 s.
 - **Corte de passe:** cada defensor tem **uma** tentativa por passe, quando a bola passa perto dele (o raio cresce com o nível e diminui com o passe de quem tocou). A chance cresce com o nível e com a marcação dele. Nos primeiros 2 m (saída do pé) ninguém corta. Bola acima de 2 m passa por cima; cortar de cabeça é mais difícil.
 - **Movimento:** em velocidade ninguém vira em cima da linha. A direção gira aos poucos (mais devagar quanto mais rápido) e, numa virada brusca, o jogador freia antes de mudar o rumo. A arrancada do drible vira mais rápido.
 - **Defesa suave:** a leitura da defesa define um alvo, e o alvo de corrida segue suave até ele (sem trancos a cada leitura). Marcador perto da bola fica de frente para ela e anda de lado ou de costas.

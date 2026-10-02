@@ -154,6 +154,9 @@ export interface LanceResult {
 export interface LanceEvent {
   type: "whistle" | "pass" | "lob" | "receive" | "kick" | "save" | "goal" | "post" | "tackle" | "block" | "intercept" | "dribble" | "offside";
   t: number;
+  /** Drible: qual e se passou do marcador (null = sem marcador perto). */
+  move?: DribbleMove;
+  ok?: boolean | null;
 }
 
 export interface ShotCommand {
@@ -166,8 +169,24 @@ export interface ShotCommand {
   curve: number;
 }
 
-/** Tipo do último chute (para o texto e o render). */
-export type ShotKind = "normal" | "chip" | "volley" | "header";
+/** Tipo do último chute (para o texto e o render). "curl" = chute colocado (com efeito e força moderada). */
+export type ShotKind = "normal" | "chip" | "volley" | "header" | "curl";
+
+/** Dribles: pedalada (finta e arrancada), corte (muda de direção), chapéu (bola por cima) e roleta (gira protegendo). */
+export type DribbleMove = "toque" | "corte" | "chapeu" | "roleta";
+export const DRIBBLE_NAME: Record<DribbleMove, string> = { toque: "Pedalada", corte: "Corte", chapeu: "Chapéu", roleta: "Roleta" };
+
+/** Drible em andamento (o render lê para animar). */
+export interface SkillMove {
+  move: DribbleMove;
+  t: number;
+  dur: number;
+  /** Direção da saída (unitária, no gramado) e lado da finta (x do mundo, ±1). */
+  dx: number;
+  dz: number;
+  side: number;
+  ok: boolean | null;
+}
 
 export type Phase = "intro" | "play" | "pass" | "shot" | "done";
 
@@ -243,6 +262,8 @@ export class Chance {
   shotAim: { x: number; y: number } | null = null;
   /** Recarga do drible e arrancada depois dele. */
   dribbleCd = 0;
+  /** Drible em andamento (direção própria por um instante; depois o comando de condução volta). */
+  skill: SkillMove | null = null;
   private burstT = 0;
   private exposedT = 0;
   /** Linha da defesa subindo em bloco (s restantes). */
@@ -309,7 +330,7 @@ export class Chance {
     return a.role === "att" && a.i !== this.carrier && a.z > 0 && a.z > this.offsideLine() + OFFSIDE_TOL;
   }
 
-  private emit(type: LanceEvent["type"]): void { this.events.push({ type, t: this.time }); }
+  private emit(type: LanceEvent["type"], extra?: Partial<LanceEvent>): void { this.events.push({ type, t: this.time, ...extra }); }
 
   // ---------- Comandos ----------
   /** Conduz a bola até um ponto do gramado (`sprint`: em velocidade máxima, como ao segurar e arrastar). */
@@ -379,36 +400,77 @@ export class Chance {
   }
 
   /**
-   * Drible (finta e arrancada): pode deixar o marcador mais próximo no chão.
-   * Dá certo conforme o drible de quem conduz contra o nível da defesa; se falhar, fica exposto ao desarme.
+   * Drible, também correndo: `move` escolhe o lance e `dir` (opcional, no gramado) para onde sair.
+   * - pedalada: finta e arrancada na direção da corrida (ou do joystick);
+   * - corte: muda de direção de repente para o lado escolhido (melhor contra quem vem em cima);
+   * - chapéu: a bola passa por cima do marcador colado (se falhar, ele mata a bola);
+   * - roleta: gira protegendo a bola (não toma desarme durante o giro, mas é mais lenta).
+   * Dá certo conforme o drible de quem conduz contra a marcação do defensor e o nível; falhou, fica exposto.
    */
-  commandDribble(): boolean {
+  commandDribble(move: DribbleMove = "toque", dir?: { x: number; z: number }, side?: number): boolean {
     if (this.phase !== "play" || this.dribbleCd > 0) return false;
     const c = this.actors[this.carrier];
-    this.dribbleCd = 1.4;
-    this.burstT = 0.6;
-    c.feintT = 0;
-    let near: Actor | null = null, nd = 2.8;
+    const sp = Math.sqrt(c.vx * c.vx + c.vz * c.vz);
+    // Direção da corrida: a velocidade (se está correndo), senão rumo ao gol.
+    let hx = sp > 1.2 ? c.vx / sp : Math.sin(c.heading), hz = sp > 1.2 ? c.vz / sp : Math.cos(c.heading);
+    if (hz < -0.2 && sp <= 1.2) { hx = 0; hz = 1; }
+    // Marcador que importa: o mais perto, valendo mais quem está na frente.
+    let near: Actor | null = null, best = 9;
     for (const d of this.defenders) {
       if (d.stunT > 0) continue;
       const dd = dist(d.x, d.z, c.x, c.z);
-      if (dd < nd) { nd = dd; near = d; }
+      if (dd > 3.2) continue;
+      const front = ((d.x - c.x) * hx + (d.z - c.z) * hz) / (dd || 1);
+      const score = dd - front * 0.8;
+      if (score < best) { best = score; near = d; }
     }
-    // Arranca para longe do marcador e rumo ao gol.
     const away = near ? Math.sign(c.x - near.x) || 1 : (c.x > 0 ? -1 : 1);
-    c.feintSide = away;
-    this.moveTarget = { x: clamp(c.x + away * 2.6, -32, 32), z: clamp(c.z + 3.2, 5, GOAL_Z - 1.5) };
-    this.sprint = true;
-    this.emit("dribble");
-    if (!near) return true;
-    const p = clamp(0.32 + (c.p.attrs.dri - 55) / 90 - (near.p.attrs.mar - 60) / 220 - (this.bot.tackle - 0.55) * 0.17, 0.12, 0.88);
-    if (this.rng() < p) {
-      near.stunT = 0.9 + this.rng() * 0.5;
+    const s = side ?? away;
+    const rot = (ang: number) => ({ x: hx * Math.cos(ang) + hz * Math.sin(ang), z: -hx * Math.sin(ang) + hz * Math.cos(ang) });
+    // Lado no gramado → giro: "s" é o lado em x do mundo (girar para +x é ângulo positivo quando se corre para +z).
+    const turnTo = (ang: number) => { const r = rot(ang * (hz >= 0 ? s : -s)); return r; };
+    let out: { x: number; z: number };
+    let dur: number, cd: number, base: number;
+    switch (move) {
+      case "corte": out = dir ?? turnTo(1.15); dur = 0.45; cd = 1.0; base = 0.36; break;
+      case "chapeu": out = dir ?? { x: hx, z: hz }; dur = 0.55; cd = 1.7; base = 0.26; break;
+      case "roleta": out = dir ?? turnTo(0.85); dur = 0.7; cd = 1.4; base = 0.42; break;
+      default: out = dir ?? turnTo(0.4); dur = 0.6; cd = 1.2; base = 0.32;
+    }
+    const ol = Math.sqrt(out.x * out.x + out.z * out.z) || 1;
+    out = { x: out.x / ol, z: out.z / ol };
+    this.dribbleCd = cd;
+    this.burstT = move === "roleta" ? 0 : dur;
+    if (move === "roleta") this.grace = Math.max(this.grace, dur + 0.15);
+    c.feintT = 0;
+    c.feintSide = Math.sign(out.x - hx) || s;
+    this.skill = { move, t: 0, dur, dx: out.x, dz: out.z, side: c.feintSide, ok: null };
+    if (!near) { this.emit("dribble", { move, ok: null }); return true; }
+    const dd = dist(near.x, near.z, c.x, c.z);
+    let p = base + (c.p.attrs.dri - 55) / 90 - (near.p.attrs.mar - 60) / 220 - (this.bot.tackle - 0.55) * 0.17;
+    // Corte e chapéu precisam do marcador perto (vindo em cima); a pedalada em velocidade rende mais.
+    if (move === "corte") p += dd < 2 ? 0.12 : -0.1;
+    if (move === "chapeu") p += dd < 1.8 ? 0.1 : -0.25;
+    if (move === "toque") p += Math.min(1, sp / 7) * 0.08;
+    p = clamp(p, 0.1, 0.9);
+    const ok = this.rng() < p;
+    this.skill.ok = ok;
+    if (ok) {
+      near.stunT = (move === "roleta" ? 0.6 : 0.9) + this.rng() * 0.5;
       near.state = "down";
       // Ele morde a finta: cai para o lado contrário de onde a bola foi.
-      near.fallSide = -away;
-      this.grace = 0.7;
+      near.fallSide = -c.feintSide;
+      this.grace = Math.max(this.grace, 0.7);
+    } else if (move === "chapeu" && this.rng() < 0.5) {
+      // Chapéu que não passa: o marcador mata a bola no peito.
+      this.emit("dribble", { move, ok: false });
+      this.emit("tackle");
+      this.ball.owner = null;
+      this.ball.vx = (near.x - c.x) * 1.5; this.ball.vz = (near.z - c.z) * 1.5; this.ball.vy = 1;
+      this.finish("tackle", `${near.p.name} matou o chapéu no peito.`);
+      return true;
     } else this.exposedT = 0.6;
+    this.emit("dribble", { move, ok });
     return true;
   }
 
@@ -418,6 +480,58 @@ export class Chance {
     if (this.phase !== "play") return false;
     this.shoot(cmd, "normal");
     return true;
+  }
+
+  /** Tipo do chute a partir do gesto: cavadinha (lento, alto, de longe) ou colocado (com efeito e força moderada). */
+  private shotKindOf(cmd: ShotCommand, kind: ShotKind): ShotKind {
+    if (kind !== "normal") return kind;
+    const b = this.ball;
+    const dGoal = dist(b.x, b.z, cmd.tx, GOAL_Z);
+    if (cmd.power < 0.5 && cmd.ty >= 1.6 && dGoal > 7) return "chip";
+    if (Math.abs(cmd.curve) >= 0.25 && cmd.power <= 0.82) return "curl";
+    return "normal";
+  }
+
+  /**
+   * Velocidade inicial, curva e tempo de voo para a bola sair do ponto atual e chegar ao alvo (tx, ty) no gol.
+   * O efeito é uma aceleração lateral; a direção de saída compensa para a bola terminar no alvo.
+   */
+  private launch(tx: number, ty: number, kind: ShotKind, power: number, curve: number, p: LanceAttrs) {
+    const b = this.ball;
+    const speed = kind === "header" ? 10 + power * 8 + (p.cab / 99) * 3 : kind === "curl" ? 13 + power * 13 + (p.fin / 99) * 4 : 14 + power * 15 + (p.fin / 99) * 5;
+    const dz = GOAL_Z - b.z, dx = tx - b.x;
+    const dh = Math.sqrt(dx * dx + dz * dz);
+    let T = Math.max(0.25, dh / speed);
+    if (kind === "chip") {
+      // Cavadinha: arco alto (3 a 4,5 m) que cai no gol; o tempo de voo vem da altura.
+      const H = clamp(3 + dh * 0.05 - power * 0.8, 2.8, 4.5);
+      const vy0 = Math.sqrt(2 * G * (H - b.y));
+      T = (vy0 + Math.sqrt(Math.max(0, vy0 * vy0 - 2 * G * (ty - b.y)))) / G;
+    }
+    // Dedada: quem tem boa bola parada curva bem mais; o colocado curva um pouco mais ainda.
+    const nx = dz / dh, nz = -dx / dh; // perpendicular (à direita de quem chuta)
+    const ac = kind === "header" ? 0 : curve * (9 + (p.bp / 99) * 9) * (kind === "curl" ? 1.2 : 1);
+    const lat = 0.5 * ac * T * T;
+    const ax0 = tx - nx * lat, az0 = GOAL_Z - nz * lat;
+    const hx = ax0 - b.x, hz = az0 - b.z;
+    const hl = Math.sqrt(hx * hx + hz * hz);
+    return { vx: (hx / hl) * (dh / T), vz: (hz / hl) * (dh / T), vy: (ty - b.y + 0.5 * G * T * T) / T, ax: nx * ac, az: nz * ac, T, dh, dx, dz };
+  }
+
+  /** Caminho previsto do chute (sem o erro do jogador), para desenhar a curva enquanto se desliza. */
+  previewShot(cmd: ShotCommand): { points: { x: number; y: number; z: number }[]; kind: ShotKind } | null {
+    if (this.phase !== "play" && this.phase !== "pass") return null;
+    const c = this.actors[this.passTo ?? this.carrier];
+    const kind = this.phase === "pass" ? "volley" : this.shotKindOf(cmd, "normal");
+    const L = this.launch(cmd.tx, Math.max(0.12, kind === "chip" ? Math.min(2.1, cmd.ty) : cmd.ty), kind, clamp(cmd.power, 0, 1), clamp(cmd.curve, -1, 1), c.p.attrs);
+    const b = this.ball, h = 1 / 60, pts: { x: number; y: number; z: number }[] = [];
+    let x = b.x, y = Math.max(b.y, BALL_R), z = b.z, vx = L.vx, vy = L.vy, vz = L.vz, ct = L.T;
+    for (let t = 0; t <= L.T + 0.02 && z <= GOAL_Z + 0.5; t += h) {
+      pts.push({ x, y, z });
+      if (ct > 0) { vx += L.ax * h; vz += L.az * h; ct -= h; }
+      vy -= G * h; x += vx * h; y = Math.max(BALL_R, y + vy * h); z += vz * h;
+    }
+    return { points: pts, kind };
   }
 
   private shoot(cmd: ShotCommand, kind: ShotKind): void {
@@ -430,42 +544,24 @@ export class Chance {
     const pressure = Math.max(0, (2.4 - near) / 2.4);
     let power = clamp(cmd.power, 0, 1);
     const dGoal = dist(b.x, b.z, cmd.tx, GOAL_Z);
-    // Cavadinha: gesto lento e comprido (pouca força, mira alta) de fora da pequena área.
-    if (kind === "normal" && power < 0.5 && cmd.ty >= 1.6 && dGoal > 7) kind = "chip";
+    kind = this.shotKindOf(cmd, kind);
     const cab = c.p.attrs.cab, bp = c.p.attrs.bp;
     // Cabeçada: força e precisão vêm do cabeceio; de primeira, da finalização.
     if (kind === "header") power = Math.min(power, 0.4 + (cab / 99) * 0.3);
-    const kindErr = kind === "header" ? 2.1 - cab / 100 : kind === "volley" ? 1.45 - (fin / 100) * 0.3 : kind === "chip" ? 1.1 : 1;
-    // Efeito: quem tem boa bola parada curva mais e erra menos ao curvar.
+    // Colocado: mais preciso (ainda mais com boa bola parada); cabeçada e de primeira, menos.
+    const kindErr = kind === "header" ? 2.1 - cab / 100 : kind === "volley" ? 1.45 - (fin / 100) * 0.3 : kind === "chip" ? 1.1 : kind === "curl" ? 0.82 - bp / 600 : 1;
+    // Efeito: quem tem boa bola parada erra menos ao curvar.
     const curveAbs = kind === "header" ? 0 : Math.min(1, Math.abs(cmd.curve));
-    const sigma = (0.22 + dGoal * 0.017) * (1.45 - fin / 100) * (1 + pressure * 0.9) * kindErr * (1 + curveAbs * (0.55 - bp / 200));
+    const sigma = (0.22 + dGoal * 0.017) * (1.45 - fin / 100) * (1 + pressure * 0.9) * kindErr * (1 + curveAbs * (0.45 - bp / 220));
     const tx = cmd.tx + gauss(this.rng) * sigma;
     const aimY = kind === "chip" ? Math.min(2.1, cmd.ty) : kind === "header" ? Math.min(cmd.ty, 1.6) : cmd.ty;
     const ty = Math.max(0.12, aimY + gauss(this.rng) * sigma * 0.6);
     const curve = kind === "header" ? 0 : clamp(cmd.curve, -1, 1);
-    // Força: a finalização soma até 5 m/s ao chute; de cabeça, o cabeceio.
-    const speed = kind === "header" ? 10 + power * 8 + (cab / 99) * 3 : 14 + power * 15 + (fin / 99) * 5;
-    const dz = GOAL_Z - b.z, dx = tx - b.x;
-    const dh = Math.sqrt(dx * dx + dz * dz);
-    let T = Math.max(0.25, dh / speed);
-    if (kind === "chip") {
-      // Cavadinha: arco alto (3 a 4,5 m) que cai no gol; o tempo de voo vem da altura.
-      const H = clamp(3 + dh * 0.05 - power * 0.8, 2.8, 4.5);
-      const vy0 = Math.sqrt(2 * G * (H - b.y));
-      T = (vy0 + Math.sqrt(Math.max(0, vy0 * vy0 - 2 * G * (ty - b.y)))) / G;
-    }
-    // Curva: aceleração lateral perpendicular; a direção inicial compensa para terminar no alvo.
-    const nx = dz / dh, nz = -dx / dh; // perpendicular (à direita de quem chuta)
-    const ac = curve * (4.5 + (bp / 99) * 4.5);
-    const lat = 0.5 * ac * T * T;
-    const ax0 = tx - nx * lat, az0 = GOAL_Z - nz * lat;
-    const hx = ax0 - b.x, hz = az0 - b.z;
-    const hl = Math.sqrt(hx * hx + hz * hz);
+    const L = this.launch(tx, ty, kind, power, curve, c.p.attrs);
+    const T = L.T, dx = L.dx, dz = L.dz, dh = L.dh;
     b.owner = null;
-    b.vx = (hx / hl) * (dh / T);
-    b.vz = (hz / hl) * (dh / T);
-    b.vy = (ty - b.y + 0.5 * G * T * T) / T;
-    b.ax = nx * ac; b.az = nz * ac; b.curveT = T;
+    b.vx = L.vx; b.vz = L.vz; b.vy = L.vy;
+    b.ax = L.ax; b.az = L.az; b.curveT = T;
     this.shotAim = { x: tx, y: ty };
     this.shotKind = kind;
     this.moveTarget = null;
@@ -488,7 +584,8 @@ export class Chance {
     }
     // Goleiro: onde a bola passa por ele e onde cruza a linha (trajetória real, com curva e gravidade).
     const ref = k.p.attrs.ref, col = k.p.attrs.col;
-    const react = this.bot.gkReact * (1.25 - (ref / 100) * 0.45) * (1 + Math.abs(curve) * 0.35);
+    // Bola com efeito engana: ele demora mais a ler (no colocado, mais ainda).
+    const react = this.bot.gkReact * (1.25 - (ref / 100) * 0.45) * (1 + Math.abs(curve) * (kind === "curl" ? 0.6 : 0.4));
     const kz = Math.min(k.z, GOAL_Z - 0.4);
     // (Chute de ângulo fechado, com a bola já na altura dele: vale a linha do gol.)
     const atK = (b.z < kz - 0.3 ? this.predict(kz) : this.predict(GOAL_Z - BALL_R - 0.05)) ?? { x: tx, y: ty, t: T * 0.95 };
@@ -596,6 +693,7 @@ export class Chance {
     this.clock += h;
     this.grace = Math.max(0, this.grace - h);
     this.dribbleCd = Math.max(0, this.dribbleCd - h);
+    if (this.skill) { this.skill.t += h; if (this.skill.t >= this.skill.dur || this.phase !== "play") this.skill = null; }
     this.burstT = Math.max(0, this.burstT - h);
     this.exposedT = Math.max(0, this.exposedT - h);
     this.trapT = Math.max(0, this.trapT - h);
@@ -664,7 +762,11 @@ export class Chance {
   private steerAttackers(): void {
     if (this.phase !== "play" && this.phase !== "pass") return;
     const c = this.actors[this.carrier];
-    if (this.phase === "play") {
+    if (this.phase === "play" && this.skill) {
+      // Drible em andamento: sai na direção do lance (a roleta mais devagar); o comando de condução espera.
+      const k = this.skill;
+      c.tx = c.x + k.dx * 4; c.tz = c.z + k.dz * 4; c.pace = k.move === "roleta" ? 0.62 : 1;
+    } else if (this.phase === "play") {
       if (this.moveTarget) {
         c.tx = this.moveTarget.x; c.tz = this.moveTarget.z; c.pace = this.sprint ? 1 : this.movePace;
         if (dist(c.x, c.z, c.tx, c.tz) < 0.6) { this.moveTarget = null; this.sprint = false; }
@@ -725,7 +827,8 @@ export class Chance {
         let da = Math.atan2(wx, wz) - ca;
         while (da > Math.PI) da -= 2 * Math.PI;
         while (da < -Math.PI) da += 2 * Math.PI;
-        const maxTurn = (13 / (1 + cs * 0.3)) * h * (withBall && this.burstT > 0 ? 1.6 : 1);
+        const sharp = withBall && this.skill ? (this.skill.move === "corte" ? 3.2 : 2) : withBall && this.burstT > 0 ? 1.6 : 1;
+        const maxTurn = (13 / (1 + cs * 0.3)) * h * sharp;
         if (Math.abs(da) > maxTurn) {
           const na = ca + Math.sign(da) * maxTurn;
           const ns = Math.abs(da) > 1.7 ? Math.max(0, cs - 15 * h) : Math.min(want, cs + acc);
@@ -840,11 +943,29 @@ export class Chance {
       // Condução em toques: a bola vai um pouco à frente a cada duas passadas e o jogador a alcança.
       const osp = Math.min(1, Math.sqrt(o.vx * o.vx + o.vz * o.vz) / 7);
       const ahead = 0.5 + osp * (0.2 + 0.45 * Math.pow(0.5 + 0.5 * Math.sin(o.stride * 0.5), 3));
-      // Finta do drible: a bola sai para o lado da arrancada.
-      const side = o.feintT >= 0 && o.feintT < 0.7 ? o.feintSide * 0.55 * Math.sin(Math.min(1, o.feintT / 0.35) * Math.PI * 0.5) * (o.feintT > 0.45 ? Math.max(0, 1 - (o.feintT - 0.45) / 0.25) : 1) : 0;
-      const tx = o.x + fx * ahead + side, tz = o.z + fz * ahead;
+      const k = b.owner === this.carrier ? this.skill : null;
+      let tx = o.x + fx * ahead, tz = o.z + fz * ahead, ty = BALL_R;
+      if (k) {
+        const f = Math.min(1, k.t / k.dur);
+        if (k.move === "toque") {
+          // Pedalada: a bola sai para o lado da arrancada.
+          const sd = 0.55 * Math.sin(Math.min(1, f / 0.55) * Math.PI * 0.5) * (f > 0.75 ? Math.max(0, 1 - (f - 0.75) / 0.25) : 1);
+          tx += k.side * sd;
+        } else if (k.move === "corte") {
+          // Corte: a bola vai junto com a mudança de direção, já na frente.
+          tx = o.x + k.dx * (0.6 + f * 0.4); tz = o.z + k.dz * (0.6 + f * 0.4);
+        } else if (k.move === "chapeu") {
+          // Chapéu: a bola sobe por cima e cai lá na frente.
+          tx = o.x + k.dx * (0.5 + f * 1.4); tz = o.z + k.dz * (0.5 + f * 1.4); ty = BALL_R + Math.sin(f * Math.PI) * 1.9;
+        } else {
+          // Roleta: bola debaixo do corpo, girando com ele.
+          const ang = f * Math.PI * 2;
+          tx = o.x + Math.sin(o.heading + ang) * 0.3; tz = o.z + Math.cos(o.heading + ang) * 0.3;
+        }
+      }
       b.vx = (tx - b.x) / Math.max(h, 1e-3) * 0.5; b.vz = (tz - b.z) / Math.max(h, 1e-3) * 0.5;
-      b.x += (tx - b.x) * Math.min(1, h * 14); b.z += (tz - b.z) * Math.min(1, h * 14); b.y = BALL_R;
+      const follow = Math.min(1, h * (k ? 22 : 14));
+      b.x += (tx - b.x) * follow; b.z += (tz - b.z) * follow; b.y = k?.move === "chapeu" ? ty : BALL_R;
       b.spin += Math.sqrt(o.vx * o.vx + o.vz * o.vz) * h / BALL_R;
       return;
     }
@@ -968,7 +1089,7 @@ export class Chance {
       const inside = Math.abs(b.x) < GOAL_HALF - BALL_R && b.y < BAR - BALL_R;
       if (inside) {
         this.emit("goal");
-        const how = this.shotKind === "chip" ? " De cavadinha!" : this.shotKind === "header" ? " De cabeça!" : this.shotKind === "volley" ? " De primeira!" : "";
+        const how = this.shotKind === "chip" ? " De cavadinha!" : this.shotKind === "header" ? " De cabeça!" : this.shotKind === "volley" ? " De primeira!" : this.shotKind === "curl" ? " Colocado, com efeito!" : "";
         this.finish("goal", `GOL de ${shooter.name}!${how}`, shooter.id);
         return;
       }

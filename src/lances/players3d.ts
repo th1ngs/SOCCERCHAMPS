@@ -441,25 +441,48 @@ export function poseRig(r: PlayerRig, a: Actor, ch: Chance, pulse: number, now: 
     T.brx = -0.12; T.brz = 0;
     rate = 30;
   }
-  // Drible: pedalada (a perna passa por cima da bola para um lado), o corpo ginga e arranca para o outro.
-  if (a.feintT >= 0 && a.feintT < 0.55) {
-    const f = a.feintT / 0.55;
-    const s = a.feintSide * chd >= 0 ? -1 : 1; // lado local para onde a bola vai (−1 = esquerda do corpo)
-    const over = Math.sin(Math.min(1, f / 0.5) * Math.PI);
-    // Perna do lado oposto contorna a bola por cima.
-    if (s > 0) { T.lLx = -0.55 * over; T.lLz = 0.35 * over; T.kL = 0.9 * over + 0.1; }
-    else { T.lRx = -0.55 * over; T.lRz = -0.35 * over; T.kR = 0.9 * over + 0.1; }
-    // Ginga: o corpo pende para o lado falso e depois para o lado da arrancada.
-    const sway = f < 0.45 ? Math.sin((f / 0.45) * Math.PI) * -s : Math.sin(((f - 0.45) / 0.55) * Math.PI) * s;
-    T.brz = -sway * 0.38; T.bx = sway * 0.16; T.by -= 0.06 * Math.sin(f * Math.PI);
-    T.brx = 0.25; T.aLz = -0.7; T.aRz = 0.7;
-    T.hy = 0;
-    rate = 24;
+  // Dribles (só de quem conduz): pedalada, corte, chapéu e roleta.
+  const sk = a.i === ch.carrier ? ch.skill : null;
+  let spin = 0;
+  if (sk) {
+    const f = Math.min(1, sk.t / sk.dur);
+    const lx = sk.dx * chd - sk.dz * sh; // lado (local) da saída: + = esquerda do corpo
+    if (sk.move === "toque") {
+      // Pedalada: a perna do lado oposto contorna a bola; o corpo ginga para o lado falso e arranca para o outro.
+      const s = sk.side * chd >= 0 ? -1 : 1;
+      const over = Math.sin(Math.min(1, f / 0.5) * Math.PI);
+      if (s > 0) { T.lLx = -0.55 * over; T.lLz = 0.35 * over; T.kL = 0.9 * over + 0.1; }
+      else { T.lRx = -0.55 * over; T.lRz = -0.35 * over; T.kR = 0.9 * over + 0.1; }
+      const sway = f < 0.45 ? Math.sin((f / 0.45) * Math.PI) * -s : Math.sin(((f - 0.45) / 0.55) * Math.PI) * s;
+      T.brz = -sway * 0.38; T.bx = sway * 0.16; T.by -= 0.06 * Math.sin(f * Math.PI);
+      T.brx = 0.25; T.aLz = -0.7; T.aRz = 0.7; T.hy = 0;
+    } else if (sk.move === "corte") {
+      // Corte: finca o pé de fora, abaixa e inclina forte para o novo lado.
+      const e = Math.sin(Math.min(1, f * 1.3) * Math.PI);
+      const sd = lx >= 0 ? 1 : -1;
+      T.brz = -sd * 0.5 * e; T.by -= 0.1 * e; T.brx = 0.32;
+      if (sd > 0) { T.lRz = -0.45 * e; T.kR = 0.6 * e + 0.1; T.lLx = -0.5 * e; T.kL = 0.9 * e; }
+      else { T.lLz = 0.45 * e; T.kL = 0.6 * e + 0.1; T.lRx = -0.5 * e; T.kR = 0.9 * e; }
+      T.aLz = -0.9; T.aRz = 0.9; T.hy = 0;
+    } else if (sk.move === "chapeu") {
+      // Chapéu: calcanhar levanta a bola por trás e por cima; corpo inclina à frente, braços abertos.
+      const e = Math.sin(Math.min(1, f * 1.6) * Math.PI);
+      T.lRx = 1.35 * e; T.kR = 1.9 * e + 0.1; T.lLx = -0.15; T.kL = 0.35;
+      T.brx = 0.35 * e + 0.1; T.by -= 0.05 * e;
+      T.aLz = -1.0; T.aRz = 1.0; T.aLx = -0.3; T.aRx = -0.3; T.hx = -0.25;
+    } else {
+      // Roleta: gira o corpo inteiro com a sola na bola, curvado e de braços abertos.
+      spin = ease(f) * Math.PI * 2 * (lx >= 0 ? 1 : -1);
+      T.brx = 0.28; T.by -= 0.06; T.lRx = -0.4 * Math.sin(f * Math.PI); T.kR = 0.5;
+      T.aLz = -0.8; T.aRz = 0.8; T.hy = 0;
+    }
+    rate = 26;
   }
 
   // Mistura suave rumo à pose alvo.
   const P = r.pose, k = 1 - Math.exp(-rate * Math.max(0, Math.min(0.1, dt)));
   for (const key of POSE_KEYS) P[key] += (T[key] - P[key]) * k;
+  r.root.rotation.y = a.heading + spin;
   r.body.position.set(P.bx, P.by, P.bz);
   r.body.rotation.set(P.brx, 0, P.brz);
   r.torso.rotation.set(0, P.ty, 0);
