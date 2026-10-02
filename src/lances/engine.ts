@@ -205,6 +205,8 @@ export class Chance {
   moveTarget: { x: number; z: number } | null = null;
   /** Conduzindo em velocidade máxima (segurando e arrastando). */
   sprint = false;
+  /** Ritmo da condução sem arrancada (o joystick pouco inclinado anda mais devagar). */
+  private movePace = 0.9;
   passTo: number | null = null;
   /** Passe atual: por cima? para onde? o recebedor estava impedido no momento do passe? */
   passLofted = false;
@@ -286,10 +288,11 @@ export class Chance {
 
   // ---------- Comandos ----------
   /** Conduz a bola até um ponto do gramado (`sprint`: em velocidade máxima, como ao segurar e arrastar). */
-  commandMove(x: number, z: number, sprint = false): boolean {
+  commandMove(x: number, z: number, sprint = false, pace = 0.9): boolean {
     if (this.phase !== "play") return false;
     this.moveTarget = { x: clamp(x, -32, 32), z: clamp(z, 5, GOAL_Z - 1.5) };
     this.sprint = sprint;
+    this.movePace = clamp(pace, 0.3, 1);
     return true;
   }
 
@@ -596,7 +599,7 @@ export class Chance {
     const c = this.actors[this.carrier];
     if (this.phase === "play") {
       if (this.moveTarget) {
-        c.tx = this.moveTarget.x; c.tz = this.moveTarget.z; c.pace = this.sprint ? 1 : 0.9;
+        c.tx = this.moveTarget.x; c.tz = this.moveTarget.z; c.pace = this.sprint ? 1 : this.movePace;
         if (dist(c.x, c.z, c.tx, c.tz) < 0.6) { this.moveTarget = null; this.sprint = false; }
       } else {
         // Sem comando: avança devagar rumo ao gol, segurando na entrada da área.

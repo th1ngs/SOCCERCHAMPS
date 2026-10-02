@@ -5,6 +5,7 @@ import { CircleHelp, Hand, MousePointerClick, MoveUpRight, Video, X, Zap } from 
 import type { ChanceSetup, LanceResult } from "@/lances/engine";
 import type { CameraView } from "@/lances/render3d";
 import { LanceRunner } from "@/lances/runner";
+import { Joystick } from "./Joystick";
 import { cn } from "@/lib/cn";
 
 const RESULT_TITLE: Record<LanceResult["outcome"], string> = {
@@ -23,7 +24,8 @@ const CONTROLS: [string, string][] = [
   ["Segurar num companheiro", "Passe por cima da marcação (o anel enche e fica azul)."],
   ["Deslizar durante um passe", "Chute de primeira quando a bola chegar; se ela vier alta, cabeçada."],
   ["Tocar no gramado", "Conduz a bola até o ponto."],
-  ["Segurar e arrastar", "Conduz em velocidade, seguindo o dedo."],
+  ["Joystick (canto de baixo, à esquerda)", "Conduz quem tem a bola na direção em que você arrasta; pouco inclinado anda devagar, no fim do curso arranca. Dá para chutar e passar com o outro dedo ao mesmo tempo."],
+  ["Segurar e arrastar no gramado", "Conduz em velocidade, seguindo o dedo."],
   ["Dois toques em quem tem a bola", "Drible: finta e arrancada; pode deixar o marcador no chão (também no botão Drible)."],
   ["Impedimento", "Quem estiver à frente do penúltimo defensor na hora do passe está impedido (anel vermelho). Nos níveis fácil e médio a linha aparece no gramado."],
   ["Teclado", "WASD ou setas conduzem, Shift arranca, Espaço dribla."],
@@ -105,13 +107,17 @@ export function LanceStage({ setup, onDone, top, className }: { setup: ChanceSet
       </div>
 
       {hint && !help && (hud.phase === "intro" || hud.phase === "play") && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center px-3 pr-20">
+        <div className="pointer-events-none absolute inset-x-0 top-[6.75rem] flex justify-center px-3 sm:top-28">
           <ul className="flex max-w-xl flex-col gap-1 rounded-2xl bg-ink-950/80 px-4 py-2.5 text-xs text-snow ring-1 ring-white/10 sm:text-sm">
             <li className="flex items-center gap-1.5"><MoveUpRight className="size-4 shrink-0 text-gold-400" /> Deslize = chute • devagar e comprido = cavadinha</li>
             <li className="flex items-center gap-1.5"><MousePointerClick className="size-4 shrink-0 text-gold-400" /> Toque no companheiro = passe • segure = por cima</li>
-            <li className="flex items-center gap-1.5"><Hand className="size-4 shrink-0 text-gold-400" /> Segure e arraste = conduzir • 2 toques nele = drible</li>
+            <li className="flex items-center gap-1.5"><Hand className="size-4 shrink-0 text-gold-400" /> Joystick = conduzir (no fim, arrancada) • botão = drible</li>
           </ul>
         </div>
+      )}
+
+      {(hud.phase === "intro" || hud.phase === "play" || hud.phase === "pass") && !help && (
+        <Joystick className="absolute bottom-4 left-4" active={hud.phase === "play"} onChange={(v) => runner.setStick(v)} />
       )}
 
       {hud.phase === "play" && !help && (

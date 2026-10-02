@@ -11,6 +11,7 @@ O jogo de botão saiu. No lugar dele entram as **chances de ataque em 3D**, no e
 | **Tocar num companheiro** | Passe rasteiro, na frente dele se estiver correndo (lançamento em profundidade). |
 | **Segurar num companheiro** (0,32 s) | **Passe por cima** da marcação. Um anel enche em volta dele e fica azul ("POR CIMA"). |
 | **Deslizar durante um passe** | **De primeira:** o chute sai quando a bola chegar. Se ela chegar alta, vira **cabeçada**. |
+| **Joystick** (canto de baixo, à esquerda) | Conduz quem tem a bola na direção em que você arrasta (convertida pela câmera para o gramado). Pouco inclinado anda devagar; no fim do curso (anel dourado) arranca. Soltou, ele desacelera e para com a bola. Funciona junto com os outros gestos: um dedo conduz e o outro chuta ou passa. |
 | **Tocar no gramado** | Conduz a bola até o ponto. |
 | **Segurar e arrastar** (0,19 s parado) | Conduz **em velocidade seguindo o dedo**. Terminar com um puxão rápido para cima chuta no mesmo gesto. |
 | **Tocar em quem tem a bola** | Para e protege a bola. **Dois toques:** drible. |

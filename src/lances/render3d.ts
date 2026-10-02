@@ -128,6 +128,8 @@ export class LanceScene {
   private w = 1;
   private h = 1;
   private view: CameraView = "top";
+  /** Joystick em uso: o alvo de condução muda o tempo todo, então o marcador some. */
+  joystick = false;
   /** Resolução: começa na do aparelho (até 2,5x) e baixa sozinha se os quadros ficarem lentos. */
   private dprMax = 2;
   private dpr = 2;
@@ -453,7 +455,7 @@ export class LanceScene {
     this.trail.geometry.setFromPoints(this.trailPts.length > 1 ? this.trailPts : [new THREE.Vector3(), new THREE.Vector3()]);
     this.trail.visible = this.trailPts.length > 1;
     // Marcador de condução.
-    this.moveMark.visible = !!ch.moveTarget && ch.phase === "play";
+    this.moveMark.visible = !!ch.moveTarget && ch.phase === "play" && !this.joystick;
     if (ch.moveTarget) { this.moveMark.position.x = ch.moveTarget.x; this.moveMark.position.z = ch.moveTarget.z; this.moveMark.scale.setScalar(0.8 + pulse * 0.3); }
     // Gol: rede estufa, confete e câmera em volta do gol.
     const goal = !!ch.result?.goal;

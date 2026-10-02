@@ -87,6 +87,7 @@ export class LanceRunner {
   setPaused(p: boolean): void {
     this.paused = p;
     this.press = null;
+    this.stick = null;
     this.keys.clear();
   }
   /** Toque em andamento: começo, amostras e o que ele virou. */
@@ -123,6 +124,35 @@ export class LanceRunner {
     if (c?.phase === "done" && c.doneT > 0.6) c.doneT = this.hold;
   }
 
+  /** Joystick: vetor da tela (x para a direita, y para baixo, módulo até 1) ou null ao soltar. */
+  private stick: { x: number; y: number } | null = null;
+  setStick(v: { x: number; y: number } | null): void {
+    const was = this.stick;
+    this.stick = v;
+    if (this.scene) this.scene.joystick = !!v;
+    const c = this.chance;
+    // Soltou: o jogador desacelera e para com a bola (sem frear seco).
+    if (!v && was && c?.phase === "play") {
+      const a = c.actors[c.carrier];
+      c.commandMove(a.x + a.vx * 0.25, a.z + a.vz * 0.25, false, 0.5);
+    }
+  }
+
+  /** Direção do joystick na tela → direção no gramado (pela câmera), aplicada a quem conduz. */
+  private applyStick(): void {
+    const c = this.chance, s = this.scene, v = this.stick;
+    if (!c || !s || !v || c.phase !== "play") return;
+    const m = Math.min(1, Math.hypot(v.x, v.y));
+    if (m < 0.15) return;
+    const a = c.actors[c.carrier];
+    const p = s.toScreen(a.x, 0, a.z);
+    const g0 = s.groundAt(p.x, p.y), g1 = s.groundAt(p.x + (v.x / m) * 80, p.y + (v.y / m) * 80);
+    if (!g0 || !g1) return;
+    const dx = g1.x - g0.x, dz = g1.z - g0.z, l = Math.hypot(dx, dz) || 1;
+    // Pouco inclinado = conduz devagar; no fim do curso = arrancada.
+    c.commandMove(a.x + (dx / l) * 3, a.z + (dz / l) * 3, m > 0.88, 0.4 + m * 0.55);
+  }
+
   /** Drible pelo botão da tela (mesmo efeito de dois toques em quem tem a bola). */
   dribble(): void {
     this.chance?.commandDribble();
@@ -154,7 +184,7 @@ export class LanceRunner {
     if (!c || !s) return null;
     const m = c.actors[i];
     const sp = s.toScreen(m.x, 1.0, m.z);
-    const x0 = 26, x1 = this.w - 26, y0 = 120, y1 = this.h - 26;
+    const x0 = 26, x1 = this.w - 26, y0 = 120, y1 = this.h - 170; // embaixo ficam o joystick e o drible
     if (!sp.behind && sp.x >= x0 && sp.x <= x1 && sp.y >= y0 && sp.y <= y1) return { x: sp.x, y: sp.y, edge: false, ang: 0 };
     const cx = this.w / 2, cy = this.h / 2;
     let dx = sp.x - cx, dy = sp.y - cy;
@@ -268,6 +298,7 @@ export class LanceRunner {
         // Quadro lento: pode haver toques ainda na fila; espera antes de decidir que o dedo está parado.
         if (dt < 0.07) this.holdChecks(now);
         this.keyboard();
+        this.applyStick();
         c.update(dt);
         for (const ev of c.drainEvents()) this.sound(ev.type);
         if (c.phase === "done" && c.doneT >= this.hold && !this.doneFired && c.result) {
