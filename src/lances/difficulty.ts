@@ -25,6 +25,14 @@ export interface BotParams {
   think: number;
   /** Defensores de linha no lance. */
   defenders: number;
+  /** Distância (m) da última linha da defesa à frente da bola. */
+  lineGap: number;
+  /** Quanto o defensor da sobra fica atrás da linha (m): perto de 0 = linha em bloco. */
+  cover: number;
+  /** Chance por segundo de a linha subir de uma vez (linha de impedimento). */
+  trap: number;
+  /** Ajudas visuais (linha de impedimento desenhada no gramado): só nos níveis mais fáceis. */
+  aids: boolean;
 }
 
 export const BOT_LEVELS: BotLevel[] = ["facil", "medio", "dificil", "lenda"];
@@ -37,11 +45,12 @@ export const BOT_DESC: Record<BotSetting, string> = {
   auto: "Começa no médio e se adapta: acertou, fica mais difícil; errou, alivia.",
 };
 
-const PRESETS: BotParams[] = [
-  { defSpeed: 4.9, press: 0.7, tackle: 0.55, interceptR: 0.6, blockR: 0.45, gkReact: 0.38, gkDive: 4.4, gkReach: 1.1, think: 0.45, defenders: 2 },
-  { defSpeed: 5.7, press: 0.85, tackle: 0.95, interceptR: 0.82, blockR: 0.55, gkReact: 0.3, gkDive: 4.8, gkReach: 1.05, think: 0.32, defenders: 3 },
-  { defSpeed: 6.4, press: 0.97, tackle: 1.4, interceptR: 1.02, blockR: 0.66, gkReact: 0.22, gkDive: 5.6, gkReach: 1.15, think: 0.22, defenders: 3 },
-  { defSpeed: 7.0, press: 1.05, tackle: 1.8, interceptR: 1.18, blockR: 0.7, gkReact: 0.16, gkDive: 6.0, gkReach: 1.18, think: 0.14, defenders: 4 },
+type Numeric = Omit<BotParams, "aids">;
+const PRESETS: Numeric[] = [
+  { defSpeed: 4.9, press: 0.7, tackle: 0.55, interceptR: 0.6, blockR: 0.45, gkReact: 0.38, gkDive: 4.4, gkReach: 1.1, think: 0.45, defenders: 2, lineGap: 9.5, cover: 3, trap: 0 },
+  { defSpeed: 5.7, press: 0.85, tackle: 0.95, interceptR: 0.82, blockR: 0.55, gkReact: 0.3, gkDive: 4.8, gkReach: 1.05, think: 0.32, defenders: 3, lineGap: 8, cover: 2.2, trap: 0.04 },
+  { defSpeed: 6.4, press: 0.97, tackle: 1.7, interceptR: 1.08, blockR: 0.68, gkReact: 0.18, gkDive: 6.2, gkReach: 1.27, think: 0.22, defenders: 3, lineGap: 7, cover: 1.2, trap: 0.1 },
+  { defSpeed: 7.0, press: 1.05, tackle: 2.1, interceptR: 1.18, blockR: 0.72, gkReact: 0.13, gkDive: 6.8, gkReach: 1.34, think: 0.14, defenders: 4, lineGap: 6, cover: 0.6, trap: 0.16 },
 ];
 
 /** Parâmetros para um nível contínuo de 0 (fácil) a 3 (lendário), interpolando os presets. */
@@ -50,11 +59,12 @@ export function botParams(level: number): BotParams {
   const i = Math.min(2, Math.floor(l));
   const t = l - i;
   const a = PRESETS[i], b = PRESETS[i + 1];
-  const mix = (k: keyof BotParams) => a[k] + (b[k] - a[k]) * t;
+  const mix = (k: keyof Numeric) => a[k] + (b[k] - a[k]) * t;
   return {
     defSpeed: mix("defSpeed"), press: mix("press"), tackle: mix("tackle"), interceptR: mix("interceptR"), blockR: mix("blockR"),
     gkReact: mix("gkReact"), gkDive: mix("gkDive"), gkReach: mix("gkReach"), think: mix("think"),
-    defenders: Math.round(mix("defenders")),
+    defenders: Math.round(mix("defenders")), lineGap: mix("lineGap"), cover: mix("cover"), trap: mix("trap"),
+    aids: l < 1.5,
   };
 }
 

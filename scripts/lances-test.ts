@@ -2,7 +2,8 @@
 // dificuldade), dificuldade automática, gesto de chute e a súmula do Manager montada com os lances.
 // Uso: npx tsx scripts/lances-test.ts
 import { Difficulty, botParams } from '../src/lances/difficulty';
-import { Chance, GOAL_Z, type LanceResult, type ScenarioKind } from '../src/lances/engine';
+import { Chance, GOAL_Z, type ScenarioKind } from '../src/lances/engine';
+import { playBot } from './lances-bot';
 import { contrastKit, genericChance } from '../src/lances/scenario';
 import { swipeToShot } from '../src/lances/runner';
 import { chanceMinutes } from '../src/lances/series';
@@ -27,28 +28,6 @@ function seeded(seed: number): () => number {
 
 const team = (id: string, rating: number) => ({ id, rating, club: { name: id, short: id.slice(0, 3).toUpperCase(), colors: ['#fff', '#000'], pattern: 'solid', league: 'bra' as const } });
 
-/** Jogador-robô quase perfeito: passa quando apertado, chuta no canto oposto ao goleiro. */
-function playBot(c: Chance, rng: () => number): LanceResult {
-  let passed = false, shot = false, t = 0;
-  while (c.phase !== 'done' && t < 25) {
-    c.update(1 / 60); t += 1 / 60;
-    if (c.phase !== 'play') continue;
-    const car = c.actors[c.carrier];
-    const near = Math.min(...c.defenders.map((d) => Math.hypot(d.x - car.x, d.z - car.z)));
-    if (!passed && c.clock > 1.2 && near < 3) {
-      const mates = c.attackers.filter((a) => a.i !== c.carrier).map((a) => ({ a, free: Math.min(...c.defenders.map((d) => Math.hypot(d.x - a.x, d.z - a.z))) }));
-      mates.sort((x, y) => y.free - x.free);
-      if (mates[0] && mates[0].free > 2.5) { c.commandPass(mates[0].a.i); passed = true; continue; }
-    }
-    if (!shot && car.z > GOAL_Z - 20 && (c.clock > 3 || near < 1.6)) {
-      c.commandShot({ tx: c.keeper.x > 0 ? -2.9 : 2.9, ty: 0.4 + rng() * 1.6, power: 0.75, curve: 0 });
-      shot = true;
-    }
-  }
-  check(c.phase === 'done' && c.result, 'o lance precisa terminar');
-  return c.result!;
-}
-
 const t0 = performance.now();
 
 // 1) Taxa de gol por nível: precisa cair a cada nível, e ficar em faixas jogáveis.
@@ -67,8 +46,8 @@ for (const lvl of [0, 1, 2, 3]) {
   console.log(`nível ${lvl}: gol ${(rate * 100).toFixed(0)}%`, JSON.stringify(out));
 }
 for (let i = 1; i < rates.length; i++) check(rates[i] < rates[i - 1], `taxa de gol cai do nível ${i - 1} para o ${i}`);
-check(rates[0] > 0.7 && rates[0] < 0.99, 'fácil: robô perfeito marca quase sempre');
-check(rates[3] > 0.1 && rates[3] < 0.45, 'lendário: difícil, mas possível');
+check(rates[0] > 0.75 && rates[0] < 0.99, 'fácil: robô perfeito marca quase sempre');
+check(rates[3] > 0.15 && rates[3] < 0.45, 'lendário: difícil, mas possível');
 
 // 2) Todos os cenários terminam (inclusive sem fazer nada: tempo esgotado ou desarme).
 for (const kind of ['centro', 'ponta', 'contra', 'entrada'] as ScenarioKind[]) {
@@ -76,6 +55,115 @@ for (const kind of ['centro', 'ponta', 'contra', 'entrada'] as ScenarioKind[]) {
   const c = new Chance(genericChance(team('a', 70), team('b', 70), botParams(1.5), rng, kind), rng);
   for (let t = 0; t < 20 && c.phase !== 'done'; t += 1 / 60) c.update(1 / 60);
   check(c.phase === 'done' && c.result && !c.result.goal, `${kind}: parado não marca e termina`);
+}
+
+// 2b) Mecânicas: impedimento, passe por cima, de primeira, cabeceio, cavadinha, drible e arrancada.
+const playing = (kind: ScenarioKind, lvl: number, seed: number) => {
+  const rng = seeded(seed);
+  const c = new Chance(genericChance(team('a', 75), team('b', 75), botParams(lvl), rng, kind), rng);
+  while (c.phase !== 'play') c.update(1 / 60);
+  return c;
+};
+const runOut = (c: Chance, max = 12) => { for (let t = 0; t < max && c.phase !== 'done'; t += 1 / 60) c.update(1 / 60); return c.result!; };
+{
+  // Companheiro à frente da linha no momento do passe: impedimento.
+  const c = playing('centro', 0, 11);
+  const m = c.attackers.find((a) => a.i !== c.carrier)!;
+  for (const d of c.defenders) d.x = 25;
+  m.x = -20; m.z = c.offsideLine() + 3;
+  check(c.isOffside(m), 'atacante à frente da linha está em impedimento');
+  c.commandPass(m.i);
+  check(runOut(c).outcome === 'offside', 'passe para o impedido vira impedimento');
+}
+{
+  // Mesmo passe com ele atrás da linha: recebe normalmente.
+  const c = playing('centro', 0, 12);
+  const m = c.attackers.find((a) => a.i !== c.carrier)!;
+  for (const d of c.defenders) d.x = 25;
+  m.x = -20; m.z = c.offsideLine() - 2;
+  check(!c.isOffside(m), 'atrás da linha está em condição');
+  c.commandPass(m.i);
+  for (let t = 0; t < 4 && c.phase === 'pass'; t += 1 / 60) c.update(1 / 60);
+  check(c.carrier === m.i && c.phase === 'play', 'em condição: o companheiro domina a bola');
+}
+{
+  // Os companheiros do usuário respeitam a linha: no fácil (sem linha em bloco) quase nunca ficam impedidos.
+  let ticks = 0, off = 0;
+  for (let s = 0; s < 40; s++) {
+    const c = playing((['centro', 'ponta', 'entrada', 'contra'] as ScenarioKind[])[s % 4], 0, 100 + s);
+    for (let t = 0; t < 6 && c.phase === 'play'; t += 1 / 60) {
+      c.update(1 / 60);
+      if (c.clock < 1.5) continue;
+      for (const a of c.attackers) if (a.i !== c.carrier) { ticks++; if (c.isOffside(a)) off++; }
+    }
+  }
+  check(off / ticks < 0.03, `companheiros evitam o impedimento (${((off / ticks) * 100).toFixed(1)}% do tempo impedidos)`);
+}
+{
+  // Passe por cima passa sobre um defensor no meio do caminho; o rasteiro é cortado bem mais vezes.
+  const trial = (lofted: boolean, seed: number) => {
+    const c = playing('centro', 3, seed);
+    const car = c.actors[c.carrier];
+    const m = c.attackers.find((a) => a.i !== c.carrier)!;
+    m.x = car.x - 14; m.z = car.z; m.vx = 0; m.vz = 0;
+    const [d0, ...rest] = c.defenders;
+    for (const d of rest) d.x = 28;
+    d0.x = car.x - 7; d0.z = car.z;
+    c.keeper.z = GOAL_Z - 1;
+    c.commandPass(m.i, lofted);
+    for (let t = 0; t < 4 && c.phase === 'pass'; t += 1 / 60) c.update(1 / 60);
+    return c.carrier === m.i;
+  };
+  let low = 0, high = 0;
+  for (let s = 0; s < 60; s++) { if (trial(false, 300 + s)) low++; if (trial(true, 300 + s)) high++; }
+  check(high > low + 15 && high >= low * 3, `passe por cima evita o corte (rasteiro ${low}/60, por cima ${high}/60)`);
+}
+{
+  // Chute pedido durante o passe: sai de primeira (bola rasteira) ou de cabeça (bola alta).
+  const firstTime = (lofted: boolean) => {
+    const c = playing('centro', 0, 21);
+    const m = c.attackers.find((a) => a.i !== c.carrier)!;
+    for (const d of c.defenders) d.x = 28;
+    m.x = c.actors[c.carrier].x - 8; m.z = c.offsideLine() - 1.5; m.vx = 0; m.vz = 0;
+    c.commandPass(m.i, lofted);
+    check(c.commandShot({ tx: 2, ty: 1, power: 0.8, curve: 0 }), 'chute aceito durante o passe');
+    for (let t = 0; t < 4 && c.phase === 'pass'; t += 1 / 60) c.update(1 / 60);
+    return c;
+  };
+  const v = firstTime(false);
+  check(v.phase === 'shot' && v.shotKind === 'volley', 'chute de primeira');
+  const hd = firstTime(true);
+  check(hd.phase === 'shot' && hd.shotKind === 'header', `cabeceio quando a bola chega alta (${hd.phase}/${hd.shotKind})`);
+}
+{
+  // Cavadinha: gesto lento e comprido sobe a bola acima de 2,8 m.
+  const c = playing('entrada', 0, 31);
+  c.commandShot({ tx: 1, ty: 2, power: 0.3, curve: 0 });
+  check(c.shotKind === 'chip', 'cavadinha reconhecida');
+  let top = 0;
+  for (let t = 0; t < 3 && c.phase === 'shot'; t += 1 / 60) { c.update(1 / 60); top = Math.max(top, c.ball.y); }
+  check(top > 2.8, `cavadinha sobe (${top.toFixed(1)} m)`);
+}
+{
+  // Drible: deixa o marcador no chão parte das vezes, tem recarga; arrancada é mais rápida que conduzir normal.
+  let stunned = 0;
+  for (let s = 0; s < 80; s++) {
+    const c = playing('centro', 1, 400 + s);
+    const car = c.actors[c.carrier], d = c.defenders[0];
+    d.x = car.x + 0.6; d.z = car.z + 1.2;
+    check(c.commandDribble(), 'drible aceito');
+    check(!c.commandDribble(), 'drible tem recarga');
+    if (d.stunT > 0) stunned++;
+  }
+  check(stunned > 15 && stunned < 75, `drible às vezes dá certo (${stunned}/80)`);
+  const run = (sprint: boolean) => {
+    const c = playing('contra', 0, 50);
+    const car = c.actors[c.carrier];
+    const z0 = car.z;
+    for (let t = 0; t < 1.5; t += 1 / 60) { c.commandMove(car.x, car.z + 10, sprint); c.update(1 / 60); }
+    return car.z - z0;
+  };
+  check(run(true) > run(false) + 0.3, 'segurar e arrastar corre mais que tocar no gramado');
 }
 
 // 3) Dificuldade automática: sobe com gols, desce com erros; fixa não muda.

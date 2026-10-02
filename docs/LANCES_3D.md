@@ -7,24 +7,41 @@ O jogo de botão saiu. No lugar dele entram as **chances de ataque em 3D**, no e
 |---|---|
 | **Deslizar para cima** | Chute. A direção escolhe o canto, o comprimento escolhe a altura e a velocidade dá a força. |
 | **Curvar o gesto** | Efeito. Um arco para a esquerda curva a bola para a direita, e vice-versa. |
-| **Tocar num companheiro** | Passe (anel branco pulsando = quem pode receber). |
-| **Tocar no gramado** | Conduzir a bola até o ponto. |
+| **Deslizar devagar e comprido** | **Cavadinha:** arco alto (3 a 4,5 m) que cai no gol. Mortal com o goleiro adiantado. |
+| **Tocar num companheiro** | Passe rasteiro, na frente dele se estiver correndo (lançamento em profundidade). |
+| **Segurar num companheiro** (0,32 s) | **Passe por cima** da marcação. Um anel enche em volta dele e fica azul ("POR CIMA"). |
+| **Deslizar durante um passe** | **De primeira:** o chute sai quando a bola chegar. Se ela chegar alta, vira **cabeçada**. |
+| **Tocar no gramado** | Conduz a bola até o ponto. |
+| **Segurar e arrastar** (0,19 s parado) | Conduz **em velocidade seguindo o dedo**. Terminar com um puxão rápido para cima chuta no mesmo gesto. |
+| **Tocar em quem tem a bola** | Para e protege a bola. **Dois toques:** drible. |
+| **Botão Drible** | Finta e arrancada. Pode deixar o marcador no chão (recarga de 1,4 s). |
+| **Setas de borda** | Companheiros fora da tela aparecem como setas com o número; tocar ou segurar nelas também passa. |
 | **Tocar depois do resultado** | Pula a comemoração. |
+| **Teclado** | WASD ou setas conduzem, Shift arranca, Espaço dribla. |
+| **Botão ?** | Mostra todos os controles e pausa o lance. |
 
 - **Altura do chute:** deslize curto → rasteiro; médio → meia altura; longo (~40% da altura da tela) → no ângulo; mais que isso → por cima.
-- **Tempo:** cada lance tem 9,5 s (11 s no contra-ataque) para finalizar. Tempo esgotado = lance perdido.
+- **Tempo:** cada lance tem 11 s (12,5 s no contra-ataque) para finalizar. Tempo esgotado = lance perdido.
 - **Durante o deslize:** um anel dourado mostra no gol onde a bola vai.
+
+## Impedimento
+- **Regra:** quem estiver à frente do penúltimo adversário (normalmente o zagueiro mais recuado; o goleiro é o último) e da bola **no momento do passe** está impedido. Na mesma linha (até 25 cm) está em condição. Ao receber, o lance termina em "Impedimento!".
+- **Defesa:** segura uma linha alguns metros à frente da bola (`lineGap`), com a sobra um pouco atrás (`cover`). Nos níveis difícil e lendário, a linha às vezes **sobe em bloco** (`trap`) para deixar atacantes impedidos.
+- **Seus companheiros sabem da regra:** correm colados na linha, meio metro antes, mudando de ritmo e de faixa. Se ficarem impedidos (por exemplo, quando a linha sobe), voltam. Quem passa a bola parte para a **tabela**.
+- **Na tela:** anel **vermelho** em quem está impedido (e o nome fica avermelhado). Nos níveis fácil e médio, a linha de impedimento aparece no gramado (azul; laranja quando a defesa sobe).
+- **Depois do passe:** a defesa corre atrás do lançamento. O goleiro sai para pegar bola lançada na pequena área.
 
 ## Dificuldade do bot (`src/lances/difficulty.ts`)
 | Nível | Defesa | Goleiro | Robô quase perfeito marca |
 |---|---|---|---|
-| Fácil | 2 defensores, lentos, pouco desarme | reação 0,38 s | ~96% |
-| Médio | 3 defensores | reação 0,30 s | ~72% |
-| Difícil | 3 defensores, rápidos, cortam passes | reação 0,22 s | ~50% |
-| Lendário | 4 defensores, pressão alta | reação 0,16 s, mergulho rápido | ~28% |
+| Fácil | 2 defensores, lentos, linha recuada, sem linha em bloco | reação 0,38 s | ~87% |
+| Médio | 3 defensores, linha a 8 m da bola | reação 0,30 s | ~75% |
+| Difícil | 3 defensores, rápidos, linha a 7 m, sobe em bloco às vezes | reação 0,18 s | ~59% |
+| Lendário | 4 defensores, linha a 6 m em bloco, pressão alta | reação 0,13 s, mergulho rápido | ~32% |
 | **Automático** | Começa conforme a força do adversário. Cada gol sobe o nível (+0,4) e cada lance perdido alivia (−0,22). | | |
 
 - Os parâmetros (`BotParams`) são interpolados entre os níveis, então o automático tem valores contínuos.
+- O "robô quase perfeito" (`scripts/lances-bot.ts`) conduz desviando, dribla quando está colado, lança quem está em condição (por cima se a linha de passe estiver fechada), chuta no canto e dá cavadinha quando o goleiro sai.
 - A escolha fica salva no aparelho (`scm.lances.bot`).
 
 ## Motor do lance (`src/lances/engine.ts`)
@@ -35,14 +52,17 @@ O jogo de botão saiu. No lugar dele entram as **chances de ataque em 3D**, no e
   - um defensor pressiona entre a bola e o gol;
   - os outros fecham as linhas de passe;
   - o que sobrar cobre a área.
-- **Desarme:** quando um defensor encosta (até 1,15 m), há uma chance por segundo de tomar a bola. Ela cresce com o nível do bot e cai com o drible de quem conduz.
-- **Corte de passe:** a bola é cortada se passar perto de um defensor. O raio cresce com o nível e diminui com o passe de quem tocou.
+- **Desarme:** quando um defensor encosta (até 1,15 m), há uma chance por segundo de tomar a bola. Ela cresce com o nível do bot e cai com o drible de quem conduz. Logo depois de um drible que falhou, ela dobra.
+- **Drible:** dá certo conforme o drible de quem conduz contra o nível (de 12% a 88%). Se der certo, o marcador cai (0,9 a 1,4 s) e não pode desarmar, cortar ou bloquear.
+- **Corte de passe:** cada defensor tem **uma** tentativa por passe, quando a bola passa perto dele (o raio cresce com o nível e diminui com o passe de quem tocou). A chance cresce com o nível e com a marcação dele. Nos primeiros 2 m (saída do pé) ninguém corta. Bola acima de 2 m passa por cima; cortar de cabeça é mais difícil.
+- **Passe por cima:** parábola de 3 a 5 m de altura (o tempo de voo vem da altura). É mais lento que o rasteiro, e a defesa tem tempo de voltar.
 - **Bloqueio:** chute rasteiro perto de um defensor tem 60% de chance de bater nele.
-- **Chute:** gravidade e efeito (aceleração lateral, com mira compensada). A finalização do atacante espalha menos a bola.
+- **Chute:** gravidade e efeito (aceleração lateral, com mira compensada). A finalização do atacante espalha menos a bola. De primeira espalha 25% mais e de cabeça 50% mais (sem efeito e com força limitada).
+- **Cavadinha:** se a bola passa acima de 2,55 m sobre o goleiro, ele só defende voltando para a linha (de costas, ~3,6 m/s, e ainda precisa saltar). A chance depende da folga de tempo que ele tem.
 - **Goleiro:**
   - fica na linha entre a bola e o gol e mergulha;
   - a defesa é decidida no momento do chute, pela reação, pela velocidade do mergulho e pelo alcance contra a distância até a bola.
-- **Resultados:** gol, defesa, para fora, trave, bloqueio, desarme, passe cortado e tempo esgotado. Cada um tem a sua frase.
+- **Resultados:** gol (normal, de primeira, de cabeça ou de cavadinha), defesa, para fora, trave, bloqueio, desarme, passe cortado, impedimento e tempo esgotado. Cada um tem a sua frase.
 
 ## Render 3D (`src/lances/render3d.ts`, three.js)
 - **Estádio:**
@@ -50,7 +70,12 @@ O jogo de botão saiu. No lugar dele entram as **chances de ataque em 3D**, no e
   - linhas do campo em geometria (retas, arcos e marcas), nítidas a qualquer distância;
   - arquibancadas com torcida e placas de LED (texto só na face voltada para o campo);
   - torres de refletores com brilho, céu noturno e sombras suaves.
-- **Jogadores:** low-poly (1,3x para ler bem de cima), com camisa nas cores e no padrão do clube, número e nome. Têm animação de corrida, desarme, queda, comemoração e mergulho do goleiro.
+- **Jogadores** (`src/lances/players3d.ts`):
+  - **visual:** estilizado de jogo de celular (1,2x para ler bem de cima), com sombreamento em faixas (toon) e contorno de espessura constante;
+  - **corpo:** cabeça grande com olhos e seis estilos de cabelo (curto, máquina, black power, moicano, coque, faixa); tronco moldado; gola na cor secundária; camisa com padrão e número grande nas costas; chuteiras coloridas; goleiro com luvas e manga longa;
+  - **articulações:** joelhos e cotovelos, com geometrias e materiais compartilhados entre os jogadores;
+  - **animações:** corrida (joelho dobra na passada, braços opostos, tronco gira), respiração parado, chute e passe (perna vai atrás e chicoteia), finta do drible, marcador agachado perto da bola, carrinho, driblado no chão, goleiro em base, mergulho e salto para trás na cavadinha;
+  - **comemorações:** pulo, aviãozinho ou de joelhos. Quem erra põe as mãos na cabeça.
 - **Bola:** desenhada 1,6x maior que o tamanho real (só no visual; a física usa o tamanho real).
 - **Uniformes:** quando as cores se confundem (inclusive time contra ele mesmo no online), a defesa veste o reserva (`contrastKit`).
 - **Câmera** (botão no canto do placar; a escolha fica salva em `scm.lances.cam`):
@@ -80,6 +105,10 @@ O jogo de botão saiu. No lugar dele entram as **chances de ataque em 3D**, no e
 ## Testes
 - `npm run test:lances` (`scripts/lances-test.ts`):
   - taxa de gol de um robô quase perfeito em cada nível (precisa cair a cada nível e ficar nas faixas);
+  - impedimento (passe para quem está à frente da linha) e passe em condição;
+  - companheiros evitando o impedimento (menos de 3% do tempo impedidos no fácil);
+  - passe por cima passando sobre um defensor no caminho (o rasteiro é cortado bem mais);
+  - de primeira e cabeçada, cavadinha (sobe acima de 2,8 m), drible (às vezes derruba, tem recarga) e arrancada mais rápida que conduzir normal;
   - todos os cenários terminam;
   - dificuldade automática;
   - gesto de chute: lado, altura, força e efeito;

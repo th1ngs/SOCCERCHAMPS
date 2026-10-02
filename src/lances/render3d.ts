@@ -1,31 +1,11 @@
 // Render 3D dos lances (three.js): estádio noturno, gramado listrado, gol com rede, jogadores animados
 // nas cores dos clubes, bola com rastro, câmera que acompanha a jogada e comemoração de gol.
 import * as THREE from "three";
-import { BALL_R, BAR, GOAL_HALF, GOAL_Z, type Actor, type Chance, type LanceKit } from "./engine";
+import { BALL_R, BAR, GOAL_HALF, GOAL_Z, type Chance } from "./engine";
+import { buildPlayer, poseRig, type PlayerRig } from "./players3d";
+import { canvasTex, hash, setAniso } from "./tex";
 
-const SKINS = ["#f1c7a5", "#d9a47c", "#b97d55", "#8c5a3c", "#6b4330", "#4b2f22"];
-const HAIR = ["#1d1714", "#3b2618", "#6b4424", "#a0703f", "#2a2a2a", "#c79a5c"];
 const GK_KITS: [string, string][] = [["#f4c20d", "#1b1b1b"], ["#16a34a", "#0b3d1d"], ["#7c3aed", "#f5f3ff"], ["#ef4444", "#1b1b1b"]];
-
-const hash = (s: string) => [...s].reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) | 0, 9) >>> 0;
-const luminance = (hex: string) => {
-  const c = new THREE.Color(hex);
-  return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
-};
-
-/** Anisotropia usada nas texturas (o máximo da placa, definido ao criar a cena). */
-let ANISO = 8;
-
-function canvasTex(w: number, h: number, draw: (c: CanvasRenderingContext2D) => void, srgb = true): THREE.CanvasTexture {
-  const cv = document.createElement("canvas");
-  cv.width = w; cv.height = h;
-  const c = cv.getContext("2d") as CanvasRenderingContext2D;
-  draw(c);
-  const t = new THREE.CanvasTexture(cv);
-  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = ANISO;
-  return t;
-}
 
 // ---------- Texturas ----------
 /** Textura fina de grama (repetida em coordenadas do mundo): folhas e variação de tom, em cinza para tingir. */
@@ -118,121 +98,6 @@ function ballTexture(): THREE.CanvasTexture {
   });
 }
 
-/** Camisa: cor, padrão (listras/faixa) e número nas costas. */
-function shirtTexture(kit: LanceKit, num: number, gk: [string, string] | null): THREE.CanvasTexture {
-  const [p, s] = gk ?? kit.colors;
-  const pattern = gk ? "solid" : kit.pattern;
-  return canvasTex(512, 256, (c) => {
-    c.scale(2, 2);
-    c.fillStyle = p; c.fillRect(0, 0, 256, 128);
-    c.fillStyle = s;
-    if (pattern === "v") for (let x = 0; x < 256; x += 32) c.fillRect(x, 0, 14, 128);
-    else if (pattern === "h") for (let y = 0; y < 128; y += 28) c.fillRect(0, y, 256, 12);
-    else if (pattern === "half") c.fillRect(0, 0, 128, 128);
-    else if (pattern === "sash") { c.beginPath(); c.moveTo(150, 0); c.lineTo(190, 0); c.lineTo(110, 128); c.lineTo(70, 128); c.fill(); }
-    else { c.fillRect(0, 0, 256, 8); c.fillRect(0, 120, 256, 8); }
-    // Número nas costas (metade de trás do cilindro: u ~ 0,5) e pequeno no peito.
-    const ink = luminance(p) > 0.55 ? "#111" : "#fff";
-    c.fillStyle = ink; c.strokeStyle = luminance(p) > 0.55 ? "#fff" : "#000"; c.lineWidth = 3;
-    c.font = "900 64px Arial, sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
-    c.strokeText(String(num || ""), 128, 66); c.fillText(String(num || ""), 128, 66);
-    c.font = "900 22px Arial, sans-serif";
-    c.fillText(String(num || ""), 30, 46); c.fillText(String(num || ""), 226, 46);
-  });
-}
-
-function labelTexture(text: string, color: string): THREE.CanvasTexture {
-  return canvasTex(512, 128, (c) => {
-    c.font = "800 60px Arial, sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
-    const w = Math.min(500, c.measureText(text).width + 56);
-    c.fillStyle = "rgba(5,10,18,0.8)";
-    c.beginPath(); c.roundRect(256 - w / 2, 16, w, 92, 24); c.fill();
-    c.strokeStyle = color; c.lineWidth = 6; c.stroke();
-    c.fillStyle = "#fff"; c.fillText(text, 256, 64);
-  });
-}
-
-// ---------- Jogador ----------
-interface PlayerRig {
-  root: THREE.Group;
-  body: THREE.Group;
-  legL: THREE.Group;
-  legR: THREE.Group;
-  armL: THREE.Group;
-  armR: THREE.Group;
-  head: THREE.Mesh;
-  ring: THREE.Mesh;
-  label: THREE.Sprite | null;
-}
-
-function buildPlayer(kit: LanceKit, num: number, id: string, gk: [string, string] | null, showLabel: string | null, labelColor: string): PlayerRig {
-  const h = hash(id);
-  const skin = SKINS[h % SKINS.length], hair = HAIR[(h >>> 4) % HAIR.length];
-  const [, sec] = gk ?? kit.colors;
-  const shortsColor = gk ? gk[1] : luminance(kit.colors[0]) > 0.7 ? kit.colors[1] : "#f2f2f2";
-  const sockColor = gk ? gk[0] : kit.colors[0];
-  const std = (color: string, rough = 0.75) => new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0 });
-  const skinMat = std(skin, 0.6);
-
-  const root = new THREE.Group();
-  const body = new THREE.Group();
-  root.add(body);
-  // Tronco com a camisa.
-  const shirt = new THREE.MeshStandardMaterial({ map: shirtTexture(kit, num, gk), roughness: 0.7 });
-  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.16, 0.56, 18, 1), shirt);
-  torso.position.y = 1.24; torso.scale.z = 0.72; torso.rotation.y = Math.PI / 2;
-  torso.castShadow = true;
-  body.add(torso);
-  const shorts = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.19, 0.22, 14), std(shortsColor));
-  shorts.position.y = 0.9; shorts.scale.z = 0.8; shorts.castShadow = true;
-  body.add(shorts);
-  // Cabeça e cabelo.
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.12, 18, 14), skinMat);
-  head.position.y = 1.67; head.castShadow = true;
-  const hairMesh = new THREE.Mesh(new THREE.SphereGeometry(0.125, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), std(hair, 0.9));
-  hairMesh.position.y = 0.01; hairMesh.rotation.x = -0.25;
-  head.add(hairMesh);
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.1, 8), skinMat);
-  neck.position.y = 1.55;
-  body.add(head, neck);
-  // Pernas (pivô no quadril) e braços (pivô no ombro).
-  const leg = (side: number) => {
-    const g = new THREE.Group();
-    g.position.set(side * 0.09, 0.86, 0);
-    const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.32, 4, 10), skinMat);
-    thigh.position.y = -0.2; thigh.castShadow = true;
-    const sock = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.3, 4, 10), std(sockColor));
-    sock.position.y = -0.56; sock.castShadow = true;
-    const boot = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.07, 0.24), std("#121212", 0.4));
-    boot.position.set(0, -0.78, 0.04); boot.castShadow = true;
-    g.add(thigh, sock, boot);
-    return g;
-  };
-  const arm = (side: number) => {
-    const g = new THREE.Group();
-    g.position.set(side * 0.26, 1.46, 0);
-    const sleeve = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.14, 4, 8), std(gk ? gk[0] : kit.colors[0]));
-    sleeve.position.y = -0.1; sleeve.castShadow = true;
-    const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.26, 4, 8), gk ? std(sec) : skinMat);
-    fore.position.y = -0.34; fore.castShadow = true;
-    g.add(sleeve, fore);
-    return g;
-  };
-  const legL = leg(-1), legR = leg(1), armL = arm(-1), armR = arm(1);
-  body.add(legL, legR, armL, armR);
-  // Anel no gramado (indicador de quem conduz e de quem pode receber).
-  const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.62, 40), new THREE.MeshBasicMaterial({ color: "#ffd23f", transparent: true, opacity: 0, depthWrite: false }));
-  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.02;
-  root.add(ring);
-  let label: THREE.Sprite | null = null;
-  if (showLabel) {
-    label = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture(showLabel, labelColor), depthTest: false, transparent: true }));
-    label.scale.set(2.4, 0.6, 1); label.position.y = 2.35; label.renderOrder = 10;
-    root.add(label);
-  }
-  return { root, body, legL, legR, armL, armR, head, ring, label };
-}
-
 // ---------- Cena ----------
 /** Câmera: "alta" (de cima, estilo Soccer Champs) ou "atrás" (atrás do jogador, mais perto). */
 export type CameraView = "top" | "back";
@@ -248,6 +113,7 @@ export class LanceScene {
   private trailPts: THREE.Vector3[] = [];
   private aim: THREE.Mesh;
   private moveMark: THREE.Mesh;
+  private offLine: THREE.Mesh;
   private netBack!: THREE.Mesh;
   private keyLight: THREE.DirectionalLight;
   private confetti: THREE.Points | null = null;
@@ -270,9 +136,9 @@ export class LanceScene {
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-    ANISO = Math.min(16, this.renderer.capabilities.getMaxAnisotropy());
+    setAniso(Math.min(16, this.renderer.capabilities.getMaxAnisotropy()));
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
@@ -329,6 +195,9 @@ export class LanceScene {
     this.moveMark = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.45, 32), new THREE.MeshBasicMaterial({ color: "#7dd3fc", transparent: true, opacity: 0.8, depthWrite: false }));
     this.moveMark.rotation.x = -Math.PI / 2; this.moveMark.position.y = 0.03; this.moveMark.visible = false;
     s.add(this.moveMark);
+    this.offLine = new THREE.Mesh(new THREE.PlaneGeometry(68, 0.16), new THREE.MeshBasicMaterial({ color: "#38bdf8", transparent: true, opacity: 0.5, depthWrite: false }));
+    this.offLine.rotation.x = -Math.PI / 2; this.offLine.position.set(0, 0.014, 40); this.offLine.visible = false;
+    s.add(this.offLine);
   }
 
   /** Gramado em faixas (uma malha por faixa) e linhas em geometria: nítidas em qualquer distância. */
@@ -461,7 +330,7 @@ export class LanceScene {
       const kit = a.role === "att" ? chance.setup.attack.kit : chance.setup.defense.kit;
       const label = a.role === "att" ? `${a.p.num || ""} ${a.p.name}`.trim() : null;
       const rig = buildPlayer(kit, a.p.num, a.p.id, a.role === "gk" ? gkKit : null, label, "#ffd23f");
-      rig.root.scale.setScalar(1.3);
+      rig.root.scale.setScalar(1.2);
       this.scene.add(rig.root);
       this.rigs.push(rig);
     }
@@ -532,8 +401,9 @@ export class LanceScene {
   render(dt: number, now: number): void {
     const ch = this.chance;
     if (ch) this.sync(ch, dt, now);
-    this.renderer.render(this.scene, this.camera);
+    // Antes de desenhar: mudar o tamanho limpa o canvas, então o quadro sai já na resolução nova.
     this.adaptResolution(dt);
+    this.renderer.render(this.scene, this.camera);
   }
 
   /** Quadros lentos (abaixo de ~40 fps em média) baixam a resolução aos poucos, até 1x. */
@@ -552,7 +422,16 @@ export class LanceScene {
 
   private sync(ch: Chance, dt: number, now: number): void {
     const pulse = 0.5 + 0.5 * Math.sin(now * 6);
-    ch.actors.forEach((a, i) => this.poseRig(this.rigs[i], a, ch, pulse));
+    ch.actors.forEach((a, i) => poseRig(this.rigs[i], a, ch, pulse, now));
+    // Linha de impedimento (ajuda dos níveis fácil e médio): laranja quando a defesa sobe em bloco.
+    const live = ch.phase === "play" || ch.phase === "pass";
+    this.offLine.visible = ch.bot.aids && live;
+    if (this.offLine.visible) {
+      this.offLine.position.z += (ch.offsideLine() - this.offLine.position.z) * Math.min(1, dt * 12);
+      const m = this.offLine.material as THREE.MeshBasicMaterial;
+      m.color.set(ch.trapT > 0 ? "#fb923c" : "#38bdf8");
+      m.opacity = 0.4 + pulse * 0.2;
+    }
     // Bola.
     const b = ch.ball;
     // Bola desenhada 1,6x maior para ler bem de cima (a física usa o tamanho real).
@@ -586,50 +465,6 @@ export class LanceScene {
     const cz = Math.min(GOAL_Z - 10, b.z + 12);
     this.keyLight.position.set(b.x - 22, 40, cz - 16);
     this.keyLight.target.position.set(b.x, 0, cz);
-  }
-
-  private poseRig(r: PlayerRig, a: Actor, ch: Chance, pulse: number): void {
-    r.root.position.set(a.x, a.y, a.z);
-    r.root.rotation.set(0, a.heading, 0);
-    r.body.rotation.set(0, 0, 0);
-    r.body.position.set(0, 0, 0);
-    const sp = Math.min(1, Math.sqrt(a.vx * a.vx + a.vz * a.vz) / 7);
-    const swing = Math.sin(a.stride) * 0.85 * sp;
-    r.legL.rotation.x = swing; r.legR.rotation.x = -swing;
-    r.armL.rotation.set(-swing * 0.8, 0, -0.08); r.armR.rotation.set(swing * 0.8, 0, 0.08);
-    r.body.position.y = Math.abs(Math.cos(a.stride)) * 0.05 * sp;
-    r.body.rotation.x = sp * 0.12;
-    if (a.state === "celebrate") {
-      r.armL.rotation.set(Math.PI * 0.9, 0, -0.4); r.armR.rotation.set(Math.PI * 0.9, 0, 0.4);
-      r.legL.rotation.x = 0.2; r.legR.rotation.x = -0.1;
-    } else if (a.state === "sad") {
-      r.body.rotation.x = 0.35; r.armL.rotation.set(0.1, 0, 0.1); r.armR.rotation.set(0.1, 0, -0.1);
-    } else if (a.state === "tackle") {
-      r.body.rotation.x = -1.2; r.body.position.y = 0.25; r.legL.rotation.x = -1.2; r.legR.rotation.x = -0.6;
-    } else if (a.state === "down") {
-      r.body.rotation.x = 1.35; r.body.position.y = 0.2;
-    } else if (a.role === "gk") {
-      if (a.state === "dive" && a.dive) {
-        const f = Math.max(0, Math.min(1, a.dive.t / a.dive.dur));
-        // Mergulho para o lado (o goleiro olha para o campo: lado invertido).
-        r.body.rotation.z = a.dive.side * Math.min(1.35, f * 1.9);
-        r.body.position.y = Math.min(0.5, f * 0.7);
-        r.armL.rotation.set(Math.PI, 0, -0.2); r.armR.rotation.set(Math.PI, 0, 0.2);
-      } else {
-        // Base de goleiro: joelhos flexionados, braços abertos.
-        r.armL.rotation.set(-0.4, 0, -0.7); r.armR.rotation.set(-0.4, 0, 0.7);
-        r.body.position.y -= 0.06;
-      }
-    }
-    // Anéis: quem conduz (dourado) e quem pode receber (branco pulsando).
-    const ring = r.ring.material as THREE.MeshBasicMaterial;
-    const isCarrier = a.i === ch.carrier && ch.phase !== "done" && ch.ball.owner === a.i;
-    if (a.role === "att" && ch.phase === "play") {
-      ring.color.set(isCarrier ? "#ffd23f" : "#ffffff");
-      ring.opacity = isCarrier ? 0.95 : 0.35 + pulse * 0.45;
-      r.ring.scale.setScalar(isCarrier ? 1 : 1 + pulse * 0.15);
-    } else ring.opacity = 0;
-    if (r.label) r.label.visible = a.role === "att" && ch.phase !== "done" && !isCarrier;
   }
 
   private updateCamera(ch: Chance, dt: number): void {
