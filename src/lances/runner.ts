@@ -205,9 +205,11 @@ export class LanceRunner {
     const ro = new ResizeObserver(resize);
     ro.observe(stage);
 
+    // Hora em que o evento aconteceu (não quando foi tratado): em aparelho lento os eventos chegam atrasados, em lote.
     const local = (e: PointerEvent) => {
       const r = canvas.getBoundingClientRect();
-      return { x: e.clientX - r.left, y: e.clientY - r.top, t: performance.now() };
+      const t = e.timeStamp > 0 && e.timeStamp <= performance.now() + 50 ? e.timeStamp : performance.now();
+      return { x: e.clientX - r.left, y: e.clientY - r.top, t };
     };
     const down = (e: PointerEvent) => {
       Audio.init();
@@ -263,7 +265,8 @@ export class LanceRunner {
       last = now;
       const c = this.paused ? null : this.chance;
       if (c) {
-        this.holdChecks(now);
+        // Quadro lento: pode haver toques ainda na fila; espera antes de decidir que o dedo está parado.
+        if (dt < 0.07) this.holdChecks(now);
         this.keyboard();
         c.update(dt);
         for (const ev of c.drainEvents()) this.sound(ev.type);

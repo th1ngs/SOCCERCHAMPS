@@ -331,6 +331,7 @@ export class LanceScene {
       const label = a.role === "att" ? `${a.p.num || ""} ${a.p.name}`.trim() : null;
       const rig = buildPlayer(kit, a.p.num, a.p.id, a.role === "gk" ? gkKit : null, label, "#ffd23f");
       rig.root.scale.setScalar(1.2);
+      rig.prevHeading = a.heading;
       this.scene.add(rig.root);
       this.rigs.push(rig);
     }
@@ -422,7 +423,7 @@ export class LanceScene {
 
   private sync(ch: Chance, dt: number, now: number): void {
     const pulse = 0.5 + 0.5 * Math.sin(now * 6);
-    ch.actors.forEach((a, i) => poseRig(this.rigs[i], a, ch, pulse, now));
+    ch.actors.forEach((a, i) => poseRig(this.rigs[i], a, ch, pulse, now, dt));
     // Linha de impedimento (ajuda dos níveis fácil e médio): laranja quando a defesa sobe em bloco.
     const live = ch.phase === "play" || ch.phase === "pass";
     this.offLine.visible = ch.bot.aids && live;

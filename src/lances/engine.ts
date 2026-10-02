@@ -94,6 +94,15 @@ export interface Actor {
   stunT: number;
   /** Faixa de corrida sem a bola (atacantes): para onde ele tenta ir, respeitando o impedimento. */
   lane: { x: number; z: number } | null;
+  /** Alvo desejado (a defesa decide de tempos em tempos; o alvo de corrida segue suave até ele). */
+  wx: number;
+  wz: number;
+  /** Bote do marcador (animação, s desde o início; negativo = nenhum) e a recarga até o próximo. */
+  lungeT: number;
+  lungeCd: number;
+  /** Lado (x do mundo, ±1) da finta de quem dribla e da queda de quem foi driblado. */
+  feintSide: number;
+  fallSide: number;
 }
 
 export interface Ball {
@@ -233,6 +242,7 @@ export class Chance {
       const a: Actor = {
         i: this.actors.length, role, p, x, z, vx: 0, vz: 0, tx: x, tz: z, pace: 0, maxSpeed, heading: role === "att" ? 0 : Math.PI,
         stride: rng() * 6, state: "idle", dive: null, y: 0, kickT: -1, feintT: -1, stunT: 0, lane: null,
+        wx: x, wz: z, lungeT: -1, lungeCd: rng(), feintSide: 1, fallSide: 1,
       };
       this.actors.push(a);
       return a;
@@ -358,6 +368,7 @@ export class Chance {
     }
     // Arranca para longe do marcador e rumo ao gol.
     const away = near ? Math.sign(c.x - near.x) || 1 : (c.x > 0 ? -1 : 1);
+    c.feintSide = away;
     this.moveTarget = { x: clamp(c.x + away * 2.6, -32, 32), z: clamp(c.z + 3.2, 5, GOAL_Z - 1.5) };
     this.sprint = true;
     this.emit("dribble");
@@ -366,6 +377,8 @@ export class Chance {
     if (this.rng() < p) {
       near.stunT = 0.9 + this.rng() * 0.5;
       near.state = "down";
+      // Ele morde a finta: cai para o lado contrário de onde a bola foi.
+      near.fallSide = -away;
       this.grace = 0.7;
     } else this.exposedT = 0.6;
     return true;
@@ -548,7 +561,7 @@ export class Chance {
     if (presser) {
       // Fecha entre a bola e o gol, colando no jogador.
       const gx = 0 - bx, gz = GOAL_Z - bz, gl = Math.sqrt(gx * gx + gz * gz) || 1;
-      presser.tx = bx + (gx / gl) * 0.7; presser.tz = bz + (gz / gl) * 0.7;
+      presser.wx = bx + (gx / gl) * 0.7; presser.wz = bz + (gz / gl) * 0.7;
       presser.pace = Math.min(1, this.bot.press);
     }
     const free = order.filter((d) => d !== presser);
@@ -557,7 +570,7 @@ export class Chance {
       const pt = this.passTarget;
       free.sort((a, c) => dist(a.x, a.z, pt.x, pt.z) - dist(c.x, c.z, pt.x, pt.z));
       const chaser = free.shift() as Actor;
-      chaser.tx = pt.x; chaser.tz = Math.min(GOAL_Z - 1, pt.z + 0.6); chaser.pace = 1;
+      chaser.wx = pt.x; chaser.wz = Math.min(GOAL_Z - 1, pt.z + 0.6); chaser.pace = 1;
     }
     // Marcação por zona na linha: cada um acompanha a faixa de um atacante, sem sair da linha
     // (quem passar dela fica impedido; só quando a bola sai é que eles correm atrás).
@@ -567,13 +580,13 @@ export class Chance {
       free.sort((a, c) => Math.abs(a.x - m.x) - Math.abs(c.x - m.x));
       const d = free.shift() as Actor;
       const chase = this.phase === "pass" && m.z > lineZ;
-      d.tx = m.x + (bx - m.x) * 0.22;
-      d.tz = chase ? Math.min(GOAL_Z - 1.5, m.z + 1.2) : lineZ;
+      d.wx = m.x + (bx - m.x) * 0.22;
+      d.wz = chase ? Math.min(GOAL_Z - 1.5, m.z + 1.2) : lineZ;
       d.pace = chase ? 1 : 0.9;
     }
     for (const d of free) {
       // Sobra: cobre o meio, um pouco atrás da linha (no lendário, colado nela).
-      d.tx = bx * 0.4; d.tz = Math.min(GOAL_Z - 4, lineZ + this.bot.cover); d.pace = 0.85;
+      d.wx = bx * 0.4; d.wz = Math.min(GOAL_Z - 4, lineZ + this.bot.cover); d.pace = 0.85;
     }
   }
 
@@ -611,18 +624,37 @@ export class Chance {
     for (const a of this.actors) {
       if (a.kickT >= 0) a.kickT = a.kickT > 2 ? -1 : a.kickT + h;
       if (a.feintT >= 0) a.feintT = a.feintT > 2 ? -1 : a.feintT + h;
+      if (a.lungeT >= 0) a.lungeT = a.lungeT > 1 ? -1 : a.lungeT + h;
+      a.lungeCd = Math.max(0, a.lungeCd - h);
       if (a.stunT > 0) { a.stunT = Math.max(0, a.stunT - h); if (a.stunT === 0 && a.state === "down" && !this.result) a.state = "idle"; }
       if (a.role === "gk") { this.moveKeeper(a, h); continue; }
       if (a.state === "celebrate") { a.y = Math.abs(Math.sin(this.doneT * 7)) * 0.35; a.vx *= 0.9; a.vz *= 0.9; this.animate(a, h); continue; }
       if (!live || a.state === "down" || a.state === "tackle" || a.stunT > 0) { a.vx *= Math.max(0, 1 - 6 * h); a.vz *= Math.max(0, 1 - 6 * h); a.x += a.vx * h; a.z += a.vz * h; this.animate(a, h); continue; }
+      // Defesa: o alvo de corrida segue suave a decisão (sem trancos a cada leitura).
+      if (a.role === "def") { const k = Math.min(1, h * 7); a.tx += (a.wx - a.tx) * k; a.tz += (a.wz - a.tz) * k; }
       const dx = a.tx - a.x, dz = a.tz - a.z;
       const d = Math.sqrt(dx * dx + dz * dz);
       const withBall = this.ball.owner === a.i;
       const burst = withBall && this.burstT > 0 ? 1.22 : 1;
       const max = a.maxSpeed * a.pace * (withBall ? 0.92 : 1) * burst;
       const want = d < 0.3 ? 0 : Math.min(max, d * 2.2);
-      const wx = d > 1e-6 ? (dx / d) * want : 0, wz = d > 1e-6 ? (dz / d) * want : 0;
+      let wx = d > 1e-6 ? (dx / d) * want : 0, wz = d > 1e-6 ? (dz / d) * want : 0;
       const acc = (withBall && this.burstT > 0 ? 18 : 11) * h;
+      // Ninguém vira em cima da linha correndo: em velocidade, a direção gira aos poucos (e freia nas viradas bruscas).
+      const cs = Math.sqrt(a.vx * a.vx + a.vz * a.vz);
+      if (cs > 1.2 && want > 0.5) {
+        const ca = Math.atan2(a.vx, a.vz);
+        let da = Math.atan2(wx, wz) - ca;
+        while (da > Math.PI) da -= 2 * Math.PI;
+        while (da < -Math.PI) da += 2 * Math.PI;
+        const maxTurn = (13 / (1 + cs * 0.3)) * h * (withBall && this.burstT > 0 ? 1.6 : 1);
+        if (Math.abs(da) > maxTurn) {
+          const na = ca + Math.sign(da) * maxTurn;
+          const ns = Math.abs(da) > 1.7 ? Math.max(0, cs - 15 * h) : Math.min(want, cs + acc);
+          wx = Math.sin(na) * ns; wz = Math.cos(na) * ns;
+          a.vx = wx; a.vz = wz;
+        }
+      }
       const ex = wx - a.vx, ez = wz - a.vz, el = Math.sqrt(ex * ex + ez * ez);
       if (el > acc) { a.vx += (ex / el) * acc; a.vz += (ez / el) * acc; } else { a.vx = wx; a.vz = wz; }
       a.x = clamp(a.x + a.vx * h, -FIELD_HALF_W, FIELD_HALF_W);
@@ -634,6 +666,18 @@ export class Chance {
   private animate(a: Actor, h: number): void {
     const sp = Math.sqrt(a.vx * a.vx + a.vz * a.vz);
     a.stride += sp * h * 2.1;
+    const b = this.ball;
+    // Marcador perto da bola não dá as costas: anda de lado e de costas, de frente para ela.
+    const faceBall = a.role === "def" && this.phase === "play" && a.stunT <= 0 && a.state !== "tackle" && dist(a.x, a.z, b.x, b.z) < 7;
+    if (faceBall) {
+      let dh = Math.atan2(b.x - a.x, b.z - a.z) - a.heading;
+      while (dh > Math.PI) dh -= 2 * Math.PI;
+      while (dh < -Math.PI) dh += 2 * Math.PI;
+      a.heading += dh * Math.min(1, h * 8);
+      if (sp > 0.4 && a.state === "idle") a.state = "run";
+      else if (sp <= 0.4 && a.state === "run") a.state = "idle";
+      return;
+    }
     if (sp > 0.4) {
       const target = Math.atan2(a.vx, a.vz);
       let dh = target - a.heading;
@@ -673,12 +717,19 @@ export class Chance {
       tz = GOAL_Z - out;
     }
     k.tx = tx; k.tz = tz;
+    // Passadas curtas de lado, com aceleração (sem deslizar).
     const dx = k.tx - k.x, dzz = k.tz - k.z;
     const d = Math.sqrt(dx * dx + dzz * dzz);
-    const v = Math.min(vmax, d * 4);
-    if (d > 1e-4) { k.x += (dx / d) * v * h; k.z += (dzz / d) * v * h; k.vx = (dx / d) * v; k.vz = (dzz / d) * v; }
-    k.heading = Math.PI + Math.atan2(b.x - k.x, -(b.z - k.z)) * 0.3;
-    k.stride += v * h * 2;
+    const v = Math.min(vmax, d * 3.5);
+    const wx = d > 1e-4 ? (dx / d) * v : 0, wz = d > 1e-4 ? (dzz / d) * v : 0;
+    const acc = 16 * h, ex = wx - k.vx, ez = wz - k.vz, el = Math.sqrt(ex * ex + ez * ez);
+    if (el > acc) { k.vx += (ex / el) * acc; k.vz += (ez / el) * acc; } else { k.vx = wx; k.vz = wz; }
+    k.x += k.vx * h; k.z += k.vz * h;
+    let dh = Math.PI + Math.atan2(b.x - k.x, -(b.z - k.z)) * 0.6 - k.heading;
+    while (dh > Math.PI) dh -= 2 * Math.PI;
+    while (dh < -Math.PI) dh += 2 * Math.PI;
+    k.heading += dh * Math.min(1, h * 8);
+    k.stride += Math.sqrt(k.vx * k.vx + k.vz * k.vz) * h * 2.6;
   }
 
   private moveBall(h: number): void {
@@ -686,7 +737,12 @@ export class Chance {
     if (b.owner !== null) {
       const o = this.actors[b.owner];
       const fx = Math.sin(o.heading), fz = Math.cos(o.heading);
-      const tx = o.x + fx * 0.55, tz = o.z + fz * 0.55;
+      // Condução em toques: a bola vai um pouco à frente a cada duas passadas e o jogador a alcança.
+      const osp = Math.min(1, Math.sqrt(o.vx * o.vx + o.vz * o.vz) / 7);
+      const ahead = 0.5 + osp * (0.2 + 0.45 * Math.pow(0.5 + 0.5 * Math.sin(o.stride * 0.5), 3));
+      // Finta do drible: a bola sai para o lado da arrancada.
+      const side = o.feintT >= 0 && o.feintT < 0.7 ? o.feintSide * 0.55 * Math.sin(Math.min(1, o.feintT / 0.35) * Math.PI * 0.5) * (o.feintT > 0.45 ? Math.max(0, 1 - (o.feintT - 0.45) / 0.25) : 1) : 0;
+      const tx = o.x + fx * ahead + side, tz = o.z + fz * ahead;
       b.vx = (tx - b.x) / Math.max(h, 1e-3) * 0.5; b.vz = (tz - b.z) / Math.max(h, 1e-3) * 0.5;
       b.x += (tx - b.x) * Math.min(1, h * 14); b.z += (tz - b.z) * Math.min(1, h * 14); b.y = BALL_R;
       b.spin += Math.sqrt(o.vx * o.vx + o.vz * o.vz) * h / BALL_R;
@@ -712,6 +768,8 @@ export class Chance {
     for (const d of this.defenders) {
       if (d.stunT > 0) continue;
       const dd = dist(d.x, d.z, c.x, c.z);
+      // Bote (animação): o marcador estica a perna de vez em quando ao chegar perto.
+      if (dd < 1.6 && d.lungeCd <= 0) { d.lungeT = 0; d.lungeCd = 0.9 + this.rng() * 0.7; }
       if (dd > 1.15) continue;
       const p = this.bot.tackle * h * (1.3 - c.p.attrs.dri / 100) * (1.15 - dd / 1.15 * 0.5) * (this.exposedT > 0 ? 2.2 : 1);
       if (this.rng() < p) {

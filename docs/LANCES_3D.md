@@ -34,10 +34,10 @@ O jogo de botão saiu. No lugar dele entram as **chances de ataque em 3D**, no e
 ## Dificuldade do bot (`src/lances/difficulty.ts`)
 | Nível | Defesa | Goleiro | Robô quase perfeito marca |
 |---|---|---|---|
-| Fácil | 2 defensores, lentos, linha recuada, sem linha em bloco | reação 0,38 s | ~87% |
-| Médio | 3 defensores, linha a 8 m da bola | reação 0,30 s | ~75% |
-| Difícil | 3 defensores, rápidos, linha a 7 m, sobe em bloco às vezes | reação 0,18 s | ~59% |
-| Lendário | 4 defensores, linha a 6 m em bloco, pressão alta | reação 0,13 s, mergulho rápido | ~32% |
+| Fácil | 2 defensores, lentos, linha recuada, sem linha em bloco | reação 0,38 s | ~85% |
+| Médio | 3 defensores, linha a 8 m da bola | reação 0,27 s | ~76% |
+| Difícil | 3 defensores, rápidos, linha a 7 m, sobe em bloco às vezes | reação 0,18 s | ~47% |
+| Lendário | 4 defensores, linha a 6 m em bloco, pressão alta | reação 0,12 s, mergulho rápido | ~36% |
 | **Automático** | Começa conforme a força do adversário. Cada gol sobe o nível (+0,4) e cada lance perdido alivia (−0,22). | | |
 
 - Os parâmetros (`BotParams`) são interpolados entre os níveis, então o automático tem valores contínuos.
@@ -55,6 +55,11 @@ O jogo de botão saiu. No lugar dele entram as **chances de ataque em 3D**, no e
 - **Desarme:** quando um defensor encosta (até 1,15 m), há uma chance por segundo de tomar a bola. Ela cresce com o nível do bot e cai com o drible de quem conduz. Logo depois de um drible que falhou, ela dobra.
 - **Drible:** dá certo conforme o drible de quem conduz contra o nível (de 12% a 88%). Se der certo, o marcador cai (0,9 a 1,4 s) e não pode desarmar, cortar ou bloquear.
 - **Corte de passe:** cada defensor tem **uma** tentativa por passe, quando a bola passa perto dele (o raio cresce com o nível e diminui com o passe de quem tocou). A chance cresce com o nível e com a marcação dele. Nos primeiros 2 m (saída do pé) ninguém corta. Bola acima de 2 m passa por cima; cortar de cabeça é mais difícil.
+- **Movimento:** em velocidade ninguém vira em cima da linha. A direção gira aos poucos (mais devagar quanto mais rápido) e, numa virada brusca, o jogador freia antes de mudar o rumo. A arrancada do drible vira mais rápido.
+- **Defesa suave:** a leitura da defesa define um alvo, e o alvo de corrida segue suave até ele (sem trancos a cada leitura). Marcador perto da bola fica de frente para ela e anda de lado ou de costas.
+- **Bote:** ao chegar perto, o marcador estica a perna de vez em quando (animação; o desarme continua sendo a chance por segundo).
+- **Condução em toques:** a bola vai um pouco mais à frente a cada duas passadas e o jogador a alcança. Na finta do drible, ela sai para o lado da arrancada.
+- **Goleiro:** passadas curtas de lado, com aceleração; vira aos poucos para a bola.
 - **Passe por cima:** parábola de 3 a 5 m de altura (o tempo de voo vem da altura). É mais lento que o rasteiro, e a defesa tem tempo de voltar.
 - **Bloqueio:** chute rasteiro perto de um defensor tem 60% de chance de bater nele.
 - **Chute:** gravidade e efeito (aceleração lateral, com mira compensada). A finalização do atacante espalha menos a bola. De primeira espalha 25% mais e de cabeça 50% mais (sem efeito e com força limitada).
@@ -74,7 +79,12 @@ O jogo de botão saiu. No lugar dele entram as **chances de ataque em 3D**, no e
   - **visual:** estilizado de jogo de celular (1,2x para ler bem de cima), com sombreamento em faixas (toon) e contorno de espessura constante;
   - **corpo:** cabeça grande com olhos e seis estilos de cabelo (curto, máquina, black power, moicano, coque, faixa); tronco moldado; gola na cor secundária; camisa com padrão e número grande nas costas; chuteiras coloridas; goleiro com luvas e manga longa;
   - **articulações:** joelhos e cotovelos, com geometrias e materiais compartilhados entre os jogadores;
-  - **animações:** corrida (joelho dobra na passada, braços opostos, tronco gira), respiração parado, chute e passe (perna vai atrás e chicoteia), finta do drible, marcador agachado perto da bola, carrinho, driblado no chão, goleiro em base, mergulho e salto para trás na cavadinha;
+  - **poses misturadas:** a cada quadro sai uma pose alvo e cada articulação vai suavemente até ela, então nada muda de uma vez (troca de estado, queda, levantar);
+  - **marcha conforme a direção:** passada para a frente, de costas (mais curta) ou de lado (pernas abrindo e fechando); o corpo inclina para dentro das curvas e para o lado do movimento; a cabeça (e um pouco do tronco) acompanha a bola;
+  - **animações:** corrida (joelho dobra na passada, braços opostos, tronco gira), respiração parado, chute e passe (perna vai atrás e chicoteia), carrinho, comemorações;
+  - **drible:** pedalada (a perna contorna a bola), ginga para o lado falso e arrancada para o outro; o marcador driblado cai sentado para o lado em que mordeu a finta e levanta;
+  - **zagueiro:** marcação agachada de frente para a bola, braços abertos, bote com a perna esticada;
+  - **goleiro:** base quicando nas pontas dos pés, passadas laterais, agacha mais na reação ao chute; mergulho com impulso, corpo deitado no ar e braços esticados para a bola, caindo de lado; salto para trás na cavadinha;
   - **comemorações:** pulo, aviãozinho ou de joelhos. Quem erra põe as mãos na cabeça.
 - **Bola:** desenhada 1,6x maior que o tamanho real (só no visual; a física usa o tamanho real).
 - **Uniformes:** quando as cores se confundem (inclusive time contra ele mesmo no online), a defesa veste o reserva (`contrastKit`).

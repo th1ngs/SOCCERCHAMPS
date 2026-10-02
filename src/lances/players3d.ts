@@ -125,7 +125,26 @@ export interface PlayerRig {
   label: THREE.Sprite | null;
   /** Comemoração preferida (0 = pulo, 1 = aviãozinho, 2 = joelhos). */
   style: number;
+  /** Pose atual (misturada suavemente rumo à pose alvo a cada quadro). */
+  pose: Pose;
+  /** Rumo do quadro anterior e velocidade de giro suavizada (inclinação nas curvas). */
+  prevHeading: number;
+  turn: number;
 }
+
+/** Ângulos das articulações (rad) e deslocamento do corpo (m). */
+interface Pose {
+  bx: number; by: number; bz: number; brx: number; brz: number;
+  ty: number; hx: number; hy: number;
+  lLx: number; lLz: number; lRx: number; lRz: number; kL: number; kR: number;
+  aLx: number; aLz: number; aRx: number; aRz: number; eL: number; eR: number;
+}
+const POSE_KEYS: (keyof Pose)[] = ["bx", "by", "bz", "brx", "brz", "ty", "hx", "hy", "lLx", "lLz", "lRx", "lRz", "kL", "kR", "aLx", "aLz", "aRx", "aRz", "eL", "eR"];
+const neutral = (): Pose => ({
+  bx: 0, by: 0, bz: 0, brx: 0, brz: 0, ty: 0, hx: 0, hy: 0,
+  lLx: 0, lLz: 0, lRx: 0, lRz: 0, kL: 0.06, kR: 0.06,
+  aLx: 0, aLz: -0.12, aRx: 0, aRz: 0.12, eL: -0.35, eR: -0.35,
+});
 
 /** Malha com contorno (filho com a mesma geometria e o material de contorno). */
 function part(g: THREE.BufferGeometry, m: THREE.Material, edge = true, shadow = true): THREE.Mesh {
@@ -234,118 +253,194 @@ export function buildPlayer(kit: LanceKit, num: number, id: string, gk: [string,
     label.scale.set(2.2, 0.55, 1); label.position.y = 2.35; label.renderOrder = 10;
     root.add(label);
   }
-  return { root, body, torso, head, legL: L.hip, legR: R.hip, kneeL: L.knee, kneeR: R.knee, armL: AL.sh, armR: AR.sh, elbowL: AL.elbow, elbowR: AR.elbow, ring, label, style: h % 3 };
+  return { root, body, torso, head, legL: L.hip, legR: R.hip, kneeL: L.knee, kneeR: R.knee, armL: AL.sh, armR: AR.sh, elbowL: AL.elbow, elbowR: AR.elbow, ring, label, style: h % 3, pose: neutral(), prevHeading: 0, turn: 0 };
 }
 
 // ---------- Animação ----------
-/** Pose do jogador a cada quadro: corrida, chute, finta, marcação, carrinho, queda, comemoração e goleiro. */
-export function poseRig(r: PlayerRig, a: Actor, ch: Chance, pulse: number, now: number): void {
+const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+const ease = (f: number) => f * f * (3 - 2 * f);
+const wrap = (x: number) => { while (x > Math.PI) x -= 2 * Math.PI; while (x < -Math.PI) x += 2 * Math.PI; return x; };
+
+/**
+ * Pose do jogador a cada quadro. Calcula a pose alvo (marcha conforme a direção do movimento em relação ao corpo,
+ * estados e gestos) e mistura a pose atual rumo a ela, para nada mudar de uma vez.
+ */
+export function poseRig(r: PlayerRig, a: Actor, ch: Chance, pulse: number, now: number, dt: number): void {
   r.root.position.set(a.x, a.y, a.z);
   r.root.rotation.set(0, a.heading, 0);
-  const b = r.body, t = r.torso;
-  b.rotation.set(0, 0, 0); b.position.set(0, 0, 0);
-  t.rotation.set(0, 0, 0);
-  r.head.rotation.set(0, 0, 0);
-  const sp = Math.min(1, Math.sqrt(a.vx * a.vx + a.vz * a.vz) / 7);
+  // Giro (para inclinar o corpo para dentro da curva).
+  const w = dt > 0 ? wrap(a.heading - r.prevHeading) / dt : 0;
+  r.prevHeading = a.heading;
+  r.turn += (clamp(w, -8, 8) - r.turn) * Math.min(1, dt * 8);
+
+  const T = neutral();
+  const v = Math.sqrt(a.vx * a.vx + a.vz * a.vz);
+  const sp = Math.min(1, v / 7);
+  const sh = Math.sin(a.heading), chd = Math.cos(a.heading);
+  // Velocidade no corpo: para a frente e para o lado (+x local).
+  const fw = v > 0.05 ? (a.vx * sh + a.vz * chd) / v : 1;
+  const lat = v > 0.05 ? (a.vx * chd - a.vz * sh) / v : 0;
   const cyc = a.stride;
-  // Corrida: coxas alternadas, joelho dobra quando a perna vai para trás, braços opostos com cotovelo dobrado.
-  const swing = Math.sin(cyc) * 0.95 * sp;
-  r.legL.rotation.set(swing, 0, 0); r.legR.rotation.set(-swing, 0, 0);
-  r.kneeL.rotation.set((0.12 + Math.max(0, Math.sin(cyc)) * 1.25) * sp + 0.04, 0, 0);
-  r.kneeR.rotation.set((0.12 + Math.max(0, -Math.sin(cyc)) * 1.25) * sp + 0.04, 0, 0);
-  r.armL.rotation.set(-swing * 0.85, 0, -0.1 - sp * 0.05); r.armR.rotation.set(swing * 0.85, 0, 0.1 + sp * 0.05);
-  r.elbowL.rotation.set(-0.35 - sp * 0.75, 0, 0); r.elbowR.rotation.set(-0.35 - sp * 0.75, 0, 0);
-  b.position.y = Math.abs(Math.cos(cyc)) * 0.06 * sp - sp * 0.03;
-  b.rotation.x = sp * 0.2;
-  t.rotation.y = Math.sin(cyc) * 0.16 * sp;
-  if (sp < 0.08) {
-    // Parado: respira e balança de leve.
-    t.position.y = Math.sin(now * 2.2 + a.i) * 0.008;
-    r.armL.rotation.z = -0.14; r.armR.rotation.z = 0.14;
+  const s1 = Math.sin(cyc);
+  const side = Math.abs(lat);
+  // Marcha: passadas para a frente (de costas mais curtas) e, andando de lado, pernas abrindo e fechando.
+  const amp = 0.95 * sp * (fw >= 0 ? 1 : 0.6) * (1 - side * 0.75);
+  T.lLx = s1 * amp; T.lRx = -s1 * amp;
+  T.kL = 0.06 + (0.12 + Math.max(0, s1) * 1.2) * sp * (1 - side * 0.5);
+  T.kR = 0.06 + (0.12 + Math.max(0, -s1) * 1.2) * sp * (1 - side * 0.5);
+  T.lLz = -(0.06 + 0.24 * Math.max(0, s1)) * side * sp * 1.6;
+  T.lRz = (0.06 + 0.24 * Math.max(0, -s1)) * side * sp * 1.6;
+  T.aLx = -s1 * amp * 0.9; T.aRx = s1 * amp * 0.9;
+  T.aLz = -0.12 - sp * 0.06 - side * sp * 0.4; T.aRz = 0.12 + sp * 0.06 + side * sp * 0.4;
+  T.eL = T.eR = -0.35 - sp * 0.8;
+  T.by = Math.abs(Math.cos(cyc)) * 0.06 * sp - sp * 0.03;
+  T.brx = sp * 0.22 * fw;
+  T.brz = clamp(-r.turn * 0.07 * sp, -0.3, 0.3) - lat * sp * 0.12;
+  T.ty = s1 * 0.16 * sp * (1 - side);
+  if (sp < 0.08) T.by += Math.sin(now * 2.2 + a.i) * 0.006; // respira parado
+  // Cabeça acompanha a bola.
+  const b = ch.ball;
+  const bdx = b.x - a.x, bdz = b.z - a.z, bd = Math.sqrt(bdx * bdx + bdz * bdz);
+  if (bd > 0.3) {
+    const lx = bdx * chd - bdz * sh, lz = bdx * sh + bdz * chd;
+    const ang = Math.atan2(lx, lz);
+    T.hy = clamp(ang, -1.1, 1.1) * 0.85;
+    T.ty += clamp(ang, -1, 1) * 0.15;
+    T.hx = clamp(0.45 - bd * 0.06, 0, 0.4);
   }
+  let rate = 16;
 
   if (a.state === "celebrate") {
     const tt = ch.doneT;
+    T.hx = -0.2; T.hy = 0;
     if (r.style === 1) {
       // Aviãozinho.
-      r.armL.rotation.set(0, 0, -1.45); r.armR.rotation.set(0, 0, 1.45);
-      r.elbowL.rotation.x = 0; r.elbowR.rotation.x = 0;
-      b.rotation.z = Math.sin(tt * 3) * 0.28;
+      T.aLx = 0; T.aRx = 0; T.aLz = -1.45; T.aRz = 1.45; T.eL = T.eR = -0.05;
+      T.brz = Math.sin(tt * 3) * 0.3;
     } else if (r.style === 2 && tt < 2.2) {
       // De joelhos, braços para cima.
-      b.position.y = -0.36; b.rotation.x = -0.3;
-      r.legL.rotation.x = -0.25; r.legR.rotation.x = -0.25; r.kneeL.rotation.x = 1.75; r.kneeR.rotation.x = 1.75;
-      r.armL.rotation.set(-2.9, 0, -0.3); r.armR.rotation.set(-2.9, 0, 0.3);
-      r.elbowL.rotation.x = -0.2; r.elbowR.rotation.x = -0.2;
+      T.by = -0.36; T.brx = -0.3;
+      T.lLx = -0.25; T.lRx = -0.25; T.kL = 1.75; T.kR = 1.75;
+      T.aLx = -2.9; T.aRx = -2.9; T.aLz = -0.3; T.aRz = 0.3; T.eL = T.eR = -0.2;
     } else {
       // Pulo com os braços para o alto.
-      r.armL.rotation.set(-2.85, 0, -0.35); r.armR.rotation.set(-2.85, 0, 0.35);
-      r.elbowL.rotation.x = -0.25; r.elbowR.rotation.x = -0.25;
-      r.legL.rotation.x = 0.25; r.legR.rotation.x = -0.1; r.kneeL.rotation.x = 0.6;
+      T.aLx = -2.85; T.aRx = -2.85; T.aLz = -0.35; T.aRz = 0.35; T.eL = T.eR = -0.25;
+      T.lLx = 0.25; T.lRx = -0.1; T.kL = 0.6;
     }
+    rate = 10;
   } else if (a.state === "sad") {
     // Mãos na cabeça.
-    b.rotation.x = 0.12; r.head.rotation.x = 0.35;
-    r.armL.rotation.set(-2.5, 0, -0.55); r.armR.rotation.set(-2.5, 0, 0.55);
-    r.elbowL.rotation.x = -2.1; r.elbowR.rotation.x = -2.1;
+    T.brx = 0.12; T.hx = 0.35; T.hy = 0;
+    T.aLx = -2.5; T.aRx = -2.5; T.aLz = -0.55; T.aRz = 0.55; T.eL = T.eR = -2.1;
+    rate = 7;
   } else if (a.state === "tackle") {
     // Carrinho: deitado para trás, perna da frente esticada.
-    b.rotation.x = -1.15; b.position.y = 0.28;
-    r.legR.rotation.x = -1.35; r.kneeR.rotation.x = 0.05; r.legL.rotation.x = -0.4; r.kneeL.rotation.x = 1.3;
-    r.armL.rotation.set(-0.3, 0, -1.1); r.armR.rotation.set(-0.3, 0, 1.1);
+    T.brx = -1.15; T.by = 0.28; T.brz = 0;
+    T.lRx = -1.35; T.kR = 0.05; T.lLx = -0.4; T.kL = 1.3; T.lLz = T.lRz = 0;
+    T.aLx = -0.3; T.aRx = -0.3; T.aLz = -1.1; T.aRz = 1.1;
+    rate = 14;
   } else if (a.state === "down" || a.stunT > 0) {
-    // No chão (driblado ou desarmado).
-    b.rotation.x = 1.42; b.position.y = 0.16; b.position.z = 0.25;
-    r.armL.rotation.set(-2.6, 0, -0.4); r.armR.rotation.set(-2.6, 0, 0.4);
-    r.kneeL.rotation.x = 0.3; r.kneeR.rotation.x = 0.1;
-  } else if (a.role === "gk") {
-    if (a.state === "dive" && a.dive) {
-      const f = Math.max(0, Math.min(1, a.dive.t / a.dive.dur));
-      if (a.dive.y > 2.2 && Math.abs(a.dive.x - a.dive.x0) < 1.2) {
-        // Bola por cima: salto para trás com os braços para o alto.
-        b.rotation.x = -0.25 * f; b.position.y = Math.sin(f * Math.PI) * 0.45;
-        r.armL.rotation.set(-3, 0, -0.2); r.armR.rotation.set(-3, 0, 0.2);
-      } else {
-        // Mergulho de lado, braços esticados para a bola.
-        b.rotation.z = a.dive.side * Math.min(1.4, f * 2);
-        b.position.y = Math.min(0.5, f * 0.75);
-        r.armL.rotation.set(-3.05, 0, -0.18); r.armR.rotation.set(-3.05, 0, 0.18);
-        r.elbowL.rotation.x = 0; r.elbowR.rotation.x = 0;
-        r.legL.rotation.x = 0.1; r.legR.rotation.x = -0.25;
-      }
+    // Driblado: cai para o lado em que mordeu a finta (sentado de lado, apoiado no braço).
+    const fs = a.role === "def" ? (a.fallSide * chd >= 0 ? 1 : -1) : 0;
+    if (fs) {
+      T.brz = -fs * 1.25; T.by = 0.08; T.bx = fs * 0.35; T.brx = 0.2;
+      T.lLx = -0.6; T.lRx = -0.9; T.kL = 0.8; T.kR = 0.4;
+      T.aLz = -0.9; T.aRz = 0.9; T.aLx = -0.4; T.aRx = -0.4; T.hx = 0.2; T.hy = 0;
     } else {
-      // Base do goleiro: joelhos flexionados, braços abertos à frente.
-      b.position.y -= 0.08; b.rotation.x = 0.18;
-      r.kneeL.rotation.x = 0.5; r.kneeR.rotation.x = 0.5; r.legL.rotation.x -= 0.25; r.legR.rotation.x -= 0.25;
-      r.armL.rotation.set(-0.55, 0, -0.75); r.armR.rotation.set(-0.55, 0, 0.75);
-      r.elbowL.rotation.x = -0.45; r.elbowR.rotation.x = -0.45;
+      T.brx = 1.42; T.by = 0.16; T.bz = 0.25;
+      T.aLx = -2.6; T.aRx = -2.6; T.aLz = -0.4; T.aRz = 0.4; T.kL = 0.3; T.kR = 0.1;
+    }
+    rate = 11;
+  } else if (a.role === "gk") {
+    if (a.dive && a.dive.t >= 0) {
+      const f = clamp(a.dive.t / a.dive.dur, 0, 1);
+      const e = ease(Math.min(1, f * 1.3));
+      if (a.dive.y > 2.2 && Math.abs(a.dive.x - a.dive.x0) < 1.2) {
+        // Bola por cima: volta e salta para trás com os braços esticados.
+        T.brx = -0.3 * e; T.by = Math.sin(f * Math.PI) * 0.45;
+        T.aLx = -3; T.aRx = -3; T.aLz = -0.2; T.aRz = 0.2; T.eL = T.eR = -0.05;
+        T.lLx = 0.3; T.lRx = -0.2; T.kL = 0.5; T.kR = 0.2;
+      } else {
+        // Mergulho: impulsão na perna de dentro, corpo deita no ar, braços esticados para a bola; depois cai de lado.
+        const s = a.dive.side;
+        const low = a.dive.y < 0.6;
+        T.brz = s * 1.45 * e;
+        T.brx = low ? 0.15 : -0.1;
+        T.by = f < 1 ? Math.min(0.55, e * 0.75) : 0.22;
+        T.aLx = -3.05 + (low ? 0.5 : 0); T.aRx = -3.05 + (low ? 0.5 : 0);
+        T.aLz = -0.15 + s * 0.15; T.aRz = 0.15 + s * 0.15; T.eL = T.eR = -0.05;
+        T.lLx = 0.15; T.lRx = -0.3; T.kL = s > 0 ? 0.15 : 0.9; T.kR = s > 0 ? 0.9 : 0.15;
+        T.lLz = -0.25; T.lRz = 0.25;
+        T.hy = 0; T.hx = -0.15;
+      }
+      rate = 24;
+    } else {
+      // Base do goleiro (mais agachado durante a reação ao chute), quicando nas pontas dos pés.
+      const ready = a.dive && a.dive.t < 0 ? 1 : 0;
+      const hop = Math.abs(Math.sin(now * 5.5 + a.i)) * 0.025 * (1 - side);
+      T.by = -0.08 - ready * 0.07 + hop; T.brx = 0.18 + ready * 0.08;
+      T.kL += 0.45 + ready * 0.25; T.kR += 0.45 + ready * 0.25; T.lLx -= 0.25 + ready * 0.12; T.lRx -= 0.25 + ready * 0.12;
+      T.aLx = -0.55; T.aRx = -0.55; T.aLz = -0.75; T.aRz = 0.75; T.eL = T.eR = -0.45;
+      // Passadas de lado: abre e fecha as pernas.
+      T.lLz = -(0.12 + 0.2 * Math.max(0, s1)) * Math.min(1, side * v / 2.5);
+      T.lRz = (0.12 + 0.2 * Math.max(0, -s1)) * Math.min(1, side * v / 2.5);
     }
   } else if (a.role === "def") {
-    // Marcador perto de quem tem a bola: agachado, de lado, braços abertos.
+    // Marcador perto de quem tem a bola: agachado, de frente para ela, braços abertos.
     const c = ch.actors[ch.carrier];
-    if (Math.hypot(c.x - a.x, c.z - a.z) < 3.5 && ch.phase === "play") {
-      b.position.y -= 0.07; b.rotation.x += 0.15;
-      r.kneeL.rotation.x += 0.35; r.kneeR.rotation.x += 0.35; r.legL.rotation.x -= 0.2; r.legR.rotation.x -= 0.2;
-      r.armL.rotation.z = -0.55; r.armR.rotation.z = 0.55;
+    if (Math.hypot(c.x - a.x, c.z - a.z) < 4 && ch.phase === "play") {
+      T.by -= 0.08; T.brx = 0.22 + Math.max(0, fw) * 0.1;
+      T.kL += 0.4; T.kR += 0.4; T.lLx -= 0.22; T.lRx -= 0.22;
+      T.aLz = -0.6; T.aRz = 0.6; T.aLx = -0.3; T.aRx = -0.3; T.eL = T.eR = -0.5;
     }
   }
 
+  // Bote do marcador: estica a perna na bola e volta.
+  if (a.lungeT >= 0 && a.lungeT < 0.42 && a.state !== "tackle" && a.stunT <= 0) {
+    const f = Math.sin((a.lungeT / 0.42) * Math.PI);
+    T.lRx = -1.1 * f; T.kR = 0.15; T.lLx = 0.35 * f; T.kL = 0.6 * f + 0.2;
+    T.brx = 0.3 * f + 0.1; T.by = -0.12 * f; T.bz = 0.18 * f;
+    T.aLz = -0.8; T.aRz = 0.5;
+    rate = 22;
+  }
   // Chute/passe: perna direita vai atrás e chicoteia à frente; braços abrem para equilibrar.
   if (a.kickT >= 0 && a.kickT < 0.5 && a.state !== "celebrate" && a.state !== "sad") {
     const f = a.kickT / 0.5;
     const back = 0.32;
-    if (f < back) { r.legR.rotation.x = 1.0 * (f / back); r.kneeR.rotation.x = 1.3 * (f / back); }
-    else { const g = (f - back) / (1 - back); r.legR.rotation.x = 1.0 - 2.4 * Math.min(1, g * 1.6) + Math.max(0, g - 0.62) * 1.6; r.kneeR.rotation.x = 1.3 * (1 - Math.min(1, g * 2)) + 0.05; }
-    r.legL.rotation.x = -0.1; r.kneeL.rotation.x = 0.25;
-    r.armL.rotation.set(-0.4, 0, -0.9); r.armR.rotation.set(0.3, 0, 0.6);
-    b.rotation.x = -0.12;
+    if (f < back) { T.lRx = 1.0 * (f / back); T.kR = 1.3 * (f / back); }
+    else { const g = (f - back) / (1 - back); T.lRx = 1.0 - 2.4 * Math.min(1, g * 1.6) + Math.max(0, g - 0.62) * 1.6; T.kR = 1.3 * (1 - Math.min(1, g * 2)) + 0.05; }
+    T.lLx = -0.1; T.kL = 0.25; T.lRz = 0; T.lLz = 0;
+    T.aLx = -0.4; T.aLz = -0.9; T.aRx = 0.3; T.aRz = 0.6;
+    T.brx = -0.12; T.brz = 0;
+    rate = 30;
   }
-  // Finta do drible: corpo pende para um lado e volta.
-  if (a.feintT >= 0 && a.feintT < 0.4) {
-    const s = a.i % 2 ? 1 : -1;
-    b.rotation.z = Math.sin((a.feintT / 0.4) * Math.PI) * 0.4 * s;
-    b.position.x = Math.sin((a.feintT / 0.4) * Math.PI) * 0.15 * s;
+  // Drible: pedalada (a perna passa por cima da bola para um lado), o corpo ginga e arranca para o outro.
+  if (a.feintT >= 0 && a.feintT < 0.55) {
+    const f = a.feintT / 0.55;
+    const s = a.feintSide * chd >= 0 ? -1 : 1; // lado local para onde a bola vai (−1 = esquerda do corpo)
+    const over = Math.sin(Math.min(1, f / 0.5) * Math.PI);
+    // Perna do lado oposto contorna a bola por cima.
+    if (s > 0) { T.lLx = -0.55 * over; T.lLz = 0.35 * over; T.kL = 0.9 * over + 0.1; }
+    else { T.lRx = -0.55 * over; T.lRz = -0.35 * over; T.kR = 0.9 * over + 0.1; }
+    // Ginga: o corpo pende para o lado falso e depois para o lado da arrancada.
+    const sway = f < 0.45 ? Math.sin((f / 0.45) * Math.PI) * -s : Math.sin(((f - 0.45) / 0.55) * Math.PI) * s;
+    T.brz = -sway * 0.38; T.bx = sway * 0.16; T.by -= 0.06 * Math.sin(f * Math.PI);
+    T.brx = 0.25; T.aLz = -0.7; T.aRz = 0.7;
+    T.hy = 0;
+    rate = 24;
   }
+
+  // Mistura suave rumo à pose alvo.
+  const P = r.pose, k = 1 - Math.exp(-rate * Math.max(0, Math.min(0.1, dt)));
+  for (const key of POSE_KEYS) P[key] += (T[key] - P[key]) * k;
+  r.body.position.set(P.bx, P.by, P.bz);
+  r.body.rotation.set(P.brx, 0, P.brz);
+  r.torso.rotation.set(0, P.ty, 0);
+  r.head.rotation.set(P.hx, P.hy, 0);
+  r.legL.rotation.set(P.lLx, 0, P.lLz); r.legR.rotation.set(P.lRx, 0, P.lRz);
+  r.kneeL.rotation.set(P.kL, 0, 0); r.kneeR.rotation.set(P.kR, 0, 0);
+  r.armL.rotation.set(P.aLx, 0, P.aLz); r.armR.rotation.set(P.aRx, 0, P.aRz);
+  r.elbowL.rotation.set(P.eL, 0, 0); r.elbowR.rotation.set(P.eR, 0, 0);
 
   // Anéis: quem conduz (dourado), quem pode receber (branco pulsando) e quem está impedido (vermelho).
   const ring = r.ring.material as THREE.MeshBasicMaterial;
