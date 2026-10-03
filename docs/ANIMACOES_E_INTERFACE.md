@@ -95,3 +95,14 @@ O jogo de botão foi substituído pelos **Lances 3D**: veja `LANCES_3D.md`.
   - as substituições ao vivo também mostram o overall descontado.
 - **Motor:** a perda vale para a força do jogador e, agora, também para os atributos usados nos lances (finalização, passe, marcação, reflexos…).
 - **Checagem (`sim-test --checks`):** o mesmo time, com os 10 de linha girados de posição, cai de ~1,7 para ~0,7 ponto por jogo.
+
+## Formação personalizada (Escalação → Tática)
+- **Criar/Editar personalizada** abre o editor sobre o campo: arraste cada posição (o goleiro é fixo) e toque nela para escolher a função.
+- O campo tem três faixas, e cada uma libera só as funções adequadas (`SHAPE_LINES` em `src/game/data.ts`):
+  - **Defesa:** ZAG ou LAT, de 3 a 5 jogadores.
+  - **Meio-campo:** VOL, MEI ou LAT (ala), de 2 a 6.
+  - **Ataque:** MEI ou ATA, até 4.
+  Quem muda de faixa ganha a função padrão dela (pelos lados vira lateral/ala/ponta). Duas posições não podem encostar.
+- Um movimento inválido fica vermelho e mostra o motivo (`shapeIssue`), e não é salvo.
+- O desenho fica em `club.shape`, e `club.shapeOn` diz se ele está em uso. Escolher uma formação pronta desliga a personalizada sem apagá-la, e o cartão "Personalizada" a reativa.
+- `shapeOf(club)` é o desenho usado pela escalação automática, pela força por setor, pela partida (`SimSide.shape`) e pelos lances 3D. No jogo, as substituições também oferecem voltar à personalizada (`Sim.setShape`).

@@ -1,6 +1,6 @@
 // Instruções táticas (v6): por onde atacar, como passar, altura da linha e tipo de marcação.
 // Cada instrução tem um custo e rende mais quando o elenco tem o perfil certo (atributos individuais).
-import { ATTR_INDEX, ATTR_PROFILE, FORMATIONS } from './data';
+import { ATTR_INDEX, ATTR_PROFILE, shapeOf } from './data';
 import type {
   AttrKey, Club, FormationSlot, InstructionMods, InstructionOption, Instructions, LineKey, MarkKey, PassKey, Player, WidthKey, World,
 } from './types';
@@ -83,7 +83,7 @@ export function instructionMods(instr: Instructions, pr: SquadProfile): Instruct
 
 /** Entradas (jogador + slot) da escalação salva de um clube. */
 function lineupEntries(w: World, club: Club): { p: Player; slot: FormationSlot }[] {
-  const slots = FORMATIONS[club.formation];
+  const slots = shapeOf(club);
   const out: { p: Player; slot: FormationSlot }[] = [];
   club.lineup.forEach((id, i) => {
     const p = id ? w.players[id] : undefined;

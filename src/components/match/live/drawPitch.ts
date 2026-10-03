@@ -91,7 +91,7 @@ export function drawLivePitch(c: CanvasRenderingContext2D, sc: PitchScale, sim: 
   let carrier: { x: number; y: number } | null = null, cd = Infinity;
   const placed: { d: { x: number; y: number }; num: number; gk: boolean; s: number }[] = [];
   sim.sides.forEach((side, s) => {
-    const slots = FORMATIONS[side.formation];
+    const slots = (side.shape ?? FORMATIONS[side.formation]);
     const nearest = side.on
       .filter((o) => slots[o.slot].pos !== "GOL" || (s === 0 ? bd.x < 20 : bd.x > 80))
       .reduce<{ slot: number; distance: number } | null>((best, o) => {

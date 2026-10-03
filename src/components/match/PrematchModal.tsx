@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Flame, Gamepad2, MapPin, Megaphone, Play, SlidersHorizontal, Star, Ticket, Trophy, TriangleAlert, Users, Zap } from "lucide-react";
-import { FORMATIONS, LEAGUES, Sim, TACTICS, TEAM_TALKS, autoLineup, giveTeamTalk, talkContext, competitionName, ensureLineup, expectedGate, formatMoney, isDerby, isNationalCup, sectors } from "@/game";
+import { formationLabel, shapeOf, LEAGUES, Sim, TACTICS, TEAM_TALKS, autoLineup, giveTeamTalk, talkContext, competitionName, ensureLineup, expectedGate, formatMoney, isDerby, isNationalCup, sectors } from "@/game";
 import type { Club, Match, TeamTalkKey, World } from "@/game/types";
 import { cn } from "@/lib/cn";
 import { useWorld } from "@/components/game/GameProvider";
@@ -16,7 +16,7 @@ import { StatBar } from "./StatBars";
 import { findMatch, roundLabel, settleMatch, simOptions, venueName } from "./matchUtils";
 
 function LineupList({ w, club }: { w: World; club: Club }) {
-  const slots = FORMATIONS[club.formation];
+  const slots = shapeOf(club);
   return (
     <ul className="divide-y divide-white/6">
       {club.lineup.map((id, i) => {
@@ -287,13 +287,13 @@ export function PrematchModal({ matchId }: { matchId: string }) {
         <div className="grid gap-5 sm:grid-cols-2">
           <section className="min-w-0">
             <SectionTitle className="mb-1">
-              Seu time • {u.formation} • {TACTICS[u.tactic].name}
+              Seu time • {formationLabel(u)} • {TACTICS[u.tactic].name}
             </SectionTitle>
             <LineupList w={w} club={u} />
           </section>
           <section className="min-w-0">
             <SectionTitle className="mb-1 text-info-400">
-              {opp.name} • {opp.formation}
+              {opp.name} • {formationLabel(opp)}
             </SectionTitle>
             <LineupList w={w} club={opp} />
           </section>

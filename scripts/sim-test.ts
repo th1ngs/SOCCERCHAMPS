@@ -870,6 +870,7 @@ function runV5Checks(): void {
   runV6Checks();
   runV8Checks();
   runV9Checks();
+  runShapeChecks();
   runPlayerCareerChecks();
   console.log(`finance ok: receita/sem 1ª div eng ${formatMoney(rev('eng'))}, bra ${formatMoney(rev('bra'))}, arg ${formatMoney(rev('arg'))}; teto ${formatMoney(u.wageCap)}`);
 }
@@ -1151,4 +1152,48 @@ function runV9Checks(): void {
   const auto = w.inbox.find((m) => m.id >= m1);
   assert(auto && auto.title.startsWith('Renovação automática'), 'renovação automática na reta final');
   console.log(`v9 ok: ${CLUBS.length} clubes, ${DIVISION_IDS.length} divisões; estrelas eng1 ${Math.min(...eng1)}–${Math.max(...eng1)}, gre1 ${Math.min(...gre1)}–${Math.max(...gre1)}, bra4 ${Math.min(...bra4)}–${Math.max(...bra4)}; lote ${res.renewed.length}/4; "${auto.title}"`);
+}
+
+/** Formação personalizada: funções por linha, limites, escalação automática e partida com o desenho próprio. */
+function runShapeChecks(): void {
+  for (const f of G.FORMATION_KEYS) assert(G.shapeIssue(G.FORMATIONS[f]) === null, `${f} é um desenho válido`);
+  const base = G.FORMATIONS['4-4-2'].map((s) => ({ ...s }));
+  // Lateral (slot 1) sobe para o meio: continua LAT (ala); atacante (slot 9) recua para o meio: vira meia/volante.
+  const ala = G.moveSlot(base, 1, 40, 10)!;
+  assert(ala && ala[1].pos === 'LAT' && G.lineOf(ala[1].x) === 'mid', 'lateral vira ala no meio');
+  const back = G.moveSlot(base, 9, 60, 50)!;
+  assert(back && ['VOL', 'MEI'].includes(back[9].pos), 'atacante que recua ganha função de meio');
+  assert(G.moveSlot(base, 0, 40, 50) === null, 'goleiro fixo');
+  // Defesa com 4: tirar 2 zagueiros deixa 2 atrás (mínimo 3).
+  const three = G.moveSlot(base, 2, 36, 50)!;
+  assert(three && G.moveSlot(three, 3, 36, 70) === null, 'defesa precisa de ao menos 3');
+  assert(G.moveSlot(base, 6, 45, 58) === null, 'duas posições não se sobrepõem');
+  assert(G.setSlotRole(base, 9, 'ZAG') === null && G.setSlotRole(base, 9, 'MEI')?.[9].pos === 'MEI', 'só funções da linha');
+  assert(G.shapeLabel(G.FORMATIONS['4-2-3-1']) === '4-2-3-1' && G.shapeLabel(G.FORMATIONS['4-3-3']) === '4-3-3', 'rótulo do desenho');
+
+  const w = freshWorld();
+  const u = user(w);
+  let shape = G.FORMATIONS['4-4-2'].map((s) => ({ ...s }));
+  shape = G.moveSlot(shape, 3, 36, 50)!; // um zagueiro vira volante
+  shape = G.moveSlot(shape, 2, 22, 50)!; // o outro vai ao centro da defesa
+  shape = G.moveSlot(shape, 5, 72, 20)!; // meia aberto vira ponta
+  assert(!!shape && G.shapeIssue(shape) === null, 'desenho personalizado válido');
+  u.shape = shape; u.shapeOn = true;
+  autoLineup(w, u);
+  assert(G.shapeOf(u) === shape && G.formationLabel(u).endsWith('personalizada'), 'clube usa o desenho personalizado');
+  const pos = (i: number) => w.players[u.lineup[i]!]?.pos;
+  assert(shape.every((s, i) => s.pos === 'GOL' ? pos(i) === 'GOL' : !!u.lineup[i]), 'escalação automática preenche o desenho');
+  const opp = Object.values(w.clubs).find((c) => c.div === u.div && c.id !== u.id)!;
+  autoLineup(w, opp);
+  const sim = new Sim(w, u.id, opp.id);
+  const side = sim.sides[0];
+  assert(JSON.stringify(side.shape) === JSON.stringify(shape), 'a partida usa o desenho personalizado');
+  sim.setFormation('4-3-3');
+  assert(side.shape === G.FORMATIONS['4-3-3'], 'trocar a formação no jogo troca o desenho');
+  sim.setShape(shape);
+  sim.runToEnd();
+  assert(sim.finished, 'partida termina com o desenho personalizado');
+  u.shapeOn = false;
+  assert(G.shapeOf(u) === G.FORMATIONS[u.formation] && !!u.shape, 'desligar mantém o desenho guardado');
+  console.log(`shape ok: ${G.shapeLabel(shape)} personalizada, ${sim.score[0]} x ${sim.score[1]}`);
 }

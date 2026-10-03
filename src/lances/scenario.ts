@@ -1,5 +1,5 @@
 // Monta os lances: jogadores reais do Manager (com atributos) ou elencos genéricos para o arcade e o online.
-import { FORMATIONS, attr, makeName } from "@/game";
+import { attr, makeName, shapeOf } from "@/game";
 import type { Club, LeagueId, Player, Position, World } from "@/game/types";
 import type { BotParams } from "./difficulty";
 import type { ChanceSetup, LanceKit, LancePlayer, ScenarioKind } from "./engine";
@@ -47,7 +47,7 @@ function pickWeighted<T>(items: T[], w: (x: T) => number, rng: () => number): T 
 
 /** Titulares com a posição da vaga (o lance usa a função em campo, não a de origem). */
 function onField(w: World, club: Club): { p: Player; pos: Position }[] {
-  const slots = FORMATIONS[club.formation];
+  const slots = shapeOf(club);
   return club.lineup.map((id, i) => (id && w.players[id] ? { p: w.players[id], pos: slots[i].pos } : null)).filter((x): x is { p: Player; pos: Position } => !!x);
 }
 

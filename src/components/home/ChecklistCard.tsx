@@ -3,7 +3,7 @@
 import { useMemo, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowLeftRight, BatteryLow, ChevronRight, CircleCheck, ClipboardList, FileClock, HandCoins, Lightbulb, Mail, MessageCircle, Sprout, TriangleAlert, Wallet } from "lucide-react";
-import { formatMoney, nextWindow, trialsLeft, user, WINDOWS, windowOpen } from "@/game";
+import { formationLabel, formatMoney, nextWindow, trialsLeft, user, WINDOWS, windowOpen } from "@/game";
 import type { World } from "@/game/types";
 import { Card } from "@/components/ui/primitives";
 import { useWorld } from "@/components/game/GameProvider";
@@ -43,7 +43,7 @@ function checklist(w: World): Item[] {
       href: "/jogo/escalacao",
     });
   } else {
-    items.push({ key: "lineup-ok", tone: "ok", icon: <CircleCheck />, title: "Time escalado", detail: `${u.formation} • ${a.size} jogadores no elenco`, href: "/jogo/escalacao" });
+    items.push({ key: "lineup-ok", tone: "ok", icon: <CircleCheck />, title: "Time escalado", detail: `${formationLabel(u)} • ${a.size} jogadores no elenco`, href: "/jogo/escalacao" });
   }
 
   const talks = w.inbox.filter((m) => m.talk && !m.talk.answer && m.season === w.season);

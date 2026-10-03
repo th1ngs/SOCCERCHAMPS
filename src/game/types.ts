@@ -218,6 +218,10 @@ export interface Club extends ClubStatic {
   /** Nível do CT (1-5). */
   training: number;
   formation: FormationKey;
+  /** Formação personalizada (11 posições, a 1ª é o goleiro), guardada mesmo quando não está em uso. */
+  shape?: FormationSlot[] | null;
+  /** O time joga com a formação personalizada (senão, com o desenho de `formation`). */
+  shapeOn?: boolean;
   tactic: TacticKey;
   trainingInt: TrainingKey;
   squad: string[];
@@ -979,6 +983,8 @@ export interface SimSide {
   /** CPU controla subs/tática deste lado. */
   auto: boolean;
   formation: FormationKey;
+  /** Desenho em campo (a formação personalizada do clube ou o de `formation`). */
+  shape?: FormationSlot[];
   tactic: TacticKey;
   baseTactic: TacticKey;
   instr: Instructions;

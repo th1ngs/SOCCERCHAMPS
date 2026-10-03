@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
-import { FORMATIONS, POS_NAME, autoLineup, ensureLineup, sectors, setCaptain, setFkTaker, setPenTaker, user } from "@/game";
-import type { FormationKey, Player, TacticKey } from "@/game/types";
+import { FORMATIONS, customShapeOn, setSlotRole, shapeLabel, shapeOf, POS_NAME, autoLineup, ensureLineup, sectors, setCaptain, setFkTaker, setPenTaker, user } from "@/game";
+import type { FormationKey, FormationSlot, Player, Position, TacticKey } from "@/game/types";
 import { useWorld } from "@/components/game/GameProvider";
 import { WandSparkles } from "lucide-react";
 import { PageHeader } from "@/components/ui/primitives";
@@ -16,6 +16,8 @@ import { PlayerPicker } from "@/components/lineup/PlayerPicker";
 import { SectorStrip } from "@/components/lineup/SectorStrip";
 import { TacticsPanel } from "@/components/lineup/TacticsPanel";
 import { InstructionsPanel } from "@/components/lineup/InstructionsPanel";
+import { ShapeEditor } from "@/components/lineup/ShapeEditor";
+import { ShapePanel } from "@/components/lineup/ShapePanel";
 import { assignBench, assignSlot, candidates, lineupNeedsFix } from "@/components/lineup/lineupLogic";
 import { PlayerAvatar } from "@/components/player/PlayerAvatar";
 
@@ -36,6 +38,9 @@ export default function EscalacaoPage() {
   const [tab, setTab] = useState<PanelTab>("bench");
   const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [sel, setSel] = useState<number | null>(null);
+  const pitchRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragSource | null>(null);
   const dragEndedAt = useRef(0);
 
@@ -122,7 +127,7 @@ export default function EscalacaoPage() {
   const picker = useMemo(() => {
     if (!picking) return null;
     if (picking.kind === "slot") {
-      const slot = FORMATIONS[u.formation][picking.index];
+      const slot = shapeOf(u)[picking.index];
       return {
         title: `Escolher ${POS_NAME[slot.pos].toLowerCase()} (${slot.pos})`,
         list: candidates(world, u, slot.pos),
@@ -150,14 +155,52 @@ export default function EscalacaoPage() {
     if (incoming) toast(outgoing ? `${incoming.name} entra no lugar de ${outgoing.name}.` : `${incoming.name} escalado.`);
   };
 
+  const customOn = customShapeOn(u);
   const setFormation = (f: FormationKey) => {
-    if (f === u.formation) return;
+    if (f === u.formation && !customOn) return;
     mutate((w) => {
       const c = user(w);
       c.formation = f;
+      c.shapeOn = false;
       autoLineup(w, c);
     });
+    setEditing(false);
     toast(`Formação ${f}: melhor time escalado.`);
+  };
+  /** Usa a personalizada (criando-a a partir da formação atual, se ainda não existe). */
+  const applyCustom = (edit: boolean) => {
+    const fresh = !u.shape;
+    if (!customOn || fresh) {
+      mutate((w) => {
+        const c = user(w);
+        if (!c.shape) c.shape = FORMATIONS[c.formation].map((s) => ({ ...s }));
+        c.shapeOn = true;
+        if (!fresh) autoLineup(w, c);
+      });
+      if (!fresh) toast("Formação personalizada: melhor time escalado.");
+    }
+    if (edit) {
+      setEditing(true);
+      setSel(null);
+      setTab("tactics");
+      pitchRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+  const changeShape = (shape: FormationSlot[]) =>
+    mutate((w) => {
+      const c = user(w);
+      c.shape = shape;
+      c.shapeOn = true;
+    });
+  const changeRole = (pos: Position) => {
+    if (sel == null) return;
+    const next = setSlotRole(shapeOf(u), sel, pos);
+    if (next) changeShape(next);
+  };
+  const resetShape = () => {
+    changeShape(FORMATIONS[u.formation].map((s) => ({ ...s })));
+    setSel(null);
+    toast(`Desenho do ${u.formation} restaurado.`);
   };
   const setTactic = (t: TacticKey) =>
     mutate((w) => {
@@ -194,7 +237,22 @@ export default function EscalacaoPage() {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,380px)] lg:items-start">
         <div className="min-w-0 space-y-3">
-          <Pitch world={world} club={u} onPick={(index) => openPicker("slot", index)} onDragStart={(index, event) => startDrag("slot", index, event)} dropTarget={dropTarget} dragging={!!dragPreview} />
+          <div ref={pitchRef} className="scroll-mt-28">
+            <Pitch
+              world={world}
+              club={u}
+              onPick={(index) => openPicker("slot", index)}
+              onDragStart={(index, event) => startDrag("slot", index, event)}
+              dropTarget={dropTarget}
+              dragging={!!dragPreview}
+              editor={editing && customOn ? <ShapeEditor world={world} club={u} shape={shapeOf(u)} selected={sel} onSelect={setSel} onChange={changeShape} /> : null}
+            />
+          </div>
+          {editing && customOn && (
+            <p className="mx-auto max-w-[430px] text-center text-xs text-mist">
+              Editando a formação <b className="text-snow">{shapeLabel(shapeOf(u))}</b>: arraste para mover, toque para mudar a função. Os jogadores continuam nas mesmas posições.
+            </p>
+          )}
           <ul className="mx-auto flex max-w-[520px] flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-mist" aria-label="Legenda">
             <li className="flex items-center gap-1.5">
               <span className="grid size-4 place-items-center rounded-full bg-gold-400 font-display text-xs font-extrabold text-ink-950">C</span> Capitão
@@ -227,7 +285,29 @@ export default function EscalacaoPage() {
           />
           <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-0.5">
             {tab === "bench" && <BenchList bench={bench} onPick={(index) => openPicker("bench", index)} onDragStart={(index, event) => startDrag("bench", index, event)} dropTarget={dropTarget} />}
-            {tab === "tactics" && <TacticsPanel formation={u.formation} tactic={u.tactic} onFormation={setFormation} onTactic={setTactic} />}
+            {tab === "tactics" &&
+              (editing && customOn ? (
+                <ShapePanel
+                  shape={shapeOf(u)}
+                  base={u.formation}
+                  selected={sel}
+                  onRole={changeRole}
+                  onDone={() => { setEditing(false); setSel(null); }}
+                  onReset={resetShape}
+                  onAuto={auto}
+                />
+              ) : (
+                <TacticsPanel
+                  formation={u.formation}
+                  tactic={u.tactic}
+                  onFormation={setFormation}
+                  onTactic={setTactic}
+                  custom={u.shape ?? null}
+                  customOn={customOn}
+                  onCustom={() => applyCustom(false)}
+                  onEdit={() => applyCustom(true)}
+                />
+              ))}
             {tab === "instr" && <InstructionsPanel />}
             {tab === "leaders" && (
               <LeadersPanel

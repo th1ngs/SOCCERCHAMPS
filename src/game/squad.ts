@@ -1,5 +1,5 @@
 // Escalação: disponibilidade, escalação automática e validação.
-import { FORMATIONS, SECTOR } from './data';
+import { SECTOR, shapeOf } from './data';
 import { assignNumbers, attr, hasTrait, newPlayer, playerFit } from './gen';
 import { clubBaseOvr } from './leagues';
 import { promoteYouth } from './market';
@@ -18,7 +18,7 @@ export const available = (p: Player | null | undefined): p is Player => !!p && !
 const slotScore = (p: Player, slotPos: Position): number => p.ovr * playerFit(p, slotPos) * (0.85 + (0.15 * p.fitness) / 100);
 
 function fillSlots(w: World, club: Club, lineup: (string | null)[]): (string | null)[] {
-  const slots = FORMATIONS[club.formation];
+  const slots = shapeOf(club);
   const used = new Set(lineup.filter((x): x is string => !!x));
   const pool = club.squad.map((id) => w.players[id]).filter((p) => available(p));
   const order = slots.map((s, i) => i).sort((a, b) => SLOT_PRIORITY[slots[a].pos] - SLOT_PRIORITY[slots[b].pos]);
@@ -188,7 +188,7 @@ export function ensureLineup(w: World, club: Club): string[] {
 
 /** Força média aproximada do time titular (para exibição e expectativas): a escalação, com o encaixe de cada um. */
 export function teamRating(w: World, club: Club): number {
-  const slots = FORMATIONS[club.formation];
+  const slots = shapeOf(club);
   const ids = club.lineup && club.lineup.length === 11 ? club.lineup : null;
   if (!ids) {
     const top = club.squad.map((id) => w.players[id]).sort((a, b) => b.ovr - a.ovr).slice(0, 11);
@@ -218,7 +218,7 @@ export const clubStars = (w: World, club: Club): number => strengthStars(teamRat
 
 /** Força por setor do time titular (tela de tática: "força por setor"). */
 export function sectors(w: World, club: Club): SectorStrength {
-  const slots = FORMATIONS[club.formation];
+  const slots = shapeOf(club);
   const acc = { d: [0, 0], m: [0, 0], a: [0, 0] };
   club.lineup.forEach((id, i) => {
     const p = id ? w.players[id] : undefined;

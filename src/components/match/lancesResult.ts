@@ -1,6 +1,6 @@
 // Partida do Manager decidida nos lances: os gols do adversário vêm da simulação da partida; os do
 // usuário, dos lances jogados em 3D. Empate em mata-mata vai para os lances decisivos (viram os pênaltis da súmula).
-import { FORMATIONS, Sim, autoLineup, clamp, ensureLineup, isKnockout, teamRating, weighted } from "@/game";
+import { shapeOf, Sim, autoLineup, clamp, ensureLineup, isKnockout, teamRating, weighted } from "@/game";
 import type { Club, Match, MatchResult, Position, SimGoal, World } from "@/game/types";
 import { Difficulty, loadBotSetting } from "@/lances/difficulty";
 import { clubChance, kitOf } from "@/lances/scenario";
@@ -46,7 +46,7 @@ export function prepareLances(w: World, m: Match): LancesPrep {
 
 /** Autor sorteado (lances simulados) entre os titulares de linha, com peso por posição. */
 function fallbackScorer(w: World, club: Club): string {
-  const slots = FORMATIONS[club.formation];
+  const slots = shapeOf(club);
   const pool = club.lineup.map((id, i) => ({ id, pos: slots[i].pos })).filter((x): x is { id: string; pos: Position } => !!x.id && x.pos !== "GOL");
   return weighted(pool, (x) => SCORER_W[x.pos] ?? 1)?.id ?? club.squad[0];
 }

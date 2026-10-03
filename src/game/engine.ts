@@ -1,13 +1,16 @@
 // Motor de partida minuto a minuto. Usado tanto no jogo ao vivo quanto na simulação rápida.
-import { ATTR_INDEX, ATTR_KEYS, ATTR_PROFILE, FORMATIONS, SECTOR, TACTICS, fit, injuryLabel, injuryPhrase, say } from './data';
+import { ATTR_INDEX, ATTR_KEYS, ATTR_PROFILE, FORMATIONS, SECTOR, shapeOf, TACTICS, fit, injuryLabel, injuryPhrase, say } from './data';
 import { attr, hasTrait, playerFit } from './gen';
 import { autoLineup, available, ensureLineup } from './squad';
 import { DEFAULT_INSTRUCTIONS, instructionMods, squadProfile } from './tactics';
 import type {
   AttrKey, Ball, InstructionMods, Instructions, BallKind, FormationKey, MatchResult, MatchStats, OnField, Player, Position, SectorWeights, SideStrength,
-  SimCard, SimEvent, SimEventType, SimGoal, SimInjury, SimOptions, SimPhase, SimSide, TacticKey, World,
+  FormationSlot, SimCard, SimEvent, SimEventType, SimGoal, SimInjury, SimOptions, SimPhase, SimSide, TacticKey, World,
 } from './types';
 import { clamp, gauss, pick, rand, randi, weighted } from './util';
+
+/** Desenho em campo de um lado (lados antigos, sem `shape`, usam a formação). */
+const sideShape = (side: SimSide): FormationSlot[] => side.shape ?? FORMATIONS[side.formation];
 
 const SHOOT_W: Record<Position, number> = { GOL: 0, ZAG: 0.5, LAT: 0.8, VOL: 1.1, MEI: 3, ATA: 6 };
 const ASSIST_W: Record<Position, number> = { GOL: 0.05, ZAG: 0.4, LAT: 2, VOL: 1.4, MEI: 4, ATA: 2.2 };
@@ -133,7 +136,7 @@ export class Sim {
     return {
       clubId, club, user,
       auto: !(user && this.opts.interactive),
-      formation: club.formation, tactic: club.tactic, baseTactic: club.tactic,
+      formation: club.formation, shape: shapeOf(club), tactic: club.tactic, baseTactic: club.tactic,
       instr: { ...(club.instr ?? DEFAULT_INSTRUCTIONS) }, mods: null,
       talk: user && w.teamTalk && w.teamTalk.season === w.season && w.teamTalk.week === w.week ? w.teamTalk.mult : 1,
       on, bench: club.bench.slice(), subs: 0, played: on.map((o) => o.pid),
@@ -141,12 +144,12 @@ export class Sim {
   }
 
   P(pid: string): Player { return this.w.players[pid]; }
-  slotPos(side: SimSide, o: OnField): Position { return o.sp ?? FORMATIONS[side.formation][o.slot].pos; }
+  slotPos(side: SimSide, o: OnField): Position { return o.sp ?? sideShape(side)[o.slot].pos; }
 
   /** Calcula o cache do jogador em campo (posição do slot, força base, características, desgaste). */
   private prep(side: SimSide, o: OnField): void {
     const p = this.P(o.pid);
-    const sp = FORMATIONS[side.formation][o.slot].pos;
+    const sp = sideShape(side)[o.slot].pos;
     o.sp = sp;
     // Fora da posição de origem o jogador rende menos em tudo: força e atributos dos lances.
     const pf = playerFit(p, sp);
@@ -211,7 +214,7 @@ export class Sim {
   mods(i: number): InstructionMods {
     const s = this.sides[i];
     if (!s.mods) {
-      const slots = FORMATIONS[s.formation];
+      const slots = sideShape(s);
       s.mods = instructionMods(s.instr, squadProfile(s.on.map((o) => ({ p: this.P(o.pid), slot: slots[o.slot] }))));
     }
     return s.mods;
@@ -676,8 +679,14 @@ export class Sim {
   setFormation(f: FormationKey): void {
     const side = this.sides[this.userSide()];
     side.formation = f;
+    this.setShape(FORMATIONS[f]);
+  }
+  /** Muda o desenho do usuário (formação pronta ou personalizada) e reposiciona quem está em campo. */
+  setShape(shape: FormationSlot[]): void {
+    const side = this.sides[this.userSide()];
+    side.shape = shape;
     side.mods = null;
-    const slots = FORMATIONS[f];
+    const slots = shape;
     const free = slots.map((sl, i) => i);
     const players = side.on.slice().sort((a, b) => (this.P(a.pid).pos === 'GOL' ? -1 : 0) - (this.P(b.pid).pos === 'GOL' ? -1 : 0));
     for (const o of players) {

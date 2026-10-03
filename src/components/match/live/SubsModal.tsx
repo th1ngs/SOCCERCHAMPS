@@ -75,7 +75,7 @@ export function SubsModal({ ctrl, note }: { ctrl: LiveController; note: string |
     }
   };
 
-  const slots = FORMATIONS[side.formation];
+  const slots = (side.shape ?? FORMATIONS[side.formation]);
 
   return (
     <Modal
@@ -143,7 +143,13 @@ export function SubsModal({ ctrl, note }: { ctrl: LiveController; note: string |
         </div>
         <section>
           <SectionTitle className="mb-2">Formação</SectionTitle>
-          <FormationPicker value={side.formation} onChange={(f) => ctrl.setFormation(f)} />
+          <FormationPicker
+            value={side.formation}
+            onChange={(f) => ctrl.setFormation(f)}
+            custom={side.club.shape}
+            customOn={!!side.club.shape && JSON.stringify(slots) === JSON.stringify(side.club.shape)}
+            onCustom={() => side.club.shape && ctrl.setShape(side.club.shape)}
+          />
         </section>
         <section>
           <SectionTitle className="mb-2">Estilo</SectionTitle>

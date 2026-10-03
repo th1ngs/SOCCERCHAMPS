@@ -81,6 +81,87 @@ export const FORMATION_INFO: Record<FormationKey, { name: string; desc: string }
 };
 export const FORMATION_KEYS = Object.keys(FORMATIONS) as FormationKey[];
 
+// ---------- Formação personalizada ----------
+export type ShapeLine = 'def' | 'mid' | 'att';
+/** Faixas do campo (x) e as funções liberadas em cada linha. */
+export const SHAPE_LINES: Record<ShapeLine, { label: string; min: number; max: number; roles: Position[] }> = {
+  def: { label: 'Defesa', min: 14, max: 33, roles: ['ZAG', 'LAT'] },
+  mid: { label: 'Meio-campo', min: 34, max: 61, roles: ['VOL', 'MEI', 'LAT'] },
+  att: { label: 'Ataque', min: 62, max: 84, roles: ['MEI', 'ATA'] },
+};
+export const lineOf = (x: number): ShapeLine => (x < 33.5 ? 'def' : x < 61.5 ? 'mid' : 'att');
+/** Quantos jogadores de linha cada setor aceita na formação personalizada. */
+export const SHAPE_LIMITS: Record<ShapeLine, [number, number]> = { def: [3, 5], mid: [2, 6], att: [0, 4] };
+
+/** Desenho em campo de um clube: o personalizado, se houver, senão o da formação. */
+type ShapeOwner = { formation: FormationKey; shape?: FormationSlot[] | null; shapeOn?: boolean };
+export const customShapeOn = (c: ShapeOwner): boolean => !!c.shapeOn && !!c.shape && c.shape.length === 11;
+export const shapeOf = (c: ShapeOwner): FormationSlot[] => (customShapeOn(c) ? c.shape! : FORMATIONS[c.formation]);
+
+/** Rótulo "4-2-3-1" de um desenho, pelas faixas do campo (defesa, meio, meia-atacante, ataque). */
+export function shapeLabel(shape: FormationSlot[]): string {
+  const n = [0, 0, 0, 0];
+  for (const s of shape.slice(1)) n[s.x < 34 ? 0 : s.x < 58 ? 1 : s.x < 68 ? 2 : 3]++;
+  return n.filter((k) => k > 0).join('-');
+}
+
+/** Nome da formação de um clube para as telas ("3-4-3" ou "4-2-3-1 personalizada"). */
+export const formationLabel = (c: ShapeOwner): string => (customShapeOn(c) ? `${shapeLabel(c.shape!)} personalizada` : c.formation);
+
+/** Função padrão de quem chega numa linha (laterais e alas pelos lados). */
+function defaultRole(line: ShapeLine, x: number, y: number): Position {
+  const wide = y < 22 || y > 78;
+  if (line === 'def') return wide ? 'LAT' : 'ZAG';
+  if (line === 'mid') return wide && x < 50 ? 'LAT' : x < 46 ? 'VOL' : 'MEI';
+  return x < 70 && !wide ? 'MEI' : 'ATA';
+}
+
+/** Problema do desenho (ou null): goleiro fixo, funções da linha certa e limites por setor. */
+export function shapeIssue(shape: FormationSlot[]): string | null {
+  if (shape.length !== 11 || shape[0].pos !== 'GOL') return 'A formação precisa de 11 posições com o goleiro.';
+  const count: Record<ShapeLine, number> = { def: 0, mid: 0, att: 0 };
+  for (const s of shape.slice(1)) {
+    const line = lineOf(s.x);
+    if (s.pos === 'GOL' || !SHAPE_LINES[line].roles.includes(s.pos)) return `${s.pos} não pode jogar na linha de ${SHAPE_LINES[line].label.toLowerCase()}.`;
+    count[line]++;
+  }
+  for (const line of Object.keys(SHAPE_LIMITS) as ShapeLine[]) {
+    const [lo, hi] = SHAPE_LIMITS[line];
+    if (count[line] < lo) return `${SHAPE_LINES[line].label}: mínimo de ${lo} jogador${lo > 1 ? 'es' : ''}.`;
+    if (count[line] > hi) return `${SHAPE_LINES[line].label}: máximo de ${hi} jogadores.`;
+  }
+  for (let a = 1; a < shape.length; a++) {
+    for (let b = a + 1; b < shape.length; b++) {
+      if (Math.abs(shape[a].x - shape[b].x) < 8 && Math.abs(shape[a].y - shape[b].y) < 14) return 'Duas posições muito próximas.';
+    }
+  }
+  return null;
+}
+
+/**
+ * Move a posição `i` para (x, y). Se a função atual não vale na nova linha, troca pela padrão da linha.
+ * Devolve o novo desenho, ou null se ele quebrar os limites por setor ou encostar em outra posição (o goleiro não se move).
+ */
+export function moveSlot(shape: FormationSlot[], i: number, x: number, y: number): FormationSlot[] | null {
+  const next = placeSlot(shape, i, x, y);
+  return next && !shapeIssue(next) ? next : null;
+}
+
+/** Como `moveSlot`, mas sem validar (para mostrar o motivo de um movimento inválido). */
+export function placeSlot(shape: FormationSlot[], i: number, x: number, y: number): FormationSlot[] | null {
+  if (i <= 0 || i >= shape.length) return null;
+  const nx = Math.round(Math.min(84, Math.max(14, x))), ny = Math.round(Math.min(94, Math.max(6, y)));
+  const line = lineOf(nx);
+  const pos = SHAPE_LINES[line].roles.includes(shape[i].pos) ? shape[i].pos : defaultRole(line, nx, ny);
+  return shape.map((s, k) => (k === i ? { pos, x: nx, y: ny } : { ...s }));
+}
+
+/** Troca a função da posição `i` (só entre as liberadas para a linha dela). */
+export function setSlotRole(shape: FormationSlot[], i: number, pos: Position): FormationSlot[] | null {
+  if (i <= 0 || !SHAPE_LINES[lineOf(shape[i].x)].roles.includes(pos)) return null;
+  return shape.map((s, k) => (k === i ? { ...s, pos } : { ...s }));
+}
+
 export const TACTICS: Record<TacticKey, Tactic> = {
   def: { name: 'Defensivo', att: 0.9, def: 1.1, fatigue: 0.9 },
   bal: { name: 'Equilibrado', att: 1, def: 1, fatigue: 1 },

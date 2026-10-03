@@ -1,7 +1,7 @@
 // Carreira de jogador: o usuário é um jogador que começa aos 17 anos num clube pequeno.
 // O clube dele é dirigido pela CPU (managesClub = false); o usuário escolhe o treino da semana,
 // conquista (ou perde) a confiança do técnico, recebe propostas, renova contrato e decide quando parar.
-import { ATTR_INDEX, ATTR_PROFILE, ATTRS_FOR, CLUBS, FORMATIONS } from './data';
+import { ATTR_INDEX, ATTR_PROFILE, ATTRS_FOR, CLUBS, shapeOf } from './data';
 import { clubWage, newPlayer, newWorld, releaseClauseFor, valueOf } from './gen';
 import { LEAGUES, clubBaseOvr, competitionName, divisionFullName, prestigeOf } from './leagues';
 import { formatMoney } from './util';
@@ -107,7 +107,7 @@ export function newPlayerCareer(o: NewCareerOptions): World {
 // ---------- Papel no elenco ----------
 /** Papel provável num clube: titular, rotação ou reserva, comparando com quem joga na mesma posição. */
 export function roleAt(w: World, p: Player, club: Club): Role {
-  const slots = FORMATIONS[club.formation].filter((s) => s.pos === p.pos).length || 1;
+  const slots = shapeOf(club).filter((s) => s.pos === p.pos).length || 1;
   const rivals = clubPlayers(w, club).filter((x) => x.id !== p.id && x.pos === p.pos && !x.youth).map((x) => x.ovr).sort((a, b) => b - a);
   const bar = rivals[slots - 1] ?? 0;
   if (p.ovr >= bar) return 'titular';
