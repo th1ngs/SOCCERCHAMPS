@@ -1,5 +1,5 @@
 // Funções puras compartilhadas pelas telas de partida (pré-jogo, ao vivo, lances e resumo).
-import { applyResult, competitionName, cupRoundName, currentWeek, isKnockout, simulateWeek } from "@/game";
+import { applyResult, competitionName, currentWeek, isKnockout, matchStage, simulateWeek } from "@/game";
 import type { Club, Match, MatchResult, MatchStats, World } from "@/game/types";
 
 /** O que fica em `scratch[resultKey(id)]` até o resumo ser fechado. */
@@ -26,10 +26,10 @@ export function findMatch(w: World, id: string): Match | null {
 export function roundLabel(w: World, m: Match): string {
   const wk = w.weeks.find((x) => x?.matches.some((y) => y.id === m.id)) ?? currentWeek(w);
   const round = wk?.round ?? 0;
-  return isKnockout(m.comp) ? cupRoundName(m.comp, round) : `Rodada ${round}`;
+  return matchStage(m, round);
 }
 
-/** "Série A • Rodada 12", "Copa Nacional (Brasil) • Quartas de final" ou "Copa dos Campeões • Final". */
+/** "Série A • Rodada 12", "Copa do Brasil • Quartas de final" ou "Liga dos Campeões • Final". */
 export function compName(w: World, m: Match): string {
   const r = roundLabel(w, m);
   return r ? `${competitionName(m.comp)} • ${r}` : competitionName(m.comp);

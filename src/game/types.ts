@@ -38,9 +38,20 @@ export type DivisionId =
 export type Division = DivisionId;
 /** Copa Nacional de uma liga. */
 export type CupId = `cup:${LeagueId}`;
-/** Copa Nacional ou Copa dos Campeões ('cont'). */
-export type KnockoutId = CupId | 'cont';
-/** Competição de uma partida: divisão (liga), Copa Nacional ou Copa dos Campeões. */
+/** Copa da Liga (Inglaterra, Portugal, Escócia, Argentina). */
+export type LeagueCupId = `lcup:${LeagueId}`;
+/** Supercopa: campeão da liga x campeão da copa. */
+export type SuperCupId = `sup:${LeagueId}`;
+/** Campeonato estadual (Brasil), pela UF. */
+export type StateCupId = `est:${string}`;
+/**
+ * Continentais e regionais: Liga dos Campeões ('cont', Europa), Liga Europa, Libertadores, Sul-Americana,
+ * Copa do Nordeste e Copa Intercontinental.
+ */
+export type ContinentalId = 'cont' | 'eur2' | 'lib' | 'sud' | 'ne' | 'inter';
+/** Qualquer mata-mata. */
+export type KnockoutId = CupId | LeagueCupId | SuperCupId | StateCupId | ContinentalId;
+/** Competição de uma partida: divisão (liga) ou um mata-mata. */
 export type Competition = DivisionId | KnockoutId;
 export type KitPattern = 'h' | 'v' | 'sash' | 'solid' | 'half';
 export type FormResult = 'V' | 'E' | 'D';
@@ -222,6 +233,8 @@ export interface Club extends ClubStatic {
   shape?: FormationSlot[] | null;
   /** O time joga com a formação personalizada (senão, com o desenho de `formation`). */
   shapeOn?: boolean;
+  /** Patrocínio master escolhido pelo usuário (v10). */
+  sponsorDeal?: SponsorDeal | null;
   tactic: TacticKey;
   trainingInt: TrainingKey;
   squad: string[];
@@ -357,8 +370,11 @@ export interface NationMatch {
   goals: [string, number][];
 }
 /** Uma edição da Copa das Nações (seleções disponíveis, entre temporadas). */
+export type NationsKind = 'world' | 'euro' | 'league';
 export interface NationsEdition {
   season: number;
+  /** Copa do Mundo, Eurocopa ou Liga das Nações (ausente = Copa do Mundo, saves antigos). */
+  kind?: NationsKind;
   squads: Record<LeagueId, string[]>;
   table: NationRow[];
   matches: NationMatch[];
@@ -582,6 +598,8 @@ export interface Match {
   goals: MatchGoal[];
   neutral?: boolean;
   attendance?: number;
+  /** Mata-mata (v10): clubes vivos quando a fase foi sorteada (32, 16 … 2 = final). */
+  size?: number;
 }
 
 /**
@@ -591,9 +609,12 @@ export interface Match {
  * - 'cont': fase `round` (0-3) da Copa dos Campeões.
  */
 export interface Week {
-  type: 'league' | 'cup' | 'cont';
+  /** 'cup' = Copas Nacionais, 'cont' = continentais, 'ko' = outros mata-matas (supercopas, estaduais, copas da liga…). */
+  type: 'league' | 'cup' | 'cont' | 'ko';
   round: number;
   matches: Match[];
+  /** Mata-matas desta semana (v10; ausente em saves antigos: deduzido de `type`). */
+  comps?: KnockoutId[];
 }
 
 export interface Cup {
@@ -691,10 +712,56 @@ export interface MessageInput {
   read?: boolean;
 }
 
+/** Vaga de treinador aberta (v10). */
+export interface Vacancy {
+  club: string;
+  reason: string;
+  season: number;
+  week: number;
+}
+/** Candidatura do usuário a uma vaga (v10). */
+export interface JobApplication {
+  club: string;
+  season: number;
+  week: number;
+  status: 'pending' | 'offer' | 'rejected' | 'accepted' | 'declined' | 'expired';
+  /** Semana até a qual a proposta vale. */
+  expires?: number;
+}
+
+export type SponsorKind = 'fixo' | 'desempenho' | 'longo';
+/** Contrato de patrocínio master escolhido pelo usuário (v10). */
+export interface SponsorDeal {
+  id: string;
+  brand: string;
+  kind: SponsorKind;
+  /** Valor semanal. */
+  weekly: number;
+  /** Bônus por vitória, por título e por meta da diretoria cumprida. */
+  winBonus: number;
+  titleBonus: number;
+  goalBonus: number;
+  seasons: number;
+  seasonsLeft: number;
+}
+
+export type GoalKind = 'league' | 'cup' | 'continental' | 'state' | 'finance' | 'wages' | 'youth' | 'derby';
+/** Meta da diretoria (v10). `target`: posição na liga, tamanho da fase (4 = semifinal, 1 = título) ou quantidade. */
+export interface BoardGoal {
+  id: string;
+  kind: GoalKind;
+  label: string;
+  weight: number;
+  target: number;
+  comp?: string;
+}
+
 export interface Board {
   conf: number;
   target: number;
   label: string;
+  /** Metas da temporada (v10); a primeira é a da liga. */
+  goals?: BoardGoal[];
 }
 
 export interface Manager {
@@ -763,7 +830,7 @@ export interface HistoryEntry {
   scorers: Partial<Record<DivisionId, ScorerEntry | null>>;
   best: { name: string; club: string; avg: number } | null;
   awards?: SeasonAwards;
-  user: { club: string; league: LeagueId; div: DivisionId; pos: number; objective: string; success: boolean };
+  user: { club: string; league: LeagueId; div: DivisionId; pos: number; objective: string; success: boolean; goals?: { label: string; ok: boolean }[] };
 }
 
 export interface TableRow {
@@ -804,8 +871,10 @@ export interface SeasonSummary {
   /** Artilheiro de cada divisão (cópia do jogador no fim da temporada). */
   scorers: Partial<Record<DivisionId, Player | null>>;
   best: Player | null;
-  /** Classificados para a Copa dos Campeões da próxima temporada (16). */
+  /** Classificados para a Liga dos Campeões e a Libertadores da próxima temporada. */
   contNext: string[];
+  /** Classificados a cada continental da próxima temporada (v10). */
+  qualified?: Partial<Record<'cont' | 'eur2' | 'lib' | 'sud', string[]>>;
   /** Clube maior interessado no treinador. */
   offer?: string;
 }
@@ -836,6 +905,8 @@ export interface World {
   cups: Partial<Record<KnockoutId, Cup>>;
   /** Classificados para a próxima Copa dos Campeões (definidos no fim da temporada). */
   contNext: string[] | null;
+  /** Classificados para os continentais da próxima temporada (v10). */
+  qualified?: Partial<Record<'cont' | 'eur2' | 'lib' | 'sud', string[]>> | null;
   inbox: Message[];
   nextMsg: number;
   history: HistoryEntry[];
@@ -879,6 +950,11 @@ export interface World {
   teamTalk?: TeamTalk | null;
   /** Carreira de jogador (v8): o usuário é um jogador, e o clube dele é dirigido pela CPU. */
   playerCareer?: PlayerCareer | null;
+  /** Vagas de treinador abertas e candidaturas do usuário (v10). */
+  vacancies?: Vacancy[];
+  applications?: JobApplication[];
+  /** Propostas de patrocínio esperando a escolha do usuário (v10). */
+  sponsorOffers?: SponsorDeal[] | null;
   /** Renovação automática perto do fim da temporada (ausente = desligada). */
   autoRenew?: 'off' | 'key' | 'all';
 }

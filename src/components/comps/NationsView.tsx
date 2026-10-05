@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Trophy, Users } from "lucide-react";
-import { LEAGUE_IDS, NATIONS_EVERY, NATIONS_NAME, callUp, nationName, nextNationsSeason, user } from "@/game";
+import { NATIONS_NAMES, callUp, editionName, nationName, nationsKindOf, user } from "@/game";
 import type { LeagueId, NationMatch, NationsEdition } from "@/game/types";
 import { Card, EmptyState, OvrBadge, PosBadge } from "@/components/ui/primitives";
 import { Flag } from "@/components/ui/Flag";
@@ -70,7 +70,7 @@ function EditionView({ e }: { e: NationsEdition }) {
             <Trophy className="size-7" aria-hidden />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm text-mist">{NATIONS_NAME} {e.season}</p>
+            <p className="text-sm text-mist">{editionName(e)} {e.season}</p>
             <p className="flex items-center gap-2 font-display text-3xl font-extrabold uppercase italic">
               <Flag code={e.champion} decorative /> {nationName(e.champion)} campeão
             </p>
@@ -133,14 +133,15 @@ function EditionView({ e }: { e: NationsEdition }) {
   );
 }
 
-/** Copa das Nações: a última edição (campeão, tabela, jogos, artilharia e convocados) ou a convocação provável. */
+/** Torneios de seleções: a edição escolhida (campeão, tabela, jogos, artilharia e convocados) ou a convocação provável. */
 export function NationsView() {
   const { world: w, version } = useWorld();
   const u = user(w);
   const editions = w.nations ?? [];
   const [pick, setPick] = useState<number | null>(null);
   const e = editions.find((x) => x.season === pick) ?? editions[editions.length - 1] ?? null;
-  const next = nextNationsSeason(e && e.season >= w.season ? w.season + 1 : w.season);
+  const nextSeason = e && e.season >= w.season ? w.season + 1 : w.season;
+  const nextKind = nationsKindOf(nextSeason);
   const probable = useMemo(
     () => callUp(w, u.league),
     // `version` muda a cada mutação do mesmo objeto world.
@@ -151,10 +152,11 @@ export function NationsView() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-mist">
-        As seleções das {LEAGUE_IDS.length} nacionalidades se enfrentam entre uma temporada e outra, a cada {NATIONS_EVERY} anos. A convocação é automática com os 23 melhores de cada país. Próxima edição: fim da temporada {next}.
+        Entre uma temporada e outra há torneio de seleções: Copa do Mundo a cada 4 anos (2026, 2030…), Eurocopa dois anos depois de cada Copa (só as seleções europeias) e Liga das Nações nos anos ímpares. A convocação é automática com os 23 melhores de cada país.
+        {nextKind && <> Próximo: <b className="text-snow">{NATIONS_NAMES[nextKind]}</b>, no fim da temporada {nextSeason}.</>}
       </p>
       {editions.length > 1 && (
-        <Segmented ariaLabel="Edição" value={String(e?.season)} onChange={(v) => setPick(Number(v))} options={editions.map((x) => ({ value: String(x.season), label: String(x.season) }))} />
+        <Segmented ariaLabel="Edição" value={String(e?.season)} onChange={(v) => setPick(Number(v))} options={editions.map((x) => ({ value: String(x.season), label: `${editionName(x)} ${x.season}` }))} />
       )}
       {e ? (
         <EditionView key={e.season} e={e} />

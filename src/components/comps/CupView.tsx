@@ -3,17 +3,20 @@
 import { useMemo } from "react";
 import { Trophy } from "lucide-react";
 import {
+  compArticle,
   compLeague,
+  compWith,
+  competitionInfo,
   competitionName,
-  contStatus,
   cupOf,
   divisionName,
+  isSouthAmerican,
   knockoutStatus,
   LEAGUES,
-  projectedCont,
+  projectedContinental,
   user,
 } from "@/game";
-import type { Club, CupId, KnockoutId, Match } from "@/game/types";
+import type { Club, KnockoutId, Match } from "@/game/types";
 import { Alert, Badge, Card, EmptyState, SectionTitle } from "@/components/ui/primitives";
 import { Crest } from "@/components/ui/Crest";
 import { Flag } from "@/components/ui/Flag";
@@ -36,8 +39,8 @@ function ChampionAlert({ club, comp }: { club: Club; comp: KnockoutId }) {
       <Trophy className="size-5 text-gold-400" aria-hidden />
       <Crest club={club} size={26} />
       <span>
-        Campeão da {competitionName(comp)}: <b>{club.name}</b>
-        {comp === "cont" && (
+        Campeão {compWith("de", competitionName(comp))}: <b>{club.name}</b>
+        {compLeague(comp) === null && (
           <span className="ml-1.5 inline-flex items-center gap-1 text-mist">
             <Flag code={club.league} /> {LEAGUES[club.league].name}
           </span>
@@ -47,8 +50,8 @@ function ChampionAlert({ club, comp }: { club: Club; comp: KnockoutId }) {
   );
 }
 
-/** Copa Nacional de uma liga: situação do usuário (se for a sua liga) e as cinco fases. */
-export function CupView({ comp }: { comp: CupId }) {
+/** Mata-mata de uma liga (copa nacional, da liga, supercopa, estadual): situação do usuário e as fases. */
+export function CupView({ comp }: { comp: KnockoutId }) {
   const { world: w, version } = useWorld();
   const { rounds, cup, status, mine } = useMemo(() => {
     void version;
@@ -61,13 +64,15 @@ export function CupView({ comp }: { comp: CupId }) {
     };
   }, [w, comp, version]);
   const champ = cup?.champion ? w.clubs[cup.champion] : null;
+  const name = competitionName(comp);
 
   return (
     <div className="flex flex-col gap-4">
       {champ && <ChampionAlert club={champ} comp={comp} />}
-      {mine && !champ && status === "alive" && <Alert tone="good">Seu time segue vivo na Copa Nacional. Jogo único; empate vai para os pênaltis.</Alert>}
-      {mine && status === "eliminated" && <Alert tone="warn">Seu time foi eliminado da Copa Nacional.</Alert>}
-      {mine && status === "out" && <Alert tone="info">Seu time não disputa a Copa Nacional: ela reúne só os clubes das duas primeiras divisões.</Alert>}
+      {mine && !champ && status === "alive" && <Alert tone="good">Seu time segue vivo {compWith("em", name)}. Jogo único; empate vai para os pênaltis.</Alert>}
+      {mine && status === "eliminated" && <Alert tone="warn">Seu time foi eliminado {compWith("de", name)}.</Alert>}
+      {mine && status === "out" && <Alert tone="info">Seu time não disputa {compArticle(name)} {name} nesta temporada.</Alert>}
+      {!cup && <EmptyState>Sem edição {compWith("de", name)} nesta temporada.</EmptyState>}
       {cup && !champ && (
         <p className="text-sm text-mist">
           {cup.entrants.length} clubes inscritos • <b className="text-snow">{cup.alive.length}</b> seguem vivos.
@@ -111,13 +116,13 @@ function BracketMatch({ m }: { m: Match }) {
   );
 }
 
-/** Copa dos Campeões: situação do usuário, chave por fase e os 16 classificados. */
-export function ContView() {
+/** Continental (Liga dos Campeões, Liga Europa, Libertadores, Sul-Americana, Copa do Nordeste, Intercontinental). */
+export function ContView({ comp = "cont" }: { comp?: KnockoutId }) {
   const { world: w, version } = useWorld();
   const data = useMemo(() => {
     void version;
     const u = user(w);
-    const cup = cupOf(w, "cont");
+    const cup = cupOf(w, comp);
     const entrants = (cup?.entrants ?? [])
       .map((id) => w.clubs[id])
       .filter(Boolean)
@@ -126,33 +131,37 @@ export function ContView() {
       u,
       cup,
       entrants,
-      rounds: roundsOf(knockoutRounds(w, "cont"), w.week),
-      status: contStatus(w, u.id),
-      projected: projectedCont(w).includes(u.id),
+      rounds: roundsOf(knockoutRounds(w, comp), w.week),
+      status: knockoutStatus(w, comp, u.id),
+      projected: projectedContinental(w, u.id),
       firstDiv: LEAGUES[u.league].divisions[0],
+      region: isSouthAmerican(u.league) === (comp === "lib" || comp === "sud" || comp === "ne"),
     };
-  }, [w, version]);
-  const { u, cup, entrants, rounds, status, projected, firstDiv } = data;
+  }, [w, version, comp]);
+  const { u, cup, entrants, rounds, status, projected, firstDiv, region } = data;
   const champ = cup?.champion ? w.clubs[cup.champion] : null;
   const started = w.week > 0;
+  const name = competitionName(comp);
+  const proj = projected ? competitionName(projected) : null;
 
   return (
     <div className="flex flex-col gap-4">
-      {champ && <ChampionAlert club={champ} comp="cont" />}
-      {status === "alive" && !champ && <Alert tone="good">Seu time está vivo na Copa dos Campeões. Jogo único; a final é em campo neutro.</Alert>}
-      {status === "eliminated" && <Alert tone="warn">Seu time foi eliminado da Copa dos Campeões.</Alert>}
-      {status === "out" && (
+      {champ && <ChampionAlert club={champ} comp={comp} />}
+      {status === "alive" && !champ && <Alert tone="good">Seu time está vivo {compWith("em", name)}. Jogo único; a final é em campo neutro.</Alert>}
+      {status === "eliminated" && <Alert tone="warn">Seu time foi eliminado {compWith("de", name)}.</Alert>}
+      {status === "out" && comp !== "inter" && region && (
         <Alert tone="info">
           <span>
-            Seu time não disputa a Copa dos Campeões nesta temporada.{" "}
+            Seu time não disputa {compArticle(name)} {name} nesta temporada.{" "}
             {u.div === firstDiv
-              ? started && projected
-                ? <b>Pela tabela atual, o {u.name} se classifica para a próxima edição.</b>
-                : `Termine entre os 3 primeiros da ${divisionName(firstDiv)} para disputar a próxima.`
-              : `Chegue à ${divisionName(firstDiv)} e termine entre os 3 primeiros para disputá-la.`}
+              ? started && proj
+                ? <b>Pela tabela atual, o {u.name} vai à {proj} na próxima temporada.</b>
+                : `As vagas saem da tabela da ${divisionName(firstDiv)}.`
+              : `Chegue à ${divisionName(firstDiv)} para brigar pelas vagas.`}
           </span>
         </Alert>
       )}
+      {comp === "inter" && !cup?.entrants.length && <EmptyState>Definida na última semana: campeão da Liga dos Campeões x campeão da Libertadores.</EmptyState>}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {rounds.map((r) => (
@@ -204,9 +213,7 @@ export function ContView() {
         ) : (
           <EmptyState>Os classificados são definidos no início da temporada.</EmptyState>
         )}
-        <p className="mt-3 text-xs text-mist">
-          Vagas: os 3 primeiros de cada primeira divisão na temporada anterior; os 2 de menor reputação ficam de fora para fechar 16.
-        </p>
+        <p className="mt-3 text-xs text-mist">{competitionInfo(comp)}</p>
       </Card>
     </div>
   );

@@ -9,7 +9,8 @@ import {
   isDivision,
   knockoutStatus,
   position,
-  projectedCont,
+  isSouthAmerican,
+  projectedContinental,
   table,
   user,
   userCompetitions,
@@ -62,15 +63,16 @@ function rowsOf(w: World): CompRow[] {
     const st = knockoutStatus(w, comp, u.id);
     rows.push({ comp, status: KO[st].text, tone: KO[st].tone, detail: st === "alive" ? nextRound(w, comp) : undefined });
   }
-  // Fora da Copa dos Campeões: mostra a projeção para a próxima edição (só na primeira divisão).
-  if (!rows.some((r) => r.comp === "cont") && divisionLevel(u.div) === 1) {
+  // Projeção continental para a próxima temporada (só na primeira divisão).
+  if (divisionLevel(u.div) === 1) {
     const started = table(w, u.div).some((r) => r.j > 0);
-    const proj = started && projectedCont(w).includes(u.id);
+    const proj = started ? projectedContinental(w, u.id) : null;
+    const top = isSouthAmerican(u.league) ? "lib" : "cont";
     rows.push({
-      comp: "cont",
-      status: proj ? "Classificação projetada" : "Fora da zona",
+      comp: proj ?? top,
+      status: proj ? "Vaga projetada" : "Fora da zona",
       tone: proj ? "blue" : "neutral",
-      detail: `Próxima edição: os 3 primeiros de cada primeira divisão (${w.season + 1})`,
+      detail: `Próxima temporada (${w.season + 1}), pela tabela atual`,
     });
   }
   return rows;
@@ -106,8 +108,8 @@ export function CompetitionsCard() {
       }
     >
       <ul>
-        {rows.map((r) => (
-          <Line key={r.comp} comp={r.comp} detail={r.detail}>
+        {rows.map((r, i) => (
+          <Line key={`${r.comp}-${i}`} comp={r.comp} detail={r.detail}>
             <Badge tone={r.tone} className="h-6 px-2 text-xs" title={competitionName(r.comp)}>{r.status}</Badge>
           </Line>
         ))}

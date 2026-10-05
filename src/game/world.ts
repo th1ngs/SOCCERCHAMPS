@@ -1,22 +1,25 @@
 // Temporada: calendário de todas as ligas, resultados, tabelas, copas, semana a semana e virada de ano.
 import { ACADEMY_FOCUS, FOCUS_DEV, TICKET_PRICES, TRAINING, TRAITS, injuryLabel, injuryPhrase, weeksText } from './data';
 import { seasonAwards } from './awards';
-import { contByRep, contQualifiers } from './competitions';
+import { buildSeasonCups, continentalQualifiers, fillIntercontinental, koWeekType, weekComps } from './cups';
 import { Sim, isDerbyClubs } from './engine';
 import { FREE_MAX, FREE_MIN, youthWage, assignNumbers, attr, clubWage, hasTrait, learnTrait, makeFreeAgent, meanSquadOvr, makeYouth, newPlayer, releaseClauseFor, rollNat, rollTrait, seedMissingClubs, traitCap, valueOf } from './gen';
-import { clubWages, commercialWeekly, renewClubFinances, ticketBase, tvShare, upkeepWeekly } from './finance';
+import { capFor, clubWages, commercialWeekly, renewClubFinances, ticketBase, tvShare, upkeepWeekly } from './finance';
 
 /** Piso da multa rescisória em relação ao valor de mercado. */
 export const RELEASE_MIN_MULT = 1.8;
 import {
-  CONT_PRIZE, CONT_WEEKS, CUP_PRIZE, CUP_WEEKS, DIVISIONS, DIVISION_IDS, LEAGUES, LEAGUE_IDS, LEAGUE_PRIZE_BASE,
-  LEAGUE_ROUNDS, LEGACY_SEASON_WEEKS, PROMOTION_SPOTS, TOTAL_WEEKS, DIVISION_SIZE, competitionName, compLeague, cupId, cupRoundName,
-  clubBaseOvr, divisionFullName, firstDivisions, isKnockout, prestigeOf,
+  CONT_PRIZE, CUP_PRIZE, DIVISIONS, DIVISION_IDS, LEAGUES, LEAGUE_IDS, LEAGUE_PRIZE_BASE,
+  LEAGUE_ROUNDS, LEGACY_SEASON_WEEKS, PROMOTION_SPOTS, TOTAL_WEEKS, DIVISION_SIZE, competitionName, compLeague, compWeight, cupId, cupRoundName,
+  clubBaseOvr, compWith, divisionFullName, firstDivisions, isKnockout, knockoutPrizeBySize, matchStage, prestigeOf, roundNameBySize,
 } from './leagues';
 import { aiInvest, aiListPlayers, aiOffersToUser, aiTransfers, promoteYouth, transfer } from './market';
 import { potentialRange, processScoutQueue } from './scouting';
 import { refreshScoutMarket, scoutPayroll } from './scouts';
 import { renewalReminders } from './renewals';
+import { evaluateGoals, makeGoals } from './goals';
+import { VACANCY_EVERY, processApplications, refreshVacancies } from './jobs';
+import { offerSponsors, sponsorDeadline, sponsorGoal, sponsorNewSeason, sponsorTitle, sponsorWin } from './sponsors';
 import { checkChancePromises, expireTalks, generateTalks } from './talks';
 import { runNationsCup } from './nations';
 import { onUserMatch, recordSeasonHistory, rememberLegend, seasonAchievements, seasonTitles, weeklyAchievements } from './career';
@@ -35,7 +38,7 @@ import { chance, clamp, formatMoney, gauss, pick, rand, randi, shuffle } from '.
 const round2 = (v: number): number => Math.round(v * 100) / 100;
 const round3 = (v: number): number => Math.round(v * 1000) / 1000;
 
-export const WINDOWS: [number, number][] = [[0, 5], [19, 24]];
+export const WINDOWS: [number, number][] = [[0, 6], [25, 31]];
 export const windowOpen = (w: World): boolean => WINDOWS.some(([a, b]) => w.week >= a && w.week <= b);
 export const nextWindow = (w: World): number | null => {
   const nx = WINDOWS.find(([a]) => a > w.week);
@@ -85,12 +88,15 @@ export function addMoney(w: World, clubId: string, amount: number, cat: FinanceC
 /** Fator econômico da liga do clube. */
 export const wealthOf = (w: World, clubId: string): number => LEAGUES[w.clubs[clubId].league].wealth;
 
-/** Prêmio por vencer a fase `round` de uma copa. */
+/** Prêmio por vencer a fase `round` de uma copa (calendários antigos, sem `Match.size`). */
 export function knockoutPrize(comp: KnockoutId, round: number): number {
-  if (comp === 'cont') return CONT_PRIZE[round] || 0;
+  if (comp === 'cont') return CONT_PRIZE[round + 1] || 0;
   const lg = compLeague(comp);
   return Math.round((CUP_PRIZE[round] || 0) * (lg ? LEAGUES[lg].wealth : 1));
 }
+/** Prêmio de quem vence um jogo de mata-mata. */
+export const matchPrize = (m: Match, round: number): number =>
+  m.size ? knockoutPrizeBySize(m.comp as KnockoutId, m.size) : knockoutPrize(m.comp as KnockoutId, round);
 
 // ---------- Calendário ----------
 type Pair = [string, string];
@@ -124,33 +130,27 @@ export function startSeason(w: World): void {
   const schedules = DIVISION_IDS.map((div) => ({ div, rounds: roundRobin(shuffle(divClubs(w, div))) }));
   w.scheduleRevision = 1;
   w.weeks = [null];
+  // Copas da temporada (supercopas, estaduais, copas da liga, nacionais, continentais) e as semanas de cada uma.
+  const koWeeks = buildSeasonCups(w, w.qualified);
+  w.qualified = null;
+  w.contNext = null;
+  const counters = { cup: 0, cont: 0, ko: 0 } as Record<Week['type'], number>;
   let li = 0;
   for (let wk = 1; wk <= TOTAL_WEEKS; wk++) {
-    if (CUP_WEEKS.includes(wk)) {
-      w.weeks.push({ type: 'cup', round: CUP_WEEKS.indexOf(wk), matches: [] });
-    } else if (CONT_WEEKS.includes(wk)) {
-      w.weeks.push({ type: 'cont', round: CONT_WEEKS.indexOf(wk), matches: [] });
-    } else {
+    const comps = koWeeks.get(wk);
+    if (comps) {
+      const type = koWeekType(wk);
+      w.weeks.push({ type, round: counters[type]++, matches: [], comps });
+    } else if (li < LEAGUE_ROUNDS) {
       const ms: Match[] = [];
       for (const { div, rounds } of schedules) for (const [h, a] of rounds[li] || []) ms.push(mkMatch(h, a, div));
       w.weeks.push({ type: 'league', round: li + 1, matches: ms });
       li++;
+    } else {
+      // Semana de mata-mata sem copa nesta temporada (ex.: nenhuma copa ocupou a semana): folga geral.
+      w.weeks.push({ type: koWeekType(wk), round: 0, matches: [], comps: [] });
     }
   }
-  // Copas Nacionais: 32 clubes — a primeira divisão inteira e os de maior reputação da segunda.
-  w.cups = {};
-  for (const lg of LEAGUE_IDS) {
-    const [d1, d2] = LEAGUES[lg].divisions;
-    const first = Object.values(w.clubs).filter((c) => c.div === d1);
-    const second = Object.values(w.clubs).filter((c) => c.div === d2).sort((a, b) => b.rep - a.rep).slice(0, Math.max(0, 32 - first.length));
-    const entrants = [...first, ...second].map((c) => c.id);
-    w.cups[cupId(lg)] = { entrants, alive: shuffle(entrants.slice()), champion: null };
-  }
-  // Copa dos Campeões: classificados da temporada anterior (ou os de maior reputação na 1ª temporada).
-  const valid = (w.contNext || []).filter((id) => w.clubs[id]);
-  const cont = valid.length >= 2 ? valid : contByRep(w);
-  w.cups.cont = { entrants: cont.slice(), alive: shuffle(cont.slice()), champion: null };
-  w.contNext = null;
 
   for (const p of Object.values(w.players)) p.s = { apps: 0, goals: 0, assists: 0, rsum: 0 };
   // Negociações da temporada anterior expiram (mantém apenas clubes ainda "de mal").
@@ -168,6 +168,10 @@ export function startSeason(w: World): void {
   for (const c of Object.values(w.clubs)) for (const id of c.youth) { const p = w.players[id]; if (p) p.wage = youthWage(p.ovr, c.league); }
   setObjective(w);
   const u = user(w);
+  if (!w.playerCareer && !u.sponsorDeal && !w.sponsorOffers) offerSponsors(w);
+  // Teto salarial fixo da divisão do usuário.
+  if (!w.playerCareer) u.wageCap = capFor(w, u);
+  refreshVacancies(w);
   pushMessage(w, {
     kind: 'board',
     title: `Temporada ${w.season}: objetivo da diretoria`,
@@ -175,16 +179,18 @@ export function startSeason(w: World): void {
   });
 }
 
-/** Sorteia os confrontos da semana de copa (todas as Copas Nacionais ou a Copa dos Campeões). */
+/** Sorteia os confrontos da semana de mata-mata (todas as copas da semana). */
 function drawKnockouts(w: World, week: Week): void {
-  const comps: KnockoutId[] = week.type === 'cont' ? ['cont'] : LEAGUE_IDS.map(cupId);
-  for (const comp of comps) {
+  if (week.comps?.includes('inter')) fillIntercontinental(w);
+  for (const comp of weekComps(week)) {
     const cup = w.cups[comp];
     if (!cup || cup.alive.length < 2) continue;
     const alive = shuffle(cup.alive.slice());
-    const final = alive.length === 2;
+    const size = alive.length;
+    const final = size === 2;
     for (let i = 0; i + 1 < alive.length; i += 2) {
       const m = mkMatch(alive[i], alive[i + 1], comp);
+      if (week.comps) m.size = size;
       if (final) m.neutral = true;
       week.matches.push(m);
     }
@@ -246,9 +252,16 @@ export function weekLabel(w: World): string {
   if (w.week === 0) return 'Pré-temporada';
   const wk = currentWeek(w);
   if (!wk) return 'Fim de temporada';
-  if (wk.type === 'cup') return `Copa Nacional • ${cupRoundName(cupId(user(w).league), wk.round)}`;
-  if (wk.type === 'cont') return `${competitionName('cont')} • ${cupRoundName('cont', wk.round)}`;
-  return `Rodada ${wk.round} de ${leagueRounds(w)}`;
+  if (wk.type === 'league') return `Rodada ${wk.round} de ${leagueRounds(w)}`;
+  // Mata-mata: o jogo do usuário, se houver; senão, a principal copa da semana.
+  const mine = wk.matches.find((m) => m.h === w.userClub || m.a === w.userClub);
+  if (mine) return `${competitionName(mine.comp)} • ${matchStage(mine, wk.round)}`;
+  if (!wk.comps) return wk.type === 'cup' ? `Copa Nacional • ${cupRoundName(cupId(user(w).league), wk.round)}` : `${competitionName('cont')} • ${cupRoundName('cont', wk.round)}`;
+  const comps = wk.comps.filter((c) => (w.cups[c]?.alive.length ?? 0) >= 2 || wk.matches.some((m) => m.comp === c));
+  if (!comps.length) return 'Semana sem jogos';
+  const main = comps.find((c) => compLeague(c) === user(w).league) ?? comps[0];
+  const cup = w.cups[main];
+  return `${competitionName(main)}${cup ? ` • ${roundNameBySize(cup.alive.length)}` : ''}${comps.length > 1 ? ` e mais ${comps.length - 1}` : ''}`;
 }
 
 // ---------- Tabela ----------
@@ -320,6 +333,7 @@ function setObjective(w: World): void {
   const o = objectiveFor(w, user(w));
   w.board.target = o.target;
   w.board.label = o.label;
+  w.board.goals = w.playerCareer ? [] : makeGoals(w);
 }
 
 function expectedPoints(w: World, m: Match): number {
@@ -421,7 +435,7 @@ export function applyResult(w: World, m: Match, res: MatchResult): void {
   if (isKnockout(m.comp)) {
     const wk = currentWeek(w);
     const winId = winner === 0 ? m.h : m.a;
-    if (wk) addMoney(w, winId, knockoutPrize(m.comp, wk.round), 'prize');
+    if (wk) addMoney(w, winId, matchPrize(m, wk.round), 'prize');
   }
 
   // Confiança da diretoria
@@ -431,8 +445,10 @@ export function applyResult(w: World, m: Match, res: MatchResult): void {
     w.board.conf = clamp(w.board.conf + (pts - expectedPoints(w, m)) * 2.4, 0, 100);
   } else if (clubsIds.includes(w.userClub)) {
     const s = m.h === w.userClub ? 0 : 1;
-    w.board.conf = clamp(w.board.conf + (winner === s ? 2.5 : -2.5), 0, 100);
+    const k = 1 + 2 * compWeight(m.comp as KnockoutId);
+    w.board.conf = clamp(w.board.conf + (winner === s ? k : -k), 0, 100);
   }
+  if (clubsIds.includes(w.userClub) && winner === (m.h === w.userClub ? 0 : 1)) sponsorWin(w);
   if (derby && clubsIds.includes(w.userClub)) {
     const s = m.h === w.userClub ? 0 : 1;
     w.board.conf = clamp(w.board.conf + (winner === s ? DERBY_BOARD : winner === 1 - s ? -DERBY_BOARD : 0), 0, 100);
@@ -455,7 +471,7 @@ export function simulateWeek(w: World): void {
 
 // ---------- Evolução ----------
 /** Semana em que as promessas de titular são cobradas. */
-export const PROMISE_CHECK_WEEK = 24;
+export const PROMISE_CHECK_WEEK = 31;
 
 function develop(p: Player, club: Club | undefined, share = 1): void {
   const trainLvl = club ? club.training : 2;
@@ -516,8 +532,7 @@ export function advanceCalendarDay(w: World): boolean {
 /** Atualiza as copas ao fim de uma semana de mata-mata. */
 function closeKnockoutWeek(w: World, wk: Week): void {
   const u = user(w);
-  const comps: KnockoutId[] = wk.type === 'cont' ? ['cont'] : LEAGUE_IDS.map(cupId);
-  for (const comp of comps) {
+  for (const comp of weekComps(wk)) {
     const cup = w.cups[comp];
     const ms = wk.matches.filter((m) => m.comp === comp);
     if (!cup || !ms.length) continue;
@@ -528,16 +543,16 @@ function closeKnockoutWeek(w: World, wk: Week): void {
     const userOut = cup.alive.includes(u.id) && !winners.includes(u.id);
     cup.alive = winners;
     const name = competitionName(comp);
-    if (userOut) pushMessage(w, { kind: 'info', title: `Eliminados da ${name}`, body: `O ${u.name} caiu na ${cupRoundName(comp, wk.round).toLowerCase()} da ${name}.` });
+    if (userOut) pushMessage(w, { kind: 'info', title: `Eliminados ${compWith('de', name)}`, body: `O ${u.name} caiu na ${matchStage(ms[0], wk.round).toLowerCase()} ${compWith('de', name)}.` });
     if (winners.length === 1) {
       cup.champion = winners[0];
       const champ = w.clubs[winners[0]];
       champ.trophies.push({ season: w.season, comp: name });
       const mine = champ.id === u.id;
-      if (mine || comp === 'cont' || comp === cupId(u.league)) {
-        pushMessage(w, { kind: mine ? 'trophy' : 'info', title: `${champ.name} é campeão da ${name}!`, body: mine ? 'Título! A torcida está em festa e a diretoria, radiante.' : `O ${champ.name} levantou a taça da ${name}.` });
+      if (mine || comp === 'cont' || comp === 'lib' || comp === 'inter' || comp === cupId(u.league)) {
+        pushMessage(w, { kind: mine ? 'trophy' : 'info', title: `${champ.name} é campeão ${compWith('de', name)}!`, body: mine ? 'Título! A torcida está em festa e a diretoria, radiante.' : `O ${champ.name} levantou a taça ${compWith('de', name)}.` });
       }
-      if (mine) w.board.conf = clamp(w.board.conf + (comp === 'cont' ? 20 : 15), 0, 100);
+      if (mine) { w.board.conf = clamp(w.board.conf + Math.round(20 * compWeight(comp)), 0, 100); sponsorTitle(w, name); }
     }
   }
 }
@@ -551,7 +566,7 @@ export function endWeek(w: World): WeekReport {
   for (let day = w.day ?? 0; day < 6; day++) processCalendarDay(w, day);
   w.day = 0;
 
-  if (wk && (wk.type === 'cup' || wk.type === 'cont')) closeKnockoutWeek(w, wk);
+  if (wk && wk.type !== 'league') closeKnockoutWeek(w, wk);
 
   // Jogadores
   const ownerOf: Record<string, Club> = {};
@@ -650,7 +665,7 @@ export function endWeek(w: World): WeekReport {
   }
   if (u.wageCap && clubWages(w, u) > u.wageCap * 1.1) {
     w.board.conf = clamp(w.board.conf - 0.5, 0, 100);
-    if (w.week % 6 === 0) pushMessage(w, { kind: 'board', title: 'Folha acima do teto', body: `A folha salarial (${formatMoney(clubWages(w, u))}/sem) passou do teto aprovado pela diretoria (${formatMoney(u.wageCap)}/sem). Negocie saídas para equilibrar as contas.` });
+    if (w.week % 6 === 0) pushMessage(w, { kind: 'board', title: 'Folha acima do teto', body: `A folha salarial (${formatMoney(clubWages(w, u))}/sem) passou do teto salarial da liga (${formatMoney(u.wageCap)}/sem). Negocie saídas para equilibrar as contas.` });
   }
   if (u.money < 0) {
     w.board.conf = clamp(w.board.conf - 2, 0, 100);
@@ -662,8 +677,13 @@ export function endWeek(w: World): WeekReport {
     w.fired = { reason: 'A sequência de maus resultados custou o seu emprego.' };
   }
 
+  if (w.sponsorOffers && (w.week === WINDOWS[0][1] || w.week === WINDOWS[1][1] || w.week === seasonWeeks(w) - 1)) sponsorDeadline(w);
   w.week++;
   processScoutQueue(w);
+  if (!w.playerCareer) {
+    processApplications(w);
+    if (w.week % VACANCY_EVERY === 0) refreshVacancies(w);
+  }
   if (w.week === WINDOWS[1][0]) aiListPlayers(w);
   if (w.week <= seasonWeeks(w)) renewalReminders(w);
   if (w.week > seasonWeeks(w)) {
@@ -697,6 +717,7 @@ export function seasonEnd(w: World): SeasonSummary {
     t.forEach((r, i) => addMoney(w, r.id, Math.max(0, Math.round((17 - (i + 1)) * base * wealth)), 'prize'));
     champions[div] = t[0].id;
     w.clubs[t[0].id].trophies.push({ season: w.season, comp: competitionName(div) });
+    if (t[0].id === u.id && !w.playerCareer) sponsorTitle(w, competitionName(div));
     if (info.down) for (const r of t.slice(-PROMOTION_SPOTS)) moves.push({ club: r.id, from: div, to: info.down });
     if (info.up) for (const r of t.slice(0, PROMOTION_SPOTS)) moves.push({ club: r.id, from: div, to: info.up });
   }
@@ -718,7 +739,10 @@ export function seasonEnd(w: World): SeasonSummary {
 
   const success = userPos <= w.board.target;
   const delta = success ? 20 + (w.board.target - userPos) * 2 : -(userPos - w.board.target) * 7;
-  w.board.conf = clamp(w.board.conf + delta, 0, 100);
+  // Metas extras (copas, continental, estadual, finanças, folha, base e clássicos).
+  const extra = w.playerCareer ? { delta: 0, results: [] } : evaluateGoals(w);
+  w.board.conf = clamp(w.board.conf + delta + extra.delta, 0, 100);
+  if (!w.playerCareer) sponsorGoal(w, success);
   const fired = w.board.conf < 20;
 
   const cups: Record<string, string | null> = {};
@@ -733,11 +757,14 @@ export function seasonEnd(w: World): SeasonSummary {
     scorers: entryScorers,
     best: best ? { name: best.name, club: best.clubId || '', avg: best.s.rsum / best.s.apps } : null,
     awards,
-    user: { club: u.id, league: u.league, div: u.div, pos: userPos, objective: w.board.label, success },
+    user: { club: u.id, league: u.league, div: u.div, pos: userPos, objective: w.board.label, success, goals: extra.results.map((r) => ({ label: r.label, ok: r.ok })) },
   };
   w.history.push(entry);
 
-  const contNext = contQualifiers(w, tables);
+  const qualified = continentalQualifiers(w, tables);
+  w.qualified = qualified;
+  // Lista única para as telas: os classificados aos principais continentais (Liga dos Campeões e Libertadores).
+  const contNext = [...qualified.cont, ...qualified.lib];
   w.contNext = contNext;
   const lvl = (d: DivisionId): number => DIVISIONS[d].level;
   const mine = moves.filter((mv) => DIVISIONS[mv.from].league === u.league);
@@ -745,7 +772,7 @@ export function seasonEnd(w: World): SeasonSummary {
     entry, tables, moves,
     promoted: mine.filter((mv) => lvl(mv.to) < lvl(mv.from)).map((mv) => mv.club),
     relegated: mine.filter((mv) => lvl(mv.to) > lvl(mv.from)).map((mv) => mv.club),
-    userPos, success, fired, scorers, best, contNext,
+    userPos, success, fired, scorers, best, contNext, qualified,
   };
   if (w.playerCareer) { /* carreira de jogador: sem diretoria cobrando nem propostas de emprego */ }
   else if (fired) w.fired = { reason: `Objetivo não cumprido: a meta era ${w.board.label}, e o time terminou em ${userPos}º.` };
@@ -806,6 +833,7 @@ export function newSeason(w: World): void {
   if (ps) {
     for (const mv of ps.moves) if (w.clubs[mv.club]) w.clubs[mv.club].div = mv.to;
     if (ps.contNext && ps.contNext.length) w.contNext = ps.contNext;
+    if (ps.qualified) w.qualified = ps.qualified;
   }
   w.pendingSeason = null;
   // Índice salarial: acompanha a evolução média dos elencos.
@@ -815,6 +843,7 @@ export function newSeason(w: World): void {
   // Patrocínios renovados com a reputação e a divisão novas; teto salarial recalculado.
   const champs = new Set<string>(ps ? Object.values(ps.entry.champions).concat(Object.values(ps.entry.cups).filter((x): x is string => !!x)) : []);
   const sponsor = renewClubFinances(w, u, champs.has(u.id));
+  sponsorNewSeason(w);
   for (const c of Object.values(w.clubs)) {
     if (c.id === u.id) continue;
     aiInvest(w, c);
@@ -927,7 +956,7 @@ export function newSeason(w: World): void {
   pushMessage(w, {
     kind: 'board',
     title: 'Orçamento da temporada',
-    body: `Patrocínio master ${diff >= 0 ? 'renovado' : 'renegociado'}: ${formatMoney(sponsor.after)}/sem (${diff >= 0 ? '+' : ''}${formatMoney(diff)} em relação à temporada passada). Teto salarial aprovado pela diretoria: ${formatMoney(u.wageCap)}/sem; folha atual: ${formatMoney(clubWages(w, u))}/sem.`,
+    body: `Patrocínio master ${diff >= 0 ? 'renovado' : 'renegociado'}: ${formatMoney(sponsor.after)}/sem (${diff >= 0 ? '+' : ''}${formatMoney(diff)} em relação à temporada passada). Teto salarial da liga (${divisionFullName(u.div)}): ${formatMoney(u.wageCap)}/sem; folha atual: ${formatMoney(clubWages(w, u))}/sem.`,
   });
   if (intake.length) {
     const best = intake.slice().sort((a, b) => b.pot - a.pot)[0];
@@ -1038,5 +1067,12 @@ export function switchClub(w: World, clubId: string): void {
   setObjective(w);
   ensureLineup(w, w.clubs[clubId]);
   const c = w.clubs[clubId];
+  // Teto salarial: o novo clube passa ao teto fixo da divisão; o antigo volta ao orçamento da CPU.
+  old.wageCap = capFor(w, old);
+  old.sponsorDeal = null;
+  c.wageCap = capFor(w, c);
+  c.sponsorDeal = null;
+  w.sponsorOffers = null;
   pushMessage(w, { kind: 'board', title: `Bem-vindo ao ${c.name}!`, body: `A diretoria do ${c.name} (${divisionFullName(c.div)}) confia no seu trabalho. Objetivo: ${w.board.label}.` });
+  if (!w.playerCareer) offerSponsors(w);
 }

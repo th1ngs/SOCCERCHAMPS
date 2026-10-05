@@ -44,11 +44,14 @@ const avg = (a: number[]): number => (a.length ? a.reduce((s, x) => s + x, 0) / 
 
 /** Ranking das ligas pela força atual dos elencos das primeiras divisões (muda com as transferências). */
 export function leagueRanking(w: World): LeagueRankRow[] {
-  const cont = new Set(w.cups.cont?.entrants ?? []);
+  // Principais continentais: Liga dos Campeões (Europa) e Libertadores (América do Sul).
+  const cont = new Set([...(w.cups.cont?.entrants ?? []), ...(w.cups.lib?.entrants ?? [])]);
   const titles: Partial<Record<LeagueId, number>> = {};
   for (const h of w.history) {
-    const champ = h.cups.cont ? w.clubs[h.cups.cont] : null;
-    if (champ) titles[champ.league] = (titles[champ.league] ?? 0) + 1;
+    for (const id of [h.cups.cont, h.cups.lib]) {
+      const champ = id ? w.clubs[id] : null;
+      if (champ) titles[champ.league] = (titles[champ.league] ?? 0) + 1;
+    }
   }
   const rows = LEAGUE_IDS.filter((id) => Object.values(w.clubs).some((c) => c.league === id)).map((id) => {
     const div = LEAGUES[id].divisions[0];

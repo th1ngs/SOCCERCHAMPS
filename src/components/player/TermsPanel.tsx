@@ -72,7 +72,7 @@ function PayrollLine({ wages, cap, extra, renewal }: { wages: number; cap: numbe
   const over = after > limit;
   return (
     <p className={cn("mt-2 rounded-lg px-2.5 py-1.5 text-xs", over ? "bg-danger-500/12 text-danger-400" : "bg-white/4 text-mist")}>
-      Folha depois do acordo: <b className={over ? "" : "text-snow"}>{formatMoney(after)}/sem</b> • teto da diretoria {formatMoney(cap)}/sem
+      Folha depois do acordo: <b className={over ? "" : "text-snow"}>{formatMoney(after)}/sem</b> • teto da liga {formatMoney(cap)}/sem
       {over ? " — a diretoria vai vetar." : ` — sobra ${formatMoney(limit - after)}/sem.`}
     </p>
   );

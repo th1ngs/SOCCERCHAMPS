@@ -15,6 +15,7 @@ import type {
 import { chance, clamp, pick, rand, randi, shuffle } from './util';
 import {
   clubPlayers, currentWeek, endWeek, newSeason, simMatch, simulateWeek, startSeason, table, userMatch, windowOpen,
+  seasonWeeks,
 } from './world';
 
 export const CAREER_START_AGE = 17;
@@ -181,7 +182,7 @@ function weeklyOffers(w: World, p: Player): void {
     if (chance(prob)) addOffers(w, p, 'transfer', 1);
   }
   // Último ano de contrato: a partir da semana 18 o clube decide se renova.
-  if (p.contract <= 1 && w.week >= 22 && c.renewSeason !== w.season) {
+  if (p.contract <= 1 && w.week >= Math.round(seasonWeeks(w) * 0.55) && c.renewSeason !== w.season) {
     c.renewSeason = w.season;
     if (c.trust >= 35 || p.ovr >= clubBaseOvr(club) - 3) {
       const o = makeOffer(w, p, club, 'renew');
@@ -328,7 +329,7 @@ const MILESTONES: { key: string; test: (p: Player, w: World) => boolean; text: (
   { key: 'ovr80', test: (p) => p.ovr >= 80, text: () => 'Overall 80: um dos melhores da liga.' },
   { key: 'ovr85', test: (p) => p.ovr >= 85, text: () => 'Overall 85: craque internacional.' },
   { key: 'ovr90', test: (p) => p.ovr >= 90, text: () => 'Overall 90: entre os melhores do mundo.' },
-  { key: 'intl', test: (p) => (p.intl?.[0] ?? 0) >= 1, text: () => 'Estreia pela seleção na Copa das Nações!' },
+  { key: 'intl', test: (p) => (p.intl?.[0] ?? 0) >= 1, text: () => 'Estreia pela seleção!' },
 ];
 
 function checkMilestones(w: World, p: Player): void {
@@ -416,7 +417,7 @@ export function careerNewSeason(w: World): void {
   const hadClub = p.clubId;
   newSeason(w);
   c.offers = c.offers.filter((o) => o.kind !== 'renew');
-  if ((p.intl?.[0] ?? 0) > intl) logCareer(w, `Convocado para a Copa das Nações: ${(p.intl?.[0] ?? 0) - intl} jogo(s) pela seleção.`, 'gold');
+  if ((p.intl?.[0] ?? 0) > intl) logCareer(w, `Convocado para a seleção: ${(p.intl?.[0] ?? 0) - intl} jogo(s) pela seleção.`, 'gold');
   if (hadClub && !p.clubId) {
     logCareer(w, 'Seu contrato terminou. Você está sem clube: escolha uma das propostas.', 'bad');
     addOffers(w, p, 'free', 3);

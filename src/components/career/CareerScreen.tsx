@@ -10,6 +10,7 @@ import { Card, EmptyState, KV, PageHeader } from "@/components/ui/primitives";
 import { ClubTag } from "@/components/comps/ClubTag";
 import { useWorld } from "@/components/game/GameProvider";
 import { cn } from "@/lib/cn";
+import { VacanciesCard } from "./VacanciesCard";
 
 /** Conquistas: desbloqueadas em destaque, as demais com o que falta fazer. */
 function AchievementsCard() {
@@ -169,8 +170,9 @@ export function CareerScreen() {
   const { world: w } = useWorld();
   return (
     <>
-      <PageHeader title="Carreira" subtitle={`${w.manager.name} • ${w.history.length} ${w.history.length === 1 ? "temporada concluída" : "temporadas concluídas"}. Conquistas, recordes e os ídolos do clube.`} />
+      <PageHeader title="Carreira" subtitle={`${w.manager.name} • ${w.history.length} ${w.history.length === 1 ? "temporada concluída" : "temporadas concluídas"}. Vagas, conquistas, recordes e os ídolos do clube.`} />
       <div className="grid items-start gap-4 lg:grid-cols-2">
+        <VacanciesCard />
         <AchievementsCard />
         <RecordsCard />
         <IdolsCard />

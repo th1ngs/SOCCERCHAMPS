@@ -141,9 +141,9 @@ export function PrematchModal({ matchId }: { matchId: string }) {
 
   const { u, opp, su, so, derby, gate } = info;
   const hc = w.clubs[m.h], ac = w.clubs[m.a];
-  // Jogos entre ligas diferentes (Copa dos Campeões): mostra a bandeira de cada clube.
+  // Jogos entre ligas diferentes (continentais): mostra a bandeira de cada clube.
   const intl = hc.league !== ac.league;
-  const cont = m.comp === "cont";
+  const cont = intl;
 
   const quick = () => {
     const sim = new Sim(w, m.h, m.a, simOptions(m)).runToEnd();

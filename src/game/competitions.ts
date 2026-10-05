@@ -1,6 +1,7 @@
 // Competições do usuário, status nas copas e classificação para a Copa dos Campeões.
 import { CONT_SIZE, CONT_SPOTS, cupId, firstDivisions, prestigeOf } from './leagues';
 import type { Club, Competition, Cup, DivisionId, KnockoutId, LeagueId, TableRow, World } from './types';
+import { continentalQualifiers } from './cups';
 import { table, user } from './world';
 
 /** Status de um clube numa copa. */
@@ -40,8 +41,15 @@ export function contQualifiers(w: World, tables?: Partial<Record<DivisionId, Tab
   return cutByRep(w, ids);
 }
 
-/** Projeção dos classificados à próxima Copa dos Campeões pelas tabelas atuais. */
-export const projectedCont = (w: World): string[] => contQualifiers(w);
+/** Projeção dos classificados aos principais continentais (Liga dos Campeões e Libertadores) pelas tabelas atuais. */
+export const projectedCont = (w: World): string[] => { const q = continentalQualifiers(w, {}); return [...q.cont, ...q.lib]; };
+
+/** Continental projetado de um clube pela tabela atual (ou null). */
+export function projectedContinental(w: World, clubId: string): 'cont' | 'eur2' | 'lib' | 'sud' | null {
+  const q = continentalQualifiers(w, {});
+  for (const k of ['cont', 'lib', 'eur2', 'sud'] as const) if (q[k].includes(clubId)) return k;
+  return null;
+}
 
 /** Copa da temporada (ou null). */
 export const cupOf = (w: World, comp: KnockoutId): Cup | null => w.cups[comp] ?? null;
@@ -68,14 +76,25 @@ export const contStatus = (w: World, clubId: string): KnockoutStatus => knockout
 /** Está na Copa dos Campeões desta temporada? */
 export const inCont = (w: World, clubId: string): boolean => contEntrants(w).includes(clubId);
 
-/** Competições que o clube disputa nesta temporada: divisão, Copa Nacional (se inscrito) e Copa dos Campeões. */
+/** Ordem das copas nas telas: continentais, nacional, copa da liga, supercopa, estadual/regional. */
+function compOrder(comp: KnockoutId): number {
+  if (comp === 'inter') return 0;
+  if (comp === 'cont' || comp === 'lib') return 1;
+  if (comp === 'eur2' || comp === 'sud') return 2;
+  if (comp.startsWith('cup:')) return 3;
+  if (comp.startsWith('lcup:')) return 4;
+  if (comp.startsWith('sup:')) return 5;
+  return 6;
+}
+
+/** Competições que o clube disputa nesta temporada: divisão e todos os mata-matas em que está inscrito. */
 export function clubCompetitions(w: World, clubId: string): Competition[] {
   const c = w.clubs[clubId];
-  const out: Competition[] = [c.div];
-  const nat = cupId(c.league);
-  if (w.cups[nat]?.entrants.includes(clubId)) out.push(nat);
-  if (inCont(w, clubId)) out.push('cont');
-  return out;
+  const cups = (Object.entries(w.cups) as [KnockoutId, Cup | undefined][])
+    .filter(([, cup]) => cup?.entrants.includes(clubId))
+    .map(([id]) => id)
+    .sort((a, b) => compOrder(a) - compOrder(b));
+  return [c.div, ...cups];
 }
 
 /** Competições do usuário nesta temporada. */

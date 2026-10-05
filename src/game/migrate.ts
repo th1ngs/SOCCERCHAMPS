@@ -6,7 +6,10 @@
 // (atributos, habilidades novas, batedor de faltas e finanças por clube); v5 é idempotente.
 import { CLUBS, TICKET_PRICES, injuryLabel } from './data';
 import { ATTR_KEYS } from './data';
-import { clubWages, sponsorValue, wageCapFor } from './finance';
+import { capFor, clubWages, sponsorValue, wageCapFor } from './finance';
+import { makeGoals } from './goals';
+import { refreshVacancies } from './jobs';
+import { offerSponsors } from './sponsors';
 import { refreshScoutMarket, scoutStaff, seedScoutStaff } from './scouts';
 import { MIN_COMPATIBLE_VERSION, WORLD_VERSION, youthWage, meanSquadOvr, rollAttrs, rollStar, rollTraits, seedMissingClubs, valueOf } from './gen';
 import { DIVISIONS, LEAGUES } from './leagues';
@@ -150,7 +153,7 @@ export function migrateWorld(w: World): World {
   if (!lw.watchState) w.watchState = {};
   if (!lw.transfers) w.transfers = [];
   const board = (lw.board || {}) as Loose<World['board']>;
-  w.board = { conf: typeof board.conf === 'number' ? board.conf : 60, target: board.target ?? 0, label: board.label ?? '' };
+  w.board = { conf: typeof board.conf === 'number' ? board.conf : 60, target: board.target ?? 0, label: board.label ?? '', ...(Array.isArray(board.goals) ? { goals: board.goals } : {}) };
   for (const p of Object.values(w.players)) migratePlayer(w, p);
   for (const c of Object.values(w.clubs)) migrateClub(w, c);
   if (!lw.econ) w.econ = { baseOvr: Math.round(meanSquadOvr(w) * 100) / 100, drift: 0 };
@@ -190,6 +193,24 @@ export function migrateWorld(w: World): World {
       pushMessage(w, { kind: 'info', title: 'As ligas cresceram', body: `Agora cada divisão tem 20 clubes (38 rodadas) e várias ligas ganharam uma divisão a mais. ${u ? `O ${u.name} começa a temporada na ${DIVISIONS[u.div]?.name ?? u.div}.` : ''}` });
     } else {
       pushMessage(w, { kind: 'info', title: 'As ligas vão crescer', body: 'Na próxima temporada cada divisão passa a ter 20 clubes (38 rodadas) e várias ligas ganham uma divisão a mais. A temporada atual continua como começou.' });
+    }
+  }
+  // v10: supercopas, estaduais, copas da liga, continentais por região e Intercontinental; teto salarial fixo
+  // por liga; patrocínio escolhido; metas da diretoria; vagas de treinador.
+  if ((lw.version ?? 0) < 10) {
+    const legacyCal = (w.weeks ?? []).some((wk) => wk && wk.type !== 'league' && !wk.comps);
+    if (legacyCal && w.week === 0 && !w.pendingSeason) {
+      startSeason(w);
+      pushMessage(w, { kind: 'info', title: 'Novas competições', body: 'Supercopas, estaduais, Copa do Nordeste, copas da liga, Liga dos Campeões e Liga Europa (Europa), Libertadores e Sul-Americana (Brasil e Argentina) e a Copa Intercontinental entram no calendário desta temporada.' });
+    } else if (legacyCal) {
+      pushMessage(w, { kind: 'info', title: 'Novas competições na próxima temporada', body: 'Supercopas, estaduais, Copa do Nordeste, copas da liga, continentais por região (Liga dos Campeões, Liga Europa, Libertadores e Sul-Americana) e a Copa Intercontinental começam na próxima temporada. Teto salarial da liga, patrocínio e metas da diretoria já valem agora.' });
+    }
+    const u = w.clubs[w.userClub];
+    if (u && !w.playerCareer) {
+      u.wageCap = capFor(w, u);
+      if (!w.board.goals) w.board.goals = makeGoals(w);
+      if (!u.sponsorDeal && !w.sponsorOffers) offerSponsors(w);
+      if (!w.vacancies) refreshVacancies(w);
     }
   }
   if (!(typeof lw.version === 'number' && lw.version >= WORLD_VERSION)) w.version = WORLD_VERSION;

@@ -59,7 +59,7 @@ export function FixturesView() {
             <span className="col-start-2 row-start-1 flex min-w-0 items-center gap-2 sm:col-start-auto sm:row-start-auto">
               <span className="w-6 shrink-0 text-xs font-semibold text-mist">{m.neutral ? "N" : home ? "vs" : "@"}</span>
               <Crest club={opp} size={18} className="shrink-0" />
-              {comp === "cont" && <Flag code={opp.league} />}
+              {opp.league !== w.clubs[w.userClub].league && <Flag code={opp.league} />}
               <span className="truncate font-semibold">{opp.name}</span>
               {isDerby(w, m) && <Badge tone="orange" className="shrink-0">Clássico</Badge>}
             </span>

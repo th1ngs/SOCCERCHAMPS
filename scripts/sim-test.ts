@@ -288,7 +288,7 @@ const adhoc = (w: World, h: string, a: string): Match => ({ id: 'chk' + h + a, h
 
 function runV2Checks(w: World): void {
   const u = user(w);
-  assert(w.version === WORLD_VERSION && WORLD_VERSION === 9, 'World v9');
+  assert(w.version === WORLD_VERSION && WORLD_VERSION === 10, 'World v10');
 
   // Características e Craque
   const all = Object.values(w.players);
@@ -447,7 +447,11 @@ function runLeagueChecks(w: World): void {
   const comps = userCompetitions(w);
   assert(comps[0] === user(w).div, 'userCompetitions começa pela divisão');
   const cont0 = contEntrants(w);
-  assert(cont0.length === 16 && new Set(cont0).size === 16 && cont0.every((id) => DIVISIONS[w.clubs[id].div].level === 1), 'Copa dos Campeões: 16 clubes de primeiras divisões');
+  assert(cont0.length === 32 && new Set(cont0).size === 32 && cont0.every((id) => DIVISIONS[w.clubs[id].div].level === 1 && !G.isSouthAmerican(w.clubs[id].league)), 'Liga dos Campeões: 32 clubes europeus de primeiras divisões');
+  const lib0 = w.cups.lib?.entrants ?? [];
+  assert(lib0.length === 16 && lib0.every((id) => G.isSouthAmerican(w.clubs[id].league)), 'Libertadores: 16 clubes do Brasil e da Argentina');
+  const allCont = [...cont0, ...lib0, ...(w.cups.eur2?.entrants ?? []), ...(w.cups.sud?.entrants ?? [])];
+  assert(new Set(allCont).size === allCont.length && allCont.length === 96, 'ninguém em dois continentais (32+32+16+16)');
   const nat0: Record<string, string> = {};
   for (const p of Object.values(w.players)) if (p.clubId) nat0[p.id] = w.clubs[p.clubId].league;
   // Nacionalidades: cada liga tem a sua parcela de jogadores locais (Brasil quase só local; Inglaterra importa muito)
@@ -466,7 +470,12 @@ function runLeagueChecks(w: World): void {
 
   // Copas
   for (const lg of LEAGUE_IDS) assert(ps.entry.cups[cupId(lg)] && w.clubs[ps.entry.cups[cupId(lg)] as string].league === lg, `campeão da ${competitionName(cupId(lg))}`);
-  assert(ps.entry.cups.cont && cont0.includes(ps.entry.cups.cont), 'campeão da Copa dos Campeões');
+  assert(ps.entry.cups.cont && cont0.includes(ps.entry.cups.cont), 'campeão da Liga dos Campeões');
+  assert(ps.entry.cups.lib && lib0.includes(ps.entry.cups.lib), 'campeão da Libertadores');
+  const inter = ps.entry.cups.inter;
+  assert(!inter || inter === ps.entry.cups.cont || inter === ps.entry.cups.lib, 'Intercontinental entre os campeões continentais');
+  for (const k of Object.keys(ps.entry.cups)) assert(G.isKnockout(k), `copa conhecida: ${k}`);
+  assert(Object.keys(ps.entry.cups).some((k) => k.startsWith('est:')) && Object.keys(ps.entry.cups).some((k) => k.startsWith('sup:')) && 'ne' in ps.entry.cups && 'lcup:eng' in ps.entry.cups, 'estaduais, supercopas, Copa do Nordeste e copas da liga no histórico');
   // Acesso e rebaixamento
   for (const lg of LEAGUE_IDS) {
     const divs = LEAGUES[lg].divisions;
@@ -475,18 +484,20 @@ function runLeagueChecks(w: World): void {
     for (const m of mv) assert(Math.abs(DIVISIONS[m.from].level - DIVISIONS[m.to].level) === 1 && DIVISIONS[m.to].league === lg, 'troca entre divisões vizinhas');
   }
   // Classificação continental
-  assert(ps.contNext.length === 16 && new Set(ps.contNext).size === 16, '16 classificados distintos');
-  for (const id of ps.contNext) {
+  const q = ps.qualified!;
+  assert(q.cont!.length === 32 && q.eur2!.length === 32 && q.lib!.length === 16 && q.sud!.length === 16, 'classificados: 32 + 32 + 16 + 16');
+  for (const id of q.cont!) {
     const d = w.clubs[id].div;
-    assert(DIVISIONS[d].level === 1 && ps.tables[d].findIndex((r) => r.id === id) < 3, `${id} entre os 3 primeiros de uma primeira divisão`);
+    assert(DIVISIONS[d].level === 1 && ps.tables[d].findIndex((r) => r.id === id) < (G.CONT_SLOTS[w.clubs[id].league] ?? 0), `${id} nas vagas da Liga dos Campeões`);
   }
+  for (const id of q.lib!) assert(ps.tables[w.clubs[id].div].findIndex((r) => r.id === id) < 8, `${id} entre os 8 primeiros (Libertadores)`);
   // Histórico
   const h = w.history[w.history.length - 1];
   assert(Object.keys(h).sort().join() === 'awards,best,champions,cups,scorers,season,user', 'chaves do HistoryEntry');
   assert(DIVISION_IDS.every((d) => typeof h.champions[d] === 'string'), 'champions de todas as divisões');
-  assert(Object.keys(h.cups).length === LEAGUE_IDS.length + 1 && Object.values(h.cups).every((x) => typeof x === 'string'), 'cups: 13 nacionais + cont');
+  assert(LEAGUE_IDS.every((lg) => typeof h.cups[cupId(lg)] === 'string') && Object.keys(h.cups).length > 40, `cups: ${Object.keys(h.cups).length} mata-matas`);
   assert(Object.keys(h.scorers).sort().join() === firstDivisions().slice().sort().join(), 'scorers das primeiras divisões');
-  assert(Object.keys(h.user).sort().join() === 'club,div,league,objective,pos,success', 'chaves de user');
+  assert(Object.keys(h.user).sort().join() === 'club,div,goals,league,objective,pos,success', 'chaves de user');
   assert(!h.best || (typeof h.best.name === 'string' && typeof h.best.club === 'string' && typeof h.best.avg === 'number'), 'best');
   // Mercado com filtros por liga e nacionalidade
   const mk = marketPlayers(w, { league: 'ita', nat: 'arg', limit: 10 });
@@ -503,7 +514,8 @@ function runLeagueChecks(w: World): void {
   for (const div of DIVISION_IDS) assert(Object.values(w.clubs).filter((c) => c.div === div).length === DIVISION_SIZE, `${div} com ${DIVISION_SIZE} clubes após newSeason`);
   const moved = Object.values(w.clubs).filter((c) => c.div !== divBefore[c.id]).length;
   assert(moved === ps.moves.length, 'newSeason aplica as trocas');
-  assert(contEntrants(w).slice().sort().join() === ps.contNext.slice().sort().join(), 'Copa dos Campeões usa os classificados');
+  assert(contEntrants(w).slice().sort().join() === ps.qualified!.cont!.slice().sort().join(), 'Liga dos Campeões usa os classificados');
+  assert((w.cups.lib?.entrants ?? []).slice().sort().join() === ps.qualified!.lib!.slice().sort().join(), 'Libertadores usa os classificados');
   console.log(`league checks ok: ${ps.moves.length} trocas de divisão, ${cross} jogadores em outra liga, ${competitionName('cont')}: ${w.clubs[ps.entry.cups.cont as string].name}`);
 
   // Troca para um clube estrangeiro
@@ -512,7 +524,9 @@ function runLeagueChecks(w: World): void {
   assert(foreign, 'clube estrangeiro');
   switchClub(w, foreign.id);
   assert(w.userClub === foreign.id && user(w).league !== u.league && w.board.label && !w.fired, 'switchClub para outra liga');
-  endWeek(w); simulateWeek(w); endWeek(w);
+  endWeek(w);
+  while (currentWeek(w)?.type !== 'league') { simulateWeek(w); endWeek(w); }
+  simulateWeek(w); endWeek(w);
   assert(table(w, foreign.div).some((r) => r.id === foreign.id && r.j === 1), 'joga pela nova liga');
   const offers = jobOffers(w);
   assert(offers.length === 3 && new Set(offers).size === 3, 'jobOffers');
@@ -857,7 +871,7 @@ function runV5Checks(): void {
   assert(avgWage('eng') > avgWage('bra') * 1.2 && avgWage('bra') > avgWage('arg') * 1.2 && avgWage('bra') > avgWage('gre'), 'salário médio por liga: eng > bra > arg/gre');
   assert(Object.values(w.clubs).every((c) => c.sponsor > 0 && c.wageCap > 0 && Number.isFinite(c.money)), 'patrocínio e teto em todos os clubes');
   assert(Object.values(w.clubs).some((c) => c.loan) && Object.values(w.clubs).some((c) => !c.loan), 'alguns clubes começam endividados');
-  assert(G.clubWages(w, u) <= u.wageCap, 'usuário começa dentro do teto');
+  assert(G.clubWages(w, u) <= u.wageCap, `usuário começa dentro do teto (${u.id} ${u.div}: folha ${G.clubWages(w, u)} teto ${u.wageCap})`);
   const veto = G.wageVeto(w, u, u.wageCap);
   assert(!!veto && veto.includes('diretoria vetou') && G.wageVeto(w, u, 0) === null, 'veto da diretoria acima do teto');
   const fin0 = { ...w.finSeason };
@@ -871,6 +885,7 @@ function runV5Checks(): void {
   runV8Checks();
   runV9Checks();
   runShapeChecks();
+  runV10Checks();
   runPlayerCareerChecks();
   console.log(`finance ok: receita/sem 1ª div eng ${formatMoney(rev('eng'))}, bra ${formatMoney(rev('bra'))}, arg ${formatMoney(rev('arg'))}; teto ${formatMoney(u.wageCap)}`);
 }
@@ -960,7 +975,12 @@ function runV6Checks(): void {
   assert(Object.keys(w.clubs).length === before && !Object.keys(w.clubs).some((id) => id.startsWith('nat:')), 'seleções temporárias removidas');
   assert(e.squads[e.champion].some((pid) => w.players[pid]?.hist?.some((r) => r[6]?.includes(G.NATIONS_NAME))), 'título da Copa das Nações no histórico');
   assert(Object.values(w.players).some((x) => (x.intl?.[0] ?? 0) > 0), 'jogos pela seleção');
-  assert(!G.runNationsCup(w) && G.isNationsSeason(2030) && !G.isNationsSeason(2027), 'Copa das Nações a cada 4 anos');
+  assert(G.isNationsSeason(2030) && !G.isNationsSeason(2027) && G.nationsKindOf(2028) === 'euro' && G.nationsKindOf(2027) === 'league' && G.editionName(e) === 'Copa do Mundo', 'Copa do Mundo a cada 4 anos; Eurocopa e Liga das Nações entre elas');
+  const prevSeason = w.season;
+  w.season = 2028;
+  const euro = G.runNationsCup(w);
+  w.season = prevSeason;
+  assert(euro && euro.kind === 'euro' && euro.table.every((r) => !G.isSouthAmerican(r.id)) && euro.table.length === LEAGUE_IDS.length - 2, 'Eurocopa só com seleções europeias');
   const car = G.playerCareer(w, champPlayer!);
   assert(car[0].current && car.some((r) => !r.current), 'carreira do jogador: atual + passadas');
   assert(G.clubIdols(w, u.id, 5).length > 0, 'ídolos do clube');
@@ -1196,4 +1216,52 @@ function runShapeChecks(): void {
   u.shapeOn = false;
   assert(G.shapeOf(u) === G.FORMATIONS[u.formation] && !!u.shape, 'desligar mantém o desenho guardado');
   console.log(`shape ok: ${G.shapeLabel(shape)} personalizada, ${sim.score[0]} x ${sim.score[1]}`);
+}
+
+/** Competições novas, patrocínio, teto salarial fixo, metas da diretoria e vagas de treinador (World v10). */
+function runV10Checks(): void {
+  const w = freshWorld();
+  const u = user(w);
+  // Calendário: 55 semanas, nenhum clube com dois jogos na mesma semana, copas nas semanas certas.
+  assert(G.seasonWeeks(w) === 55 && G.leagueRounds(w) === 38, 'temporada de 55 semanas e 38 rodadas');
+  assert(G.weekComps(w.weeks[1]).every((c) => c.startsWith('sup:')) && G.weekComps(w.weeks[55]).join() === 'inter', 'supercopas abrem e Intercontinental fecha');
+  assert(Object.keys(w.cups).some((c) => c.startsWith('est:')) && !!w.cups.ne && !!w.cups['lcup:eng'], 'estaduais, Copa do Nordeste e copas da liga');
+  assert(G.competitionName('cup:bra') === 'Copa do Brasil' && G.competitionName('est:SP') === 'Campeonato Paulista' && G.competitionName('lib') === 'Copa Libertadores', 'nomes reais das copas');
+  // Teto salarial fixo por liga e divisão.
+  assert(u.wageCap === G.leagueWageCap(u) && G.leagueWageCap({ league: 'eng', div: 'eng1' }) > G.leagueWageCap({ league: 'gre', div: 'gre1' }), 'teto fixo da divisão do usuário');
+  const same = Object.values(w.clubs).find((c) => c.div === u.div && c.id !== u.id)!;
+  assert(G.leagueWageCap(same) === u.wageCap, 'mesmo teto para a divisão inteira');
+  // Patrocínio: três propostas, assinatura, bônus.
+  assert(w.sponsorOffers?.length === 3 && new Set(w.sponsorOffers.map((d) => d.kind)).size === 3, 'três propostas de patrocínio');
+  const perf = w.sponsorOffers.find((d) => d.kind === 'desempenho')!;
+  assert(G.chooseSponsor(w, perf.id) && u.sponsorDeal?.brand === perf.brand && u.sponsor === perf.weekly && !w.sponsorOffers, 'assina o patrocínio');
+  const m0 = u.money;
+  G.sponsorWin(w);
+  assert(u.money === m0 + perf.winBonus && perf.winBonus > 0, 'bônus por vitória');
+  // Metas da diretoria.
+  const goals = w.board.goals ?? [];
+  assert(goals[0]?.kind === 'league' && goals.some((g) => g.kind === 'cup') && goals.some((g) => g.kind === 'finance') && goals.some((g) => g.kind === 'derby'), 'metas: liga, copa, finanças, clássico');
+  assert(goals.every((g) => ['done', 'on', 'risk', 'failed'].includes(G.goalProgress(w, g).state)), 'progresso das metas');
+  const ev = G.evaluateGoals(w);
+  assert(ev.results.length === goals.length - 1 && Number.isFinite(ev.delta), 'avaliação das metas extras');
+  // Vagas de treinador.
+  assert((w.vacancies?.length ?? 0) > 0 && w.vacancies!.every((v) => v.club !== u.id), 'vagas abertas');
+  const rep = G.managerRep(w);
+  assert(rep >= 20 && rep <= 100, `reputação do treinador (${rep})`);
+  const easiest = w.vacancies!.slice().sort((a, b) => G.jobChance(w, b.club) - G.jobChance(w, a.club))[0];
+  assert(G.applyForJob(w, easiest.club) === null && G.applyForJob(w, easiest.club) !== null, 'candidatura (e não repete)');
+  w.week = 1;
+  G.processApplications(w);
+  const app = w.applications!.find((a) => a.club === easiest.club)!;
+  assert(app.status === 'offer' || app.status === 'rejected', `resposta da candidatura (${app.status})`);
+  // Migração v9 -> v10: calendário antigo na pré-temporada vira o novo.
+  const old = JSON.parse(JSON.stringify(freshWorld())) as World;
+  old.version = 9;
+  old.week = 0;
+  for (const wk of old.weeks) if (wk && wk.type !== 'league') { delete wk.comps; wk.type = 'cup'; }
+  const u2 = old.clubs[old.userClub];
+  delete u2.sponsorDeal; delete old.sponsorOffers; delete old.board.goals; delete old.vacancies;
+  const mig = G.migrateWorld(old);
+  assert(mig.version === WORLD_VERSION && mig.weeks.every((wk) => !wk || wk.type === 'league' || !!wk.comps) && !!mig.board.goals?.length && !!mig.sponsorOffers?.length, 'migração v10 na pré-temporada');
+  console.log(`v10 ok: ${Object.keys(w.cups).length} copas, teto ${formatMoney(u.wageCap)}/sem, patrocínio ${perf.brand}, ${goals.length} metas, reputação ${rep}, candidatura: ${app.status}`);
 }

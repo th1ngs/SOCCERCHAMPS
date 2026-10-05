@@ -2,7 +2,7 @@
 // da reputação, do estádio e da torcida. Valores semanais em R$.
 import { LOAN_INTEREST, TICKET_PRICES } from './data';
 import { DIVISIONS, DIVISION_SIZE, LEAGUES, LEAGUE_PRIZE_BASE, TOTAL_WEEKS, TV_BASE } from './leagues';
-import type { Club, LeagueInfo, Loan, World } from './types';
+import type { Club, LeagueId, LeagueInfo, Loan, World } from './types';
 import { clamp, formatMoney, rand, randi } from './util';
 
 /** Peso de cada divisão nas receitas comerciais (1ª, 2ª, 3ª). */
@@ -122,6 +122,41 @@ export function financeProfile(w: World, c: Club): FinanceProfile {
   };
 }
 
+/**
+ * Teto salarial FIXO de cada liga e divisão (R$/semana): vale para todos os clubes da divisão e muda só quando o
+ * clube sobe ou cai. Calibrado 20% acima da maior folha de cada divisão nos mundos gerados; as ligas ricas têm tetos maiores.
+ */
+export const LEAGUE_WAGE_CAPS: Record<LeagueId, number[]> = {
+  bra: [2_900_000, 1_250_000, 330_000, 210_000],
+  arg: [1_400_000, 510_000, 210_000],
+  por: [1_950_000, 480_000, 275_000],
+  esp: [4_750_000, 1_800_000, 375_000],
+  eng: [7_000_000, 1_550_000, 660_000],
+  ita: [4_000_000, 900_000, 360_000],
+  ger: [4_400_000, 1_250_000, 500_000],
+  fra: [3_650_000, 1_400_000, 380_000],
+  ned: [2_750_000, 980_000],
+  bel: [2_900_000, 1_050_000],
+  tur: [2_650_000, 780_000],
+  sco: [2_600_000, 750_000],
+  gre: [1_900_000, 630_000],
+};
+/** Teto salarial da divisão de um clube. */
+export function leagueWageCap(c: { league: LeagueId; div: Club['div'] }): number {
+  const caps = LEAGUE_WAGE_CAPS[c.league];
+  const level = Math.max(1, LEAGUES[c.league].divisions.indexOf(c.div) + 1);
+  return caps[Math.min(caps.length - 1, level - 1)];
+}
+
+/**
+ * Teto de um clube: o do usuário é o teto fixo da divisão; a CPU usa o próprio orçamento (WAGE_RATIO da receita),
+ * sem nunca passar do teto da divisão.
+ */
+export function capFor(w: World, c: Club): number {
+  if (c.id === w.userClub && !w.playerCareer) return leagueWageCap(c);
+  return Math.min(leagueWageCap(c), Math.max(wageCapFor(w, c), Math.round((Math.min(clubWages(w, c), wageCapFor(w, c) * 1.15) * 0.9) / 10000) * 10000));
+}
+
 /** Teto salarial que a diretoria aprova: WAGE_RATIO da receita livre (receita − manutenção − metade da dívida). */
 export function wageCapFor(w: World, c: Club): number {
   const revenue = tvShare(w, c) + (c.sponsor || sponsorValue(c)) + commercialWeekly(c) + gateWeeklyAvg(c) + prizeWeeklyAvg(c);
@@ -143,7 +178,7 @@ export function initClubFinances(w: World, c: Club): void {
   }
   const cash = revenue * rand(7, 18) * (c.loan ? 0.6 : 1);
   c.money = Math.max(1e6, Math.round(cash / 100000) * 100000);
-  c.wageCap = Math.max(wageCapFor(w, c), Math.round((clubWages(w, c) * 1.08) / 10000) * 10000);
+  c.wageCap = c.id === w.userClub && !w.playerCareer ? leagueWageCap(c) : Math.min(leagueWageCap(c), Math.max(wageCapFor(w, c), Math.round((clubWages(w, c) * 1.08) / 10000) * 10000));
 }
 
 /** Dívida bancária antiga: parcelas como as do empréstimo do jogo, já parcialmente paga. */
@@ -167,7 +202,7 @@ export function renewClubFinances(w: World, c: Club, champion: boolean): Sponsor
   // O contrato novo não despenca nem dispara de uma vez (negociação de uma temporada para a outra).
   const after = round1k(clamp(market, before * 0.7, before * 1.45));
   c.sponsor = after;
-  c.wageCap = Math.max(wageCapFor(w, c), Math.round((Math.min(clubWages(w, c), wageCapFor(w, c) * 1.15) * 0.9) / 10000) * 10000);
+  c.wageCap = capFor(w, c);
   return { before, after };
 }
 
@@ -176,5 +211,5 @@ export function wageVeto(w: World, c: Club, extraWage: number, tolerance = 1): s
   const wages = clubWages(w, c);
   const cap = (c.wageCap || wageCapFor(w, c)) * tolerance;
   if (wages + extraWage <= cap) return null;
-  return `A diretoria vetou: a folha iria a ${formatMoney(wages + extraWage)}/sem, acima do teto de ${formatMoney(cap)}/sem. Venda, empreste ou dispense alguém para abrir espaço.`;
+  return `A diretoria vetou: a folha iria a ${formatMoney(wages + extraWage)}/sem, acima do teto salarial da liga (${formatMoney(cap)}/sem). Venda, empreste ou dispense alguém para abrir espaço.`;
 }

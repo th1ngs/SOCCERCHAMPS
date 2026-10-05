@@ -1,27 +1,30 @@
 // Derivações puras das telas de competições (sem React).
 import {
+  compLeague,
   competitionName,
   CONT_WEEKS,
   CUP_WEEKS,
-  cupId,
   cupRoundName,
   DIVISIONS,
-  isKnockout,
+  isContinental,
   knockoutStatus,
   LEAGUES,
+  matchStage,
   PROMOTION_SPOTS,
+  roundNameBySize,
   seasonWeeks,
   user,
+  weekComps as koComps,
 } from "@/game";
 import type { Competition, DivisionId, FormResult, KnockoutId, Match, Week, World } from "@/game/types";
 
 /** Fase/rodada de uma partida: "Semifinal" ou "Rodada 12". */
-export function roundLabel(m: Pick<Match, "comp">, wk: Week): string {
-  return isKnockout(m.comp) ? cupRoundName(m.comp, wk.round) : `Rodada ${wk.round}`;
+export function roundLabel(m: Pick<Match, "comp" | "size">, wk: Week): string {
+  return matchStage(m, wk.round);
 }
 
 /** "Copa Nacional (Brasil) • Semifinal" ou "Série A • Rodada 12". */
-export function compLabel(m: Pick<Match, "comp">, wk: Week): string {
+export function compLabel(m: Pick<Match, "comp" | "size">, wk: Week): string {
   return `${competitionName(m.comp)} • ${roundLabel(m, wk)}`;
 }
 
@@ -60,15 +63,20 @@ export interface CupRound {
   matches: Match[];
 }
 
-/** Fases de uma copa (Copa Nacional: 5; Copa dos Campeões: 4), com a semana e os confrontos já sorteados. */
+/** Fases de uma copa, com a semana e os confrontos já sorteados (as futuras pelo tamanho esperado). */
 export function knockoutRounds(w: World, comp: KnockoutId): CupRound[] {
   // Semanas da copa pelo calendário montado (vale também para saves do calendário antigo).
-  const type = comp === "cont" ? "cont" : "cup";
-  const found = w.weeks.map((wk, i) => (wk && wk.type === type ? i : -1)).filter((i) => i > 0);
+  const found = w.weeks.map((wk, i) => (wk && koComps(wk).includes(comp) ? i : -1)).filter((i) => i > 0);
+  const legacy = !found.length || !w.weeks[found[0]]?.comps;
   const weeks = found.length ? found : comp === "cont" ? CONT_WEEKS : CUP_WEEKS;
+  let size = w.cups[comp]?.entrants.length ?? 2;
   return weeks.map((week, round) => {
     const wk = w.weeks[week];
-    return { round, name: cupRoundName(comp, round), week, matches: wk ? wk.matches.filter((m) => m.comp === comp) : [] };
+    const matches = wk ? wk.matches.filter((m) => m.comp === comp) : [];
+    if (matches[0]?.size) size = matches[0].size;
+    const name = legacy ? cupRoundName(comp, round) : roundNameBySize(size);
+    size = Math.ceil(size / 2);
+    return { round, name, week, matches };
   });
 }
 
@@ -91,7 +99,6 @@ export interface FixtureRow {
 export function userFixtures(w: World): FixtureRow[] {
   const rows: FixtureRow[] = [];
   const u = user(w);
-  const natCup = cupId(u.league);
   for (let i = 1; i <= seasonWeeks(w); i++) {
     const wk = w.weeks[i];
     if (!wk) continue;
@@ -101,13 +108,14 @@ export function userFixtures(w: World): FixtureRow[] {
       continue;
     }
     if (wk.type === "league") continue;
-    const comp: KnockoutId = wk.type === "cont" ? "cont" : natCup;
+    const comp = koComps(wk).find((c) => knockoutStatus(w, c, u.id) !== "out");
+    if (!comp) continue;
     const st = knockoutStatus(w, comp, u.id);
-    if (st === "out") continue;
     const drawn = wk.matches.some((x) => x.comp === comp);
     const note =
       st === "eliminated" ? "Sem jogo (eliminado)" : st === "champion" ? "Campeão" : drawn ? "Passou direto" : "Sorteio pendente";
-    rows.push({ week: i, wk, comp, round: cupRoundName(comp, wk.round), match: null, note });
+    const first = wk.matches.find((x) => x.comp === comp);
+    rows.push({ week: i, wk, comp, round: first ? roundLabel(first, wk) : wk.comps ? "Mata-mata" : cupRoundName(comp, wk.round), match: null, note });
   }
   return rows;
 }
@@ -119,9 +127,11 @@ export function userFixtures(w: World): FixtureRow[] {
  */
 export function weekComps(w: World, wk: Week): Competition[] {
   const u = user(w);
-  if (wk.type === "cont") return ["cont"];
-  if (wk.type === "cup") return [cupId(u.league)];
-  return [u.div, ...LEAGUES[u.league].divisions.filter((d) => d !== u.div)];
+  if (wk.type === "league") return [u.div, ...LEAGUES[u.league].divisions.filter((d) => d !== u.div)];
+  // Mata-matas: os do usuário, depois os da liga dele, depois os continentais.
+  const played = koComps(wk).filter((c) => wk.matches.some((m) => m.comp === c));
+  const rank = (c: KnockoutId) => (knockoutStatus(w, c, u.id) !== "out" ? 0 : compLeague(c) === u.league ? 1 : isContinental(c) ? 2 : 3);
+  return played.sort((a, b) => rank(a) - rank(b)).slice(0, 6);
 }
 
 export type Zone = "champ" | "up" | "down" | null;

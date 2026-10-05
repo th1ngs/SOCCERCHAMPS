@@ -1,11 +1,11 @@
 import { Trophy } from "lucide-react";
-import { compLeague, competitionName, divisionName, isNationalCup, leagueOf, LEAGUES } from "@/game";
+import { compLeague, competitionName, divisionName, leagueOf, LEAGUES } from "@/game";
 import type { Competition, DivisionId, LeagueId } from "@/game/types";
 import { Flag } from "@/components/ui/Flag";
 import { cn } from "@/lib/cn";
 
-/** Nome curto de uma competição (sem o país): "Série A", "Copa Nacional", "Copa dos Campeões". */
-export const compShortName = (comp: Competition): string => (isNationalCup(comp) ? "Copa Nacional" : competitionName(comp));
+/** Nome curto de uma competição: "Série A", "Copa do Brasil", "Liga dos Campeões". */
+export const compShortName = (comp: Competition): string => competitionName(comp);
 
 /** Bandeira da liga da competição ou taça (Copa dos Campeões). */
 export function CompIcon({ comp, className }: { comp: Competition; className?: string }) {

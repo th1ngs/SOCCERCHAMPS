@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, Briefcase, ChevronRight, Globe, Goal, Star } from "lucide-react";
-import { competitionName, cupId, divisionFullName, divisionName, DIVISIONS, jobOffers, LEAGUES } from "@/game";
+import { compLeague, competitionName, divisionFullName, isSouthAmerican, divisionName, DIVISIONS, jobOffers, LEAGUES } from "@/game";
 import type { Club, Competition, DivisionMove, Player } from "@/game/types";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -33,7 +33,7 @@ function Champion({ club, comp, mine }: { club: Club | undefined; comp: Competit
         <span className="truncate">{compShortName(comp)}</span>
       </span>
       <span className="flex max-w-full items-center gap-1.5 font-display text-base font-bold uppercase leading-tight">
-        {comp === "cont" && <Flag code={club.league} />}
+        {compLeague(comp) === null && <Flag code={club.league} />}
         <span className="min-w-0 break-words">{club.name}</span>
       </span>
     </div>
@@ -93,10 +93,12 @@ export function SeasonEndModal() {
   const lg = e.user.league;
   const divs = LEAGUES[lg].divisions;
   const offerClub = !w.fired && ps.offer ? w.clubs[ps.offer] : null;
+  // Campeões: divisões e mata-matas da liga do usuário (estadual dele incluído) e os continentais.
+  const ownState = u.league === "bra" ? `est:${u.uf}` : "";
+  const cupKeys = Object.keys(e.cups).filter((k) => (compLeague(k as Competition) === lg && !k.startsWith("est:")) || k === ownState || compLeague(k as Competition) === null);
   const champs: { comp: Competition; id: string | null | undefined }[] = [
     ...divs.map((d) => ({ comp: d as Competition, id: e.champions[d] })),
-    { comp: cupId(lg), id: e.cups[cupId(lg)] },
-    { comp: "cont", id: e.cups.cont },
+    ...cupKeys.map((k) => ({ comp: k as Competition, id: e.cups[k] })),
   ];
   // Acesso/rebaixamento na liga do usuário, agrupados por divisão de destino.
   const moves = ps.moves.filter((mv) => DIVISIONS[mv.from].league === lg);
@@ -108,8 +110,11 @@ export function SeasonEndModal() {
     return groups;
   });
   const scorers = divs.map((d) => ({ div: d, p: ps.scorers[d] ?? null })).filter((x): x is { div: typeof x.div; p: Player } => !!x.p);
-  const contNext = ps.contNext.map((id) => w.clubs[id]).filter(Boolean).sort((a, b) => a.league.localeCompare(b.league) || b.rep - a.rep);
-  const qualified = ps.contNext.includes(u.id);
+  // Classificados ao principal continental da região do usuário (Liga dos Campeões ou Libertadores).
+  const topComp = isSouthAmerican(lg) ? "lib" : "cont";
+  const contNext = (ps.qualified?.[topComp] ?? ps.contNext).map((id) => w.clubs[id]).filter(Boolean).sort((a, b) => a.league.localeCompare(b.league) || b.rep - a.rep);
+  const myComp = ps.qualified ? (["cont", "lib", "eur2", "sud"] as const).find((k) => ps.qualified?.[k]?.includes(u.id)) : ps.contNext.includes(u.id) ? "cont" : undefined;
+  const qualified = !!myComp;
 
   return (
     <Modal
@@ -192,11 +197,11 @@ export function SeasonEndModal() {
         {contNext.length > 0 && (
           <div>
             <SectionTitle className="mb-2 flex items-center gap-1.5">
-              <Globe className="size-4" aria-hidden /> {competitionName("cont")} {e.season + 1} • classificados
+              <Globe className="size-4" aria-hidden /> {competitionName(topComp)} {e.season + 1} • classificados
             </SectionTitle>
             {qualified && (
               <Alert tone="good" className="mb-2">
-                <span><b>Classificado!</b> O {u.name} disputa a {competitionName("cont")} na próxima temporada.</span>
+                <span><b>Classificado!</b> O {u.name} disputa a {competitionName(myComp ?? topComp)} na próxima temporada.</span>
               </Alert>
             )}
             <ul className="grid gap-1 sm:grid-cols-2">

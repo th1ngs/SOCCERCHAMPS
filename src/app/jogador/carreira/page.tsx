@@ -95,7 +95,7 @@ export default function CareerProfilePage() {
             <Card title={<span className="flex items-center gap-2"><FlagIcon className="size-4" /> Seleção</span>}>
               <KV label="Jogos">{p.intl?.[0] ?? 0}</KV>
               <KV label="Gols">{p.intl?.[1] ?? 0}</KV>
-              <p className="mt-2 text-xs text-mist">A Copa das Nações acontece a cada 4 anos; são convocados os 23 melhores de cada país.</p>
+              <p className="mt-2 text-xs text-mist">Copa do Mundo a cada 4 anos, Eurocopa no meio do ciclo e Liga das Nações nos anos ímpares; são convocados os 23 melhores de cada país.</p>
             </Card>
           </div>
           <Card title={<span className="flex items-center gap-2"><Medal className="size-4" /> Marcos</span>}>

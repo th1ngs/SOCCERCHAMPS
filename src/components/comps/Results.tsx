@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
-import { isDerby } from "@/game";
+import { compLeague, isDerby } from "@/game";
 import type { Competition, Match } from "@/game/types";
 import { Crest } from "@/components/ui/Crest";
 import { Flag } from "@/components/ui/Flag";
@@ -98,7 +98,7 @@ export function RoundResults({ weekIndex, highlight, comps }: { weekIndex?: numb
           }
           matches={g.matches}
           highlight={highlight}
-          flags={g.comp === "cont"}
+          flags={compLeague(g.comp) === null}
         />
       ))}
     </div>

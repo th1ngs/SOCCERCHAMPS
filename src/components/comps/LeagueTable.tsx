@@ -39,7 +39,7 @@ function Legend({ div }: { div: DivisionId }) {
       ))}
       {info.level === 1 && (
         <span className="inline-flex items-center gap-1.5">
-          <Globe className="size-3.5 text-info-400" aria-hidden /> Vaga projetada na Copa dos Campeões
+          <Globe className="size-3.5 text-info-400" aria-hidden /> Vaga projetada na Liga dos Campeões/Libertadores
         </span>
       )}
     </p>
@@ -112,7 +112,7 @@ export function LeagueTable({ div }: { div: DivisionId }) {
                       <span className="flex max-w-[210px] items-center gap-3 sm:max-w-[240px]">
                         <span className="w-6 shrink-0 text-right font-display text-base font-bold text-mist tabular">{i + 1}</span>
                         <ClubTag id={r.id} bold={me} />
-                        {cont.has(r.id) && <Globe className="size-3.5 shrink-0 text-info-400" aria-label="Vaga projetada na Copa dos Campeões" />}
+                        {cont.has(r.id) && <Globe className="size-3.5 shrink-0 text-info-400" aria-label="Vaga projetada na Liga dos Campeões/Libertadores" />}
                       </span>
                     </th>
                     <td className={cn(cell, "font-display text-base font-extrabold text-snow")}>{r.p}</td>

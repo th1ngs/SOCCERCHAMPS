@@ -1,5 +1,5 @@
 // Classificação dos clubes na escolha de carreira (por divisão, pela reputação).
-import { DIVISIONS, LEAGUES, PROMOTION_SPOTS, expectedXi, strengthStars } from "@/game";
+import { DIVISIONS, LEAGUES, PROMOTION_SPOTS, expectedXi, isSouthAmerican, strengthStars } from "@/game";
 import type { ClubStatic, DivisionId, LeagueId } from "@/game/types";
 import type { BadgeTone } from "@/components/ui/primitives";
 
@@ -25,7 +25,7 @@ export function tierOf(div: DivisionId, rank: number, size: number): Tier {
 /** Dica de cada divisão para quem vai escolher o clube. */
 export function divisionHint(div: DivisionId): string {
   const info = DIVISIONS[div];
-  if (!info.up) return `Grandes cobram títulos: os 3 primeiros vão à Copa dos Campeões e os ${PROMOTION_SPOTS} últimos caem.`;
+  if (!info.up) return `Grandes cobram títulos: os primeiros vão à ${isSouthAmerican(info.league) ? "Libertadores" : "Liga dos Campeões"} e os ${PROMOTION_SPOTS} últimos caem.`;
   if (info.down) return `Briga pelo acesso: os ${PROMOTION_SPOTS} primeiros sobem e os ${PROMOTION_SPOTS} últimos caem.`;
   return `Pouco dinheiro, metas modestas e o sonho do acesso: ${PROMOTION_SPOTS} sobem e ninguém cai.`;
 }

@@ -3,8 +3,8 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import { CalendarDays, ChartNoAxesColumn, Flag as FlagIcon, Goal, History, Trophy } from "lucide-react";
-import { cupId, divisionName, DIVISIONS, LEAGUE_IDS, LEAGUES, PROMOTION_SPOTS, DIVISION_SIZE, leagueRanking, leagueStars, leagueTier, user } from "@/game";
-import type { DivisionId, LeagueId } from "@/game/types";
+import { CONT_SLOTS, LIB_SLOTS, competitionInfo, competitionName, cupId, divisionName, DIVISIONS, isSouthAmerican, isStateCup, knockoutStatus, leagueCupId, LEAGUE_IDS, LEAGUES, PROMOTION_SPOTS, DIVISION_SIZE, leagueRanking, leagueStars, leagueTier, superCupId, user } from "@/game";
+import type { DivisionId, KnockoutId, LeagueId } from "@/game/types";
 import { PageHeader } from "@/components/ui/primitives";
 import { Flag } from "@/components/ui/Flag";
 import { useWorld } from "@/components/game/GameProvider";
@@ -17,18 +17,21 @@ const ScorersView = dynamic(() => import("./ScorersView").then((m) => m.ScorersV
 const FixturesView = dynamic(() => import("./FixturesView").then((m) => m.FixturesView));
 const HistoryView = dynamic(() => import("./HistoryView").then((m) => m.HistoryView));
 const NationsView = dynamic(() => import("./NationsView").then((m) => m.NationsView));
+const StatesView = dynamic(() => import("./StatesView").then((m) => m.StatesView));
 const LeaguesRankingView = dynamic(() => import("./LeaguesRankingView").then((m) => m.LeaguesRankingView));
 
 type GlobalTab = "cont" | "ranking" | "nations" | "scorers" | "fixtures" | "history";
 /** Escopo da tela: uma liga (com sub-abas) ou uma aba global. */
 export type CompScope = LeagueId | GlobalTab;
-/** Sub-aba de uma liga: uma divisão ou a Copa Nacional. */
-type LeagueSub = DivisionId | "cup";
+/** Sub-aba de uma liga: uma divisão, um mata-mata da liga ou os estaduais (Brasil). */
+type LeagueSub = DivisionId | KnockoutId | "states";
+/** Continentais na aba global. */
+const CONTINENTALS: KnockoutId[] = ["cont", "eur2", "lib", "sud", "inter"];
 
 const GLOBAL_SUBTITLE: Record<GlobalTab, string> = {
-  cont: "Os 13 campeões nacionais e mais três classificados por reputação em mata-mata de jogo único. Empate vai para os pênaltis; final em campo neutro.",
+  cont: "Liga dos Campeões e Liga Europa (Europa), Libertadores e Sul-Americana (Brasil e Argentina) e a Copa Intercontinental entre os campeões.",
   ranking: "Qual liga tem os melhores elencos hoje: o nível do futebol muda o jogo, dos elencos às transferências.",
-  nations: "Seleções de todos os países em todos contra todos, com final entre os dois primeiros.",
+  nations: "Copa do Mundo, Eurocopa e Liga das Nações entre as temporadas: todos contra todos e final entre os dois primeiros.",
   scorers: "Os goleadores da temporada por divisão. Toque em um jogador para ver a ficha.",
   fixtures: "Seus jogos em todas as competições, semana a semana.",
   history: "Títulos do clube e campeões de cada temporada.",
@@ -37,7 +40,11 @@ const GLOBAL_SUBTITLE: Record<GlobalTab, string> = {
 function divisionSubtitle(div: DivisionId): string {
   const info = DIVISIONS[div];
   const parts = [`${LEAGUES[info.league].name} • ${DIVISION_SIZE} clubes em turno e returno.`];
-  if (info.level === 1) parts.push("O campeão vai à Copa dos Campeões; vice e terceiro disputam as vagas restantes.");
+  if (info.level === 1) {
+    const sa = isSouthAmerican(info.league);
+    const n = (sa ? LIB_SLOTS : CONT_SLOTS)[info.league] ?? 0;
+    parts.push(`Os ${n} primeiros vão à ${sa ? "Copa Libertadores" : "Liga dos Campeões"}; os seguintes, à ${sa ? "Copa Sul-Americana" : "Liga Europa"}.`);
+  }
   if (info.up) parts.push(`Os ${PROMOTION_SPOTS} primeiros sobem para a ${divisionName(info.up)}.`);
   if (info.down) parts.push(`Os ${PROMOTION_SPOTS} últimos caem para a ${divisionName(info.down)}.`);
   else if (info.up) parts.push("Ninguém cai.");
@@ -53,6 +60,7 @@ export function CompetitionsScreen() {
   const [scope, setScope] = useState<CompScope>(u.league);
   // Sub-aba escolhida em cada liga; na liga do usuário começa na divisão dele.
   const [subs, setSubs] = useState<Partial<Record<LeagueId, LeagueSub>>>(() => ({ [u.league]: u.div }));
+  const [cont, setCont] = useState<KnockoutId>(() => (isSouthAmerican(u.league) ? "lib" : "cont"));
 
   const scopeItems: TabItem<CompScope>[] = [
     ...activeLeagues.map((l) => ({
@@ -64,9 +72,9 @@ export function CompetitionsScreen() {
         </>
       ),
     })),
-    { value: "cont", group: true, label: <><Trophy aria-hidden /> Copa dos Campeões</> },
+    { value: "cont", group: true, label: <><Trophy aria-hidden /> Continentais</> },
     { value: "ranking", label: <><ChartNoAxesColumn aria-hidden /> Ranking das ligas</> },
-    { value: "nations", label: <><FlagIcon aria-hidden /> Copa das Nações</> },
+    { value: "nations", label: <><FlagIcon aria-hidden /> Seleções</> },
     { value: "scorers", label: <><Goal aria-hidden /> Artilharia</> },
     { value: "fixtures", label: <><CalendarDays aria-hidden /> Calendário</> },
     { value: "history", label: <><History aria-hidden /> Histórico</> },
@@ -76,17 +84,27 @@ export function CompetitionsScreen() {
   const league = isLeague ? (scope as LeagueId) : null;
   const sub: LeagueSub | null = league ? (subs[league] ?? LEAGUES[league].divisions[0]) : null;
 
+  const inComp = (c: KnockoutId) => knockoutStatus(w, c, u.id) !== "out";
+  const leagueCups = (lg: LeagueId): KnockoutId[] => {
+    const list: KnockoutId[] = [cupId(lg), leagueCupId(lg), superCupId(lg)];
+    if (lg === "bra") list.push("ne");
+    return list.filter((c) => !!w.cups[c]);
+  };
   const subItems: TabItem<LeagueSub>[] = league
     ? [
         ...LEAGUES[league].divisions.map((d) => ({ value: d as LeagueSub, label: divisionName(d), mark: d === u.div })),
-        { value: "cup", group: true, label: <><Trophy aria-hidden /> Copa Nacional</>, mark: league === u.league && !!w.cups[cupId(league)]?.entrants.includes(u.id) },
+        ...leagueCups(league).map((c, i) => ({ value: c as LeagueSub, group: i === 0, label: <><Trophy aria-hidden /> {competitionName(c)}</>, mark: inComp(c) })),
+        ...(league === "bra" && Object.keys(w.cups).some(isStateCup)
+          ? [{ value: "states" as LeagueSub, label: <><Trophy aria-hidden /> Estaduais</>, mark: Object.keys(w.cups).some((c) => isStateCup(c) && inComp(c as KnockoutId)) }]
+          : []),
       ]
     : [];
+  const subIsDiv = !!sub && sub in DIVISIONS;
 
   const title = league ? (
     <span className="inline-flex items-center gap-3">
       <Flag code={league} className="h-[0.7em] rounded-[3px] ring-1 ring-black/25" />
-      {sub === "cup" ? "Copa Nacional" : divisionName(sub as DivisionId)}
+      {sub === "states" ? "Estaduais" : subIsDiv ? divisionName(sub as DivisionId) : competitionName(sub as string)}
     </span>
   ) : (
     "Competições"
@@ -97,12 +115,12 @@ export function CompetitionsScreen() {
     return `Nível ${leagueTier(league).toLowerCase()} (${leagueStars(league).toFixed(1).replace(".", ",")} de 5)${rank ? `, ${rank}ª do ranking das ligas` : ""}.`;
   })() : "";
   const subtitle = league
-    ? sub === "cup"
-      ? `${LEAGUES[league].name} • mata-mata em jogo único com os 32 clubes das duas primeiras divisões. Empate vai para os pênaltis.`
-      : `${divisionSubtitle(sub as DivisionId)} ${level}`
-    : scope === 'cont' && activeLeagues.length < LEAGUE_IDS.length
-      ? `Os 16 melhores das ligas atuais em mata-mata de jogo único. As novas ligas entram na próxima temporada.`
-      : GLOBAL_SUBTITLE[scope as GlobalTab];
+    ? sub === "states"
+      ? "Campeonatos estaduais no começo da temporada: os clubes de cada estado em mata-mata de jogo único."
+      : subIsDiv
+        ? `${divisionSubtitle(sub as DivisionId)} ${level}`
+        : `${LEAGUES[league].name} • ${competitionInfo(sub as KnockoutId)}`
+    : GLOBAL_SUBTITLE[scope as GlobalTab];
 
   return (
     <>
@@ -122,9 +140,19 @@ export function CompetitionsScreen() {
       {!league && <div className="mb-5" />}
       <div role="tabpanel" aria-label={typeof title === "string" ? title : undefined}>
         {league && sub ? (
-          sub === "cup" ? <CupView key={league} comp={cupId(league)} /> : <LeagueTable key={sub} div={sub} />
+          sub === "states" ? <StatesView /> : subIsDiv ? <LeagueTable key={sub} div={sub as DivisionId} /> : sub === "ne" ? <ContView key={sub} comp="ne" /> : <CupView key={sub} comp={sub as KnockoutId} />
         ) : scope === "cont" ? (
-          <ContView />
+          <>
+            <TabStrip
+              items={CONTINENTALS.filter((c) => !!w.cups[c]).map((c) => ({ value: c, label: competitionName(c), mark: inComp(c) }))}
+              value={cont}
+              onChange={setCont}
+              ariaLabel="Continental"
+              size="sm"
+              className="mb-4"
+            />
+            <ContView key={cont} comp={cont} />
+          </>
         ) : scope === "ranking" ? (
           <LeaguesRankingView />
         ) : scope === "nations" ? (

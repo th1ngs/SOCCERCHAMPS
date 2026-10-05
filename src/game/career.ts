@@ -21,8 +21,8 @@ export const ACHIEVEMENTS: Record<AchievementKey, { name: string; desc: string }
   liga: { name: 'Campeão nacional', desc: 'Ganhe a primeira divisão do seu país.' },
   acesso: { name: 'Acesso!', desc: 'Suba de divisão.' },
   copa: { name: 'Rei de copas', desc: 'Ganhe a Copa Nacional.' },
-  continental: { name: 'Campeão dos campeões', desc: 'Ganhe a Copa dos Campeões.' },
-  triplice: { name: 'Tríplice coroa', desc: 'Liga, Copa Nacional e Copa dos Campeões na mesma temporada.' },
+  continental: { name: 'Campeão dos campeões', desc: 'Ganhe a Liga dos Campeões ou a Libertadores.' },
+  triplice: { name: 'Tríplice coroa', desc: 'Liga, copa nacional e Liga dos Campeões (ou Libertadores) na mesma temporada.' },
   venda50: { name: 'Negociante', desc: 'Venda um jogador por R$ 50 mi ou mais.' },
   contratacao30: { name: 'Contratação de peso', desc: 'Contrate um jogador por R$ 30 mi ou mais.' },
   cria: { name: 'Cria da casa', desc: 'Um jogador revelado na sua base chega a 75 de overall.' },
@@ -30,7 +30,7 @@ export const ACHIEVEMENTS: Record<AchievementKey, { name: string; desc: string }
   caixa100: { name: 'Cofre cheio', desc: 'Chegue a R$ 100 mi em caixa.' },
   meta3: { name: 'Homem de confiança', desc: 'Cumpra a meta da diretoria 3 temporadas seguidas.' },
   veterano: { name: 'Veterano', desc: 'Complete 5 temporadas como treinador.' },
-  nacoes: { name: 'Orgulho nacional', desc: 'Tenha um jogador campeão da Copa das Nações.' },
+  nacoes: { name: 'Orgulho nacional', desc: 'Tenha um jogador campeão da Copa do Mundo.' },
 };
 export const ACHIEVEMENT_KEYS = Object.keys(ACHIEVEMENTS) as AchievementKey[];
 
@@ -218,7 +218,7 @@ export function seasonAchievements(w: World, ps: SeasonSummary, titles: Record<s
   if (mine.length) unlock(w, 'titulo');
   const league = ps.entry.champions[u.div] === u.id && divisionLevel(u.div) === 1;
   const cup = Object.entries(ps.entry.cups).some(([k, v]) => k.startsWith('cup:') && v === u.id);
-  const cont = ps.entry.cups.cont === u.id;
+  const cont = ps.entry.cups.cont === u.id || ps.entry.cups.lib === u.id;
   if (league) unlock(w, 'liga');
   if (cup) unlock(w, 'copa');
   if (cont) unlock(w, 'continental');

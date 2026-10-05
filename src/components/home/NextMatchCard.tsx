@@ -76,7 +76,7 @@ export function NextMatchCard() {
   const thisWeek = nf.week === w.week;
   const venue = nf.m.neutral ? "Campo neutro" : home ? "Em casa" : "Fora";
   const diff = myStr - oppStr;
-  const cont = nf.m.comp === "cont";
+  const cont = w.clubs[nf.m.h].league !== w.clubs[nf.m.a].league;
 
   return (
     <Card

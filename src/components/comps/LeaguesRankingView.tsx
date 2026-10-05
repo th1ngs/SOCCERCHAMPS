@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { Globe, Trophy } from "lucide-react";
-import { LEAGUES, leagueRanking, user } from "@/game";
+import { LEAGUES, isSouthAmerican, leagueRanking, user } from "@/game";
 import type { LeagueRankRow } from "@/game";
 import { Card } from "@/components/ui/primitives";
 import { Crest } from "@/components/ui/Crest";
@@ -39,7 +39,7 @@ function Row({ r, mine, min, max }: { r: LeagueRankRow; mine: boolean; min: numb
           <Globe className="size-3.5" aria-hidden /> {Math.round(r.foreign * 100)}% estrangeiros
         </span>
         <span className="inline-flex items-center gap-1">
-          <Trophy className="size-3.5" aria-hidden /> {r.contClubs} na Copa dos Campeões • {r.contTitles} {r.contTitles === 1 ? "título" : "títulos"}
+          <Trophy className="size-3.5" aria-hidden /> {r.contClubs} na {isSouthAmerican(r.id) ? "Libertadores" : "Liga dos Campeões"} • {r.contTitles} {r.contTitles === 1 ? "título" : "títulos"}
         </span>
       </span>
     </li>
@@ -71,7 +71,7 @@ export function LeaguesRankingView() {
         <ul className="space-y-3 text-sm leading-snug">
           <li>
             <b className="block">Elencos mais fortes</b>
-            <span className="text-mist">Clubes de ligas fortes têm jogadores melhores que clubes de mesma reputação em ligas fracas. Na Copa dos Campeões isso pesa.</span>
+            <span className="text-mist">Clubes de ligas fortes têm jogadores melhores que clubes de mesma reputação em ligas fracas. Nos continentais isso pesa.</span>
           </li>
           <li>
             <b className="block">Craques vão para ligas maiores</b>
@@ -82,8 +82,8 @@ export function LeaguesRankingView() {
             <span className="text-mist">Um clube de liga forte vale mais que um de mesma reputação numa liga fraca: isso decide quem aceita trocar de clube e quem recebe propostas de emprego.</span>
           </li>
           <li>
-            <b className="block">Vagas na Copa dos Campeões</b>
-            <span className="text-mist">Além do campeão de cada liga, as vagas restantes vão para os clubes de maior prestígio.</span>
+            <b className="block">Vagas nos continentais</b>
+            <span className="text-mist">Pela tabela da primeira divisão: as ligas mais fortes da Europa têm 4 vagas na Liga dos Campeões; Brasil e Argentina, 8 na Libertadores cada.</span>
           </li>
           <li>
             <b className="block">Formação e importação</b>

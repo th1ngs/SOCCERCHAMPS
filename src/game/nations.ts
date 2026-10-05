@@ -1,18 +1,29 @@
-// Copa das Nações: todas as nacionalidades se enfrentam entre uma temporada e outra,
-// a cada 4 anos (2026, 2030, …). Convocação automática dos 23 melhores de cada país, todos contra todos
-// em jogo único e final entre os dois primeiros. Os jogos não contam para os clubes.
+// Torneios de seleções entre uma temporada e outra (os jogos não contam para os clubes):
+// - Copa do Mundo a cada 4 anos (2026, 2030, …), com todas as seleções;
+// - Eurocopa dois anos depois de cada Copa (2028, 2032, …), com as seleções europeias;
+// - Liga das Nações nos anos ímpares, com todas as seleções.
+// Convocação automática dos 23 melhores de cada país, todos contra todos em jogo único e final entre os dois primeiros.
 import { addTitle, unlock } from './career';
 import { Sim } from './engine';
 import { DEFAULT_INSTRUCTIONS } from './tactics';
-import { LEAGUE_IDS, LEAGUES } from './leagues';
+import { LEAGUE_IDS, LEAGUES, SOUTH_AMERICA } from './leagues';
 import { autoLineup } from './squad';
-import type { Club, LeagueId, NationMatch, NationRow, NationsEdition, Player, Position, World } from './types';
+import type { Club, LeagueId, NationMatch, NationRow, NationsEdition, NationsKind, Player, Position, World } from './types';
 import { clamp } from './util';
 import { pushMessage, user } from './world';
 
-export const NATIONS_NAME = 'Copa das Nações';
-/** A primeira edição é no fim da temporada 2026; depois, a cada 4 temporadas. */
+export const NATIONS_NAME = 'Copa do Mundo';
+export const NATIONS_NAMES: Record<NationsKind, string> = { world: 'Copa do Mundo', euro: 'Eurocopa', league: 'Liga das Nações' };
+/** Nome de uma edição (saves antigos: Copa do Mundo). */
+export const editionName = (e: { kind?: NationsKind }): string => NATIONS_NAMES[e.kind ?? 'world'];
+/** A primeira Copa do Mundo é no fim da temporada 2026; depois, a cada 4 temporadas. */
 export const NATIONS_EVERY = 4;
+/** Torneio de seleções no fim de uma temporada (ou null). */
+export function nationsKindOf(season: number): NationsKind | null {
+  if (season < FIRST_SEASON) return null;
+  const k = (season - FIRST_SEASON) % NATIONS_EVERY;
+  return k === 0 ? 'world' : k === 2 ? 'euro' : 'league';
+}
 const FIRST_SEASON = 2026;
 const SQUAD: Record<Position, number> = { GOL: 3, ZAG: 4, LAT: 4, VOL: 3, MEI: 5, ATA: 4 };
 const SQUAD_SIZE = 23;
@@ -34,7 +45,8 @@ export const NATION_KITS: Record<LeagueId, { short: string; colors: [string, str
   gre: { short: 'GRE', colors: ['#1D4ED8', '#FFFFFF'], pattern: 'solid' },
 };
 
-export const isNationsSeason = (season: number): boolean => season >= FIRST_SEASON && (season - FIRST_SEASON) % NATIONS_EVERY === 0;
+/** Ano de Copa do Mundo? */
+export const isNationsSeason = (season: number): boolean => nationsKindOf(season) === 'world';
 /** Próxima temporada (a atual ou uma futura) em cujo fim há Copa das Nações. */
 export const nextNationsSeason = (season: number): number => {
   let s = Math.max(season, FIRST_SEASON);
@@ -90,10 +102,13 @@ function roundRobin(ids: LeagueId[]): [LeagueId, LeagueId][][] {
 
 /** Disputa a Copa das Nações da temporada `w.season` (chamado no início de newSeason). Devolve a edição ou null. */
 export function runNationsCup(w: World): NationsEdition | null {
-  if (!isNationsSeason(w.season) || w.nations?.some((e) => e.season === w.season)) return null;
+  const kind = nationsKindOf(w.season);
+  if (!kind || w.nations?.some((e) => e.season === w.season)) return null;
+  const NAME = NATIONS_NAMES[kind];
   const squads = {} as Record<LeagueId, string[]>;
-  for (const lg of LEAGUE_IDS) squads[lg] = callUp(w, lg);
-  const active = LEAGUE_IDS.filter((lg) => squads[lg].length >= 16);
+  const pool = kind === 'euro' ? LEAGUE_IDS.filter((lg) => !SOUTH_AMERICA.includes(lg)) : LEAGUE_IDS;
+  for (const lg of pool) squads[lg] = callUp(w, lg);
+  const active = pool.filter((lg) => squads[lg].length >= 16);
   if (active.length < 2) return null;
   // Seleções entram no mundo só durante o torneio.
   for (const lg of active) w.clubs[nationId(lg)] = nationClub(w, lg, squads[lg]);
@@ -137,32 +152,32 @@ export function runNationsCup(w: World): NationsEdition | null {
   for (const pid of winners) {
     const p = w.players[pid];
     if (!p || !p.clubId) continue;
-    addTitle(p, w.season, p.clubId, NATIONS_NAME);
+    addTitle(p, w.season, p.clubId, NAME);
     p.morale = clamp(p.morale + 8, 10, 100);
   }
   const scorers = [...goals.entries()]
     .map(([pid, n]) => ({ pid, name: w.players[pid]?.name ?? '?', nat: (w.players[pid]?.nat ?? 'bra') as LeagueId, goals: n }))
     .sort((a, b) => b.goals - a.goals)
     .slice(0, 5);
-  const edition: NationsEdition = { season: w.season, squads, table: rows, matches, champion, runnerUp, scorers };
+  const edition: NationsEdition = { season: w.season, kind, squads, table: rows, matches, champion, runnerUp, scorers };
   (w.nations ||= []).push(edition);
 
   // Aviso ao usuário, destacando os jogadores do clube dele.
   const u = user(w);
-  const mine = LEAGUE_IDS.flatMap((lg) => squads[lg]).filter((pid) => w.players[pid]?.clubId === u.id);
+  const mine = active.flatMap((lg) => squads[lg]).filter((pid) => w.players[pid]?.clubId === u.id);
   const mineChamps = winners.filter((pid) => w.players[pid]?.clubId === u.id);
-  if (mineChamps.length) unlock(w, 'nacoes');
+  if (mineChamps.length && kind === 'world') unlock(w, 'nacoes');
   const score = `${nationName(final.h)} ${final.hs} x ${final.as} ${nationName(final.a)}${final.pens ? ` (pênaltis ${final.pens[0]} x ${final.pens[1]})` : ''}`;
   const top = scorers[0];
   pushMessage(w, {
     kind: 'trophy',
-    title: `${NATIONS_NAME} ${w.season}: ${nationName(champion)} campeão!`,
+    title: `${NAME} ${w.season}: ${nationName(champion)} campeão!`,
     body: [
       `Final: ${score}.`,
       top ? `Artilheiro: ${top.name} (${nationName(top.nat)}), ${top.goals} gols.` : '',
       mine.length ? `Convocados do ${u.name}: ${mine.map((pid) => w.players[pid].name).join(', ')}.` : `Nenhum jogador do ${u.name} foi convocado.`,
       mineChamps.length ? `Campeões pelo clube: ${mineChamps.map((pid) => w.players[pid].name).join(', ')} (moral +8).` : '',
-      `Veja a campanha completa em Competições → ${NATIONS_NAME}.`,
+      `Veja a campanha completa em Competições → ${NAME}.`,
     ].filter(Boolean).join('\n'),
   });
   return edition;

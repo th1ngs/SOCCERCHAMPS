@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { Landmark, TrendingDown, TrendingUp } from "lucide-react";
-import { LEAGUES, financeProfile, formatMoney, user } from "@/game";
+import { LEAGUES, divisionName, financeProfile, formatMoney, user } from "@/game";
 import { Card, SectionTitle } from "@/components/ui/primitives";
 import { useWorld } from "@/components/game/GameProvider";
 import { cn } from "@/lib/cn";
@@ -49,7 +49,7 @@ export function BudgetCard() {
     <Card title="Orçamento semanal">
       <div className="mb-4 rounded-xl bg-ink-900/60 p-3 ring-1 ring-inset ring-white/6">
         <div className="flex items-baseline justify-between gap-3">
-          <span className="text-sm font-semibold">Teto salarial da diretoria</span>
+          <span className="text-sm font-semibold">Teto salarial da liga <span className="block text-xs font-normal text-mist">fixo para a {divisionName(u.div)}</span></span>
           <span className="font-display text-xl font-bold tabular">{formatMoney(f.wageCap)}/sem</span>
         </div>
         <div className="relative mt-2 h-3 overflow-hidden rounded-full bg-white/8" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(usage)} aria-label="Folha em relação ao teto">

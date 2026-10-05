@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, CircleCheck, CircleX, Goal, Star, Trophy } from "lucide-react";
-import { cupId, divisionFullName, divisionName, LEAGUE_IDS, LEAGUES, user } from "@/game";
+import { competitionName, cupId, divisionFullName, leagueCupId, superCupId, divisionName, LEAGUE_IDS, LEAGUES, user } from "@/game";
 import type { HistoryEntry, LeagueId } from "@/game/types";
 import { Card, EmptyState, SectionTitle } from "@/components/ui/primitives";
 import { Crest } from "@/components/ui/Crest";
@@ -20,8 +20,9 @@ function Row({ label, children }: { label: React.ReactNode; children: React.Reac
   );
 }
 
-/** Campeões de uma liga numa temporada: divisões e Copa Nacional. */
+/** Campeões de uma liga numa temporada: divisões e mata-matas da liga (copa, copa da liga, supercopa). */
 function LeagueChampions({ h, league }: { h: HistoryEntry; league: LeagueId }) {
+  const cups = [cupId(league), leagueCupId(league), superCupId(league)].filter((k) => k in h.cups);
   return (
     <>
       {LEAGUES[league].divisions.map((d) => (
@@ -29,9 +30,11 @@ function LeagueChampions({ h, league }: { h: HistoryEntry; league: LeagueId }) {
           <ClubTag id={h.champions[d]} size={16} />
         </Row>
       ))}
-      <Row label="Copa Nacional">
-        <ClubTag id={h.cups[cupId(league)]} size={16} />
-      </Row>
+      {cups.map((k) => (
+        <Row key={k} label={competitionName(k)}>
+          <ClubTag id={h.cups[k]} size={16} />
+        </Row>
+      ))}
     </>
   );
 }
@@ -76,9 +79,11 @@ function SeasonCard({ h }: { h: HistoryEntry }) {
         <LeagueName league={lg} /> • campeões
       </SectionTitle>
       <LeagueChampions h={h} league={lg} />
-      <Row label={<CompName comp="cont" />}>
-        <ClubTag id={h.cups.cont} size={16} flag />
-      </Row>
+      {(["cont", "lib", "eur2", "sud", "inter"] as const).filter((k) => k in h.cups).map((k) => (
+        <Row key={k} label={<CompName comp={k} />}>
+          <ClubTag id={h.cups[k]} size={16} flag />
+        </Row>
+      ))}
       <Row label={<span className="inline-flex items-center gap-1.5"><Goal className="size-3.5" aria-hidden /> Artilheiro ({divisionName(firstDiv)})</span>}>
         {scorer ? (
           <span className="flex min-w-0 items-center gap-1.5">

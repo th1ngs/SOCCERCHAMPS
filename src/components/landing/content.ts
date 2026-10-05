@@ -31,11 +31,11 @@ export const STATS = [
   { value: "35", label: "divisões" },
   { value: "700", label: "clubes fictícios" },
   { value: "17.000+", label: "jogadores" },
-  { value: "14", label: "copas por temporada" },
+  { value: "50+", label: "copas por temporada" },
 ];
 
 export const STEPS = [
   { title: "Escolha seu clube", text: "Comece num gigante cobrado por títulos ou num clube pequeno sonhando com o acesso, em qualquer uma das 13 ligas." },
   { title: "Monte o time", text: "Contrate na janela, revele garotos da base, defina escalação, capitão e estilo de jogo, e cuide das finanças." },
-  { title: "Faça história", text: "Assista às partidas ao vivo, dispute a Copa dos Campeões e leve seu nome ao Hall da Fama." },
+  { title: "Faça história", text: "Assista às partidas ao vivo, dispute estaduais, copas, Libertadores e Liga dos Campeões e leve seu nome ao Hall da Fama." },
 ];

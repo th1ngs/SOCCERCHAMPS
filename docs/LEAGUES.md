@@ -1,6 +1,7 @@
 # Ligas e divisões — contrato (World v3, expandido na v9)
 
 ## Expansão (World v9) — vale sobre o resto deste documento
+> Calendário de 55 semanas, novas copas, teto salarial fixo, patrocínio, metas e vagas (v10): veja `docs/COMPETICOES_E_GESTAO_V10.md`.
 - **20 clubes por divisão**, 38 rodadas (turno e returno) e **4 sobem / 4 caem** (`DIVISION_SIZE`, `LEAGUE_ROUNDS`, `PROMOTION_SPOTS`).
 - **Divisões:** Brasil 4 (Série D nova); Argentina, Portugal, Espanha, Inglaterra, Itália, Alemanha e França 3
   (Primera B, Liga 3, Primera Federación, Second Division, Serie C, 3. Liga, National); as demais 2. São 35 divisões e 700 clubes.
