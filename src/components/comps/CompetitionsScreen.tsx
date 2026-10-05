@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import { CalendarDays, ChartNoAxesColumn, Flag as FlagIcon, Goal, History, Trophy } from "lucide-react";
+import { Award, CalendarDays, ChartNoAxesColumn, Flag as FlagIcon, Goal, History, Trophy } from "lucide-react";
 import { CONT_SLOTS, LIB_SLOTS, competitionInfo, competitionName, cupId, divisionName, DIVISIONS, isSouthAmerican, isStateCup, knockoutStatus, leagueCupId, LEAGUE_IDS, LEAGUES, PROMOTION_SPOTS, DIVISION_SIZE, leagueRanking, leagueStars, leagueTier, superCupId, user } from "@/game";
 import type { DivisionId, KnockoutId, LeagueId } from "@/game/types";
 import { PageHeader } from "@/components/ui/primitives";
@@ -18,9 +18,10 @@ const FixturesView = dynamic(() => import("./FixturesView").then((m) => m.Fixtur
 const HistoryView = dynamic(() => import("./HistoryView").then((m) => m.HistoryView));
 const NationsView = dynamic(() => import("./NationsView").then((m) => m.NationsView));
 const StatesView = dynamic(() => import("./StatesView").then((m) => m.StatesView));
+const AwardsView = dynamic(() => import("./AwardsView").then((m) => m.AwardsView));
 const LeaguesRankingView = dynamic(() => import("./LeaguesRankingView").then((m) => m.LeaguesRankingView));
 
-type GlobalTab = "cont" | "ranking" | "nations" | "scorers" | "fixtures" | "history";
+type GlobalTab = "cont" | "ranking" | "nations" | "awards" | "scorers" | "fixtures" | "history";
 /** Escopo da tela: uma liga (com sub-abas) ou uma aba global. */
 export type CompScope = LeagueId | GlobalTab;
 /** Sub-aba de uma liga: uma divisão, um mata-mata da liga ou os estaduais (Brasil). */
@@ -32,6 +33,7 @@ const GLOBAL_SUBTITLE: Record<GlobalTab, string> = {
   cont: "Liga dos Campeões e Liga Europa (Europa), Libertadores e Sul-Americana (Brasil e Argentina) e a Copa Intercontinental entre os campeões.",
   ranking: "Qual liga tem os melhores elencos hoje: o nível do futebol muda o jogo, dos elencos às transferências.",
   nations: "Copa do Mundo, Eurocopa e Liga das Nações entre as temporadas: todos contra todos e final entre os dois primeiros.",
+  awards: "Jogador e Técnico do Mês da sua divisão e as Noites de Gala do fim de temporada.",
   scorers: "Os goleadores da temporada por divisão. Toque em um jogador para ver a ficha.",
   fixtures: "Seus jogos em todas as competições, semana a semana.",
   history: "Títulos do clube e campeões de cada temporada.",
@@ -75,6 +77,7 @@ export function CompetitionsScreen() {
     { value: "cont", group: true, label: <><Trophy aria-hidden /> Continentais</> },
     { value: "ranking", label: <><ChartNoAxesColumn aria-hidden /> Ranking das ligas</> },
     { value: "nations", label: <><FlagIcon aria-hidden /> Seleções</> },
+    { value: "awards", label: <><Award aria-hidden /> Prêmios</> },
     { value: "scorers", label: <><Goal aria-hidden /> Artilharia</> },
     { value: "fixtures", label: <><CalendarDays aria-hidden /> Calendário</> },
     { value: "history", label: <><History aria-hidden /> Histórico</> },
@@ -157,6 +160,8 @@ export function CompetitionsScreen() {
           <LeaguesRankingView />
         ) : scope === "nations" ? (
           <NationsView />
+        ) : scope === "awards" ? (
+          <AwardsView />
         ) : scope === "scorers" ? (
           <ScorersView />
         ) : scope === "fixtures" ? (

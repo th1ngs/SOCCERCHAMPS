@@ -813,6 +813,46 @@ export interface SeasonAwards {
   ranking?: AwardRankingEntry[];
 }
 
+/** Jogador e Técnico do Mês da divisão do usuário (v11). */
+export interface MonthAward {
+  id: string;
+  season: number;
+  /** 0-11 */
+  month: number;
+  year?: number;
+  div: DivisionId;
+  player: AwardPlayer;
+  nominees: AwardPlayer[];
+  young: AwardPlayer | null;
+  manager: { club: string; name: string; pts: number; j: number } | null;
+}
+/** Cerimônia esperando a tela: prêmio do mês ou comemoração de título (v11). */
+export type Ceremony = { kind: 'month'; id: string } | { kind: 'title'; comp: string; season: number; club: string };
+export type GalaIcon = 'trophy' | 'boot' | 'assist' | 'star' | 'sprout' | 'glove' | 'clipboard' | 'ball';
+export interface GalaNominee {
+  kind: 'player' | 'club' | 'coach';
+  /** Jogador, clube ou clube do técnico. */
+  id: string;
+  name: string;
+  club: string;
+  stat: string;
+  /** Posição (jogadores), para o avatar. */
+  pos?: Position;
+}
+/** Uma categoria da Noite de Gala: o primeiro indicado é o vencedor. */
+export interface GalaCategory {
+  key: string;
+  icon: GalaIcon;
+  title: string;
+  scope: 'league' | 'world';
+  nominees: GalaNominee[];
+}
+export interface Gala {
+  season: number;
+  div: DivisionId;
+  categories: GalaCategory[];
+}
+
 export interface AwardRankingEntry {
   player: AwardPlayer;
   points: number;
@@ -875,6 +915,8 @@ export interface SeasonSummary {
   contNext: string[];
   /** Classificados a cada continental da próxima temporada (v10). */
   qualified?: Partial<Record<'cont' | 'eur2' | 'lib' | 'sud', string[]>>;
+  /** Prêmios da Noite de Gala (v11). */
+  gala?: Gala;
   /** Clube maior interessado no treinador. */
   offer?: string;
 }
@@ -950,6 +992,13 @@ export interface World {
   teamTalk?: TeamTalk | null;
   /** Carreira de jogador (v8): o usuário é um jogador, e o clube dele é dirigido pela CPU. */
   playerCareer?: PlayerCareer | null;
+  /** Contagem do mês (Jogador do Mês), prêmios mensais, cerimônias pendentes e a última gala vista (v11). */
+  month?: { div: DivisionId; month: number; fromWeek: number; snap: Record<string, [number, number, number, number]> } | null;
+  monthAwards?: MonthAward[];
+  ceremonies?: Ceremony[];
+  galaSeen?: number;
+  /** Últimas Noites de Gala (para rever). */
+  galas?: Gala[];
   /** Vagas de treinador abertas e candidaturas do usuário (v10). */
   vacancies?: Vacancy[];
   applications?: JobApplication[];

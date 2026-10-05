@@ -8,6 +8,7 @@ import { CLUBS, TICKET_PRICES, injuryLabel } from './data';
 import { ATTR_KEYS } from './data';
 import { capFor, clubWages, sponsorValue, wageCapFor } from './finance';
 import { makeGoals } from './goals';
+import { startMonth } from './ceremonies';
 import { refreshVacancies } from './jobs';
 import { offerSponsors } from './sponsors';
 import { refreshScoutMarket, scoutStaff, seedScoutStaff } from './scouts';
@@ -213,6 +214,8 @@ export function migrateWorld(w: World): World {
       if (!w.vacancies) refreshVacancies(w);
     }
   }
+  // v11: Jogador do Mês (a contagem começa na migração) e cerimônias.
+  if ((lw.version ?? 0) < 11 && !w.playerCareer && !w.month && w.clubs[w.userClub]) startMonth(w);
   if (!(typeof lw.version === 'number' && lw.version >= WORLD_VERSION)) w.version = WORLD_VERSION;
   return w;
 }

@@ -94,7 +94,8 @@ const snapshot = (p: Player): AwardPlayer => ({
   avg: Math.round(avg(p) * 100) / 100,
 });
 
-function coachName(w: World, clubId: string): string {
+/** Nome do técnico de um clube (o do usuário é o próprio manager; os da CPU são gerados pelo id). */
+export function coachName(w: World, clubId: string): string {
   if (clubId === w.userClub && !w.playerCareer) return w.manager.name;
   const club = w.clubs[clubId];
   const names = NAMES_BY_NAT[club.league];

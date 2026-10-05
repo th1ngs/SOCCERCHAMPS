@@ -17,6 +17,7 @@ export * from './cups';
 export * from './sponsors';
 export * from './goals';
 export * from './jobs';
+export * from './ceremonies';
 export * from './renewals';
 export * from './finance';
 export * from './tactics';

@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { calendarDayLabel, competitionName, DAY_ACTIVITY, endWeek, simulateWeek, userMatch, weekLabel } from "@/game";
 import { useToast } from "@/components/ui/Toast";
 import { useWorld } from "./GameProvider";
+import { nextFlowOverlay } from "./ceremonyFlow";
 
 /** Fluxo diário: preparação de segunda a sábado, jogo no domingo. */
 export function useFlow() {
@@ -41,8 +42,10 @@ export function useFlow() {
     const before = w.inbox.length ? w.inbox[0].id : 0;
     const rep = endWeek(w);
     commit();
-    if (rep.seasonEnd) return setOverlay({ kind: "seasonEnd" });
-    if (w.fired) return setOverlay({ kind: "fired" });
+    if (rep.seasonEnd || w.fired) return setOverlay(nextFlowOverlay(w));
+    // Prêmio do mês ou título: a cerimônia abre antes de voltar ao jogo.
+    const flow = nextFlowOverlay(w);
+    if (flow) return setOverlay(flow);
     setOverlay(null);
     const fresh = w.inbox.filter((m) => m.id > before);
     const offers = fresh.filter((m) => m.offer).length;
@@ -52,7 +55,7 @@ export function useFlow() {
 
   const advance = useCallback(() => {
     if (w.fired && !w.pendingSeason) return setOverlay({ kind: "fired" });
-    if (w.pendingSeason) return setOverlay({ kind: "seasonEnd" });
+    if (w.pendingSeason) return setOverlay(nextFlowOverlay(w));
     if (w.week === 0) {
       endWeek(w);
       commit();

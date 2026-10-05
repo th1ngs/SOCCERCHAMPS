@@ -288,7 +288,7 @@ const adhoc = (w: World, h: string, a: string): Match => ({ id: 'chk' + h + a, h
 
 function runV2Checks(w: World): void {
   const u = user(w);
-  assert(w.version === WORLD_VERSION && WORLD_VERSION === 10, 'World v10');
+  assert(w.version === WORLD_VERSION && WORLD_VERSION === 11, 'World v11');
 
   // Características e Craque
   const all = Object.values(w.players);
@@ -886,6 +886,7 @@ function runV5Checks(): void {
   runV9Checks();
   runShapeChecks();
   runV10Checks();
+  runV11Checks();
   runPlayerCareerChecks();
   console.log(`finance ok: receita/sem 1ª div eng ${formatMoney(rev('eng'))}, bra ${formatMoney(rev('bra'))}, arg ${formatMoney(rev('arg'))}; teto ${formatMoney(u.wageCap)}`);
 }
@@ -1264,4 +1265,38 @@ function runV10Checks(): void {
   const mig = G.migrateWorld(old);
   assert(mig.version === WORLD_VERSION && mig.weeks.every((wk) => !wk || wk.type === 'league' || !!wk.comps) && !!mig.board.goals?.length && !!mig.sponsorOffers?.length, 'migração v10 na pré-temporada');
   console.log(`v10 ok: ${Object.keys(w.cups).length} copas, teto ${formatMoney(u.wageCap)}/sem, patrocínio ${perf.brand}, ${goals.length} metas, reputação ${rep}, candidatura: ${app.status}`);
+}
+
+/** Jogador/Técnico do Mês, cerimônias de título e Noite de Gala (World v11). */
+function runV11Checks(): void {
+  const w = freshWorld();
+  const u = user(w);
+  assert(w.month && w.month.div === u.div && Object.keys(w.month.snap).length > 300, 'contagem do mês começa na temporada');
+  const season = w.season;
+  let ps: G.SeasonSummary | null = null;
+  while (w.season === season) {
+    simulateWeek(w);
+    if (endWeek(w).seasonEnd) { ps = w.pendingSeason!; break; }
+  }
+  const months = w.monthAwards ?? [];
+  assert(months.length >= 11 && new Set(months.map((m) => m.id)).size === months.length, `${months.length} prêmios mensais com ids únicos`);
+  assert(months.every((m) => m.div === u.div && w.clubs[m.player.club]?.div === u.div && m.player.apps >= 2 && m.nominees[0].id === m.player.id), 'jogador do mês da divisão do usuário');
+  assert(months.every((m) => !m.manager || w.clubs[m.manager.club]?.div === u.div), 'técnico do mês da divisão do usuário');
+  assert((w.ceremonies ?? []).length <= 8 && (w.ceremonies ?? []).some((c) => c.kind === 'month'), 'fila de cerimônias limitada');
+  assert(w.inbox.some((m) => m.title.startsWith('Prêmios de ')), 'mensagem dos prêmios do mês');
+  const gala = ps!.gala!;
+  const keys = gala.categories.map((c) => c.key);
+  assert(['champion', 'scorer', 'craque', 'keeper', 'coach', 'ballon'].every((k) => keys.includes(k)) && keys[keys.length - 1] === 'ballon', `categorias da gala: ${keys.join(',')}`);
+  assert(gala.categories.every((c) => c.nominees.length >= 1 && c.nominees.length <= 3), 'indicados por categoria');
+  const champ = gala.categories.find((c) => c.key === 'champion')!.nominees[0];
+  assert(champ.id === ps!.tables[u.div][0].id, 'campeão da gala é o líder da tabela');
+  assert(!G.galaSeen(w), 'gala pendente');
+  G.markGalaSeen(w);
+  assert(G.galaSeen(w), 'gala vista');
+  while (G.nextCeremony(w)) G.popCeremony(w);
+  newSeason(w);
+  assert(w.galas?.some((g) => g.season === season) && w.month?.fromWeek === 1, 'gala guardada e mês recomeça na nova temporada');
+  G.celebrateTitle(w, 'cup:bra');
+  assert(G.nextCeremony(w)?.kind === 'title' && G.titleName('cup:bra') === 'Copa do Brasil', 'comemoração de título na fila');
+  console.log(`v11 ok: ${months.length} prêmios mensais, gala com ${gala.categories.length} categorias, Bola de Ouro: ${gala.categories.at(-1)!.nominees[0].name}`);
 }

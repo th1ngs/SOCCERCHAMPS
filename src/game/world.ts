@@ -18,6 +18,7 @@ import { potentialRange, processScoutQueue } from './scouting';
 import { refreshScoutMarket, scoutPayroll } from './scouts';
 import { renewalReminders } from './renewals';
 import { evaluateGoals, makeGoals } from './goals';
+import { buildGala, celebrateTitle, closeMonth, startMonth } from './ceremonies';
 import { VACANCY_EVERY, processApplications, refreshVacancies } from './jobs';
 import { offerSponsors, sponsorDeadline, sponsorGoal, sponsorNewSeason, sponsorTitle, sponsorWin } from './sponsors';
 import { checkChancePromises, expireTalks, generateTalks } from './talks';
@@ -172,6 +173,7 @@ export function startSeason(w: World): void {
   // Teto salarial fixo da divisão do usuário.
   if (!w.playerCareer) u.wageCap = capFor(w, u);
   refreshVacancies(w);
+  if (!w.playerCareer) startMonth(w);
   pushMessage(w, {
     kind: 'board',
     title: `Temporada ${w.season}: objetivo da diretoria`,
@@ -552,7 +554,11 @@ function closeKnockoutWeek(w: World, wk: Week): void {
       if (mine || comp === 'cont' || comp === 'lib' || comp === 'inter' || comp === cupId(u.league)) {
         pushMessage(w, { kind: mine ? 'trophy' : 'info', title: `${champ.name} é campeão ${compWith('de', name)}!`, body: mine ? 'Título! A torcida está em festa e a diretoria, radiante.' : `O ${champ.name} levantou a taça ${compWith('de', name)}.` });
       }
-      if (mine) { w.board.conf = clamp(w.board.conf + Math.round(20 * compWeight(comp)), 0, 100); sponsorTitle(w, name); }
+      if (mine) {
+        w.board.conf = clamp(w.board.conf + Math.round(20 * compWeight(comp)), 0, 100);
+        sponsorTitle(w, name);
+        if (!w.playerCareer) celebrateTitle(w, comp);
+      }
     }
   }
 }
@@ -686,6 +692,7 @@ export function endWeek(w: World): WeekReport {
   }
   if (w.week === WINDOWS[1][0]) aiListPlayers(w);
   if (w.week <= seasonWeeks(w)) renewalReminders(w);
+  if (!w.playerCareer) closeMonth(w, w.week > seasonWeeks(w));
   if (w.week > seasonWeeks(w)) {
     report.seasonEnd = seasonEnd(w);
   } else {
@@ -717,7 +724,7 @@ export function seasonEnd(w: World): SeasonSummary {
     t.forEach((r, i) => addMoney(w, r.id, Math.max(0, Math.round((17 - (i + 1)) * base * wealth)), 'prize'));
     champions[div] = t[0].id;
     w.clubs[t[0].id].trophies.push({ season: w.season, comp: competitionName(div) });
-    if (t[0].id === u.id && !w.playerCareer) sponsorTitle(w, competitionName(div));
+    if (t[0].id === u.id && !w.playerCareer) { sponsorTitle(w, competitionName(div)); celebrateTitle(w, div); }
     if (info.down) for (const r of t.slice(-PROMOTION_SPOTS)) moves.push({ club: r.id, from: div, to: info.down });
     if (info.up) for (const r of t.slice(0, PROMOTION_SPOTS)) moves.push({ club: r.id, from: div, to: info.up });
   }
@@ -773,6 +780,7 @@ export function seasonEnd(w: World): SeasonSummary {
     promoted: mine.filter((mv) => lvl(mv.to) < lvl(mv.from)).map((mv) => mv.club),
     relegated: mine.filter((mv) => lvl(mv.to) > lvl(mv.from)).map((mv) => mv.club),
     userPos, success, fired, scorers, best, contNext, qualified,
+    ...(w.playerCareer ? {} : { gala: buildGala(w, tables, awards) }),
   };
   if (w.playerCareer) { /* carreira de jogador: sem diretoria cobrando nem propostas de emprego */ }
   else if (fired) w.fired = { reason: `Objetivo não cumprido: a meta era ${w.board.label}, e o time terminou em ${userPos}º.` };
@@ -834,6 +842,7 @@ export function newSeason(w: World): void {
     for (const mv of ps.moves) if (w.clubs[mv.club]) w.clubs[mv.club].div = mv.to;
     if (ps.contNext && ps.contNext.length) w.contNext = ps.contNext;
     if (ps.qualified) w.qualified = ps.qualified;
+    if (ps.gala) { (w.galas ??= []).push(ps.gala); if (w.galas.length > 5) w.galas.shift(); }
   }
   w.pendingSeason = null;
   // Índice salarial: acompanha a evolução média dos elencos.
