@@ -44,13 +44,17 @@ export function jobChance(w: World, clubId: string): number {
 export const chanceLabel = (p: number): string => (p >= 0.7 ? 'Alta' : p >= 0.4 ? 'Média' : p >= 0.15 ? 'Baixa' : 'Remota');
 
 /** Clube em crise: posição bem pior que a esperada pela reputação. */
-function crisis(w: World, c: Club): number {
-  const t = table(w, c.div);
-  const pos = t.findIndex((r) => r.id === c.id) + 1;
-  const played = t.find((r) => r.id === c.id)?.j ?? 0;
-  if (!played) return 0;
-  const byRep = Object.values(w.clubs).filter((x) => x.div === c.div).sort((a, b) => b.rep - a.rep).findIndex((x) => x.id === c.id) + 1;
-  return pos - byRep;
+function crises(w: World): Map<string, number> {
+  const out = new Map<string, number>();
+  const byDiv = new Map<string, Club[]>();
+  for (const c of Object.values(w.clubs)) byDiv.set(c.div, [...(byDiv.get(c.div) ?? []), c]);
+  for (const [div, clubs] of byDiv) {
+    const t = table(w, div as Club['div']);
+    if (!t.some((r) => r.j > 0)) continue;
+    const byRep = clubs.slice().sort((a, b) => b.rep - a.rep).map((c) => c.id);
+    t.forEach((r, i) => out.set(r.id, i + 1 - (byRep.indexOf(r.id) + 1)));
+  }
+  return out;
 }
 
 /** Renova o quadro de vagas: clubes em crise primeiro (técnico demitido) e algumas saídas por outros motivos. */
@@ -59,9 +63,10 @@ export function refreshVacancies(w: World): void {
   const keep = (w.vacancies ?? []).filter((v) => w.clubs[v.club] && v.club !== w.userClub && (w.applications ?? []).some((a) => a.club === v.club && a.status === 'pending'));
   const taken = new Set([w.userClub, ...keep.map((v) => v.club)]);
   const clubs = Object.values(w.clubs).filter((c) => !taken.has(c.id) && isDivision(c.div));
-  const crises = clubs.map((c) => ({ c, k: crisis(w, c) })).filter((x) => x.k >= 5).sort((a, b) => b.k - a.k).slice(0, 5);
+  const crisisOf = crises(w);
+  const worst = clubs.map((c) => ({ c, k: crisisOf.get(c.id) ?? 0 })).filter((x) => x.k >= 5).sort((a, b) => b.k - a.k).slice(0, 5);
   const out: Vacancy[] = keep.slice();
-  for (const { c } of crises) out.push({ club: c.id, reason: 'Técnico demitido após a má campanha', season: w.season, week: w.week });
+  for (const { c } of worst) out.push({ club: c.id, reason: 'Técnico demitido após a má campanha', season: w.season, week: w.week });
   const reasons = ['Técnico aceitou proposta de outro clube', 'Técnico pediu demissão', 'Fim de ciclo: a diretoria quer um novo projeto', 'Técnico se aposentou'];
   const near = shuffle(clubs.filter((c) => !out.some((v) => v.club === c.id) && Math.abs(prestigeOf(c) - prestigeOf(user(w))) <= 18));
   for (const c of near) {

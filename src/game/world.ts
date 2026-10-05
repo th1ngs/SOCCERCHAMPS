@@ -19,6 +19,10 @@ import { refreshScoutMarket, scoutPayroll } from './scouts';
 import { renewalReminders } from './renewals';
 import { evaluateGoals, makeGoals } from './goals';
 import { buildGala, celebrateTitle, closeMonth, startMonth } from './ceremonies';
+import { fansDerby, fansTitle, fansWeek } from './fans';
+import { settlePress } from './press';
+import { ensureRecords, recordsSeasonEnd, recordsWeek } from './champrecords';
+import { callupWeek, playYouthRound, startYouthLeagues, youthCallups } from './youthcomp';
 import { VACANCY_EVERY, processApplications, refreshVacancies } from './jobs';
 import { offerSponsors, sponsorDeadline, sponsorGoal, sponsorNewSeason, sponsorTitle, sponsorWin } from './sponsors';
 import { checkChancePromises, expireTalks, generateTalks } from './talks';
@@ -67,7 +71,7 @@ export const injuryWeeks = (weeks: number, trainingLvl: number): number =>
 /** Adiciona uma mensagem à caixa de entrada (era M.msg). */
 export function pushMessage(w: World, m: MessageInput): void {
   w.inbox.unshift({ id: w.nextMsg++, season: w.season, week: w.week, read: false, kind: 'info', ...m });
-  if (w.inbox.length > 80) w.inbox.length = 80;
+  if (w.inbox.length > 150) w.inbox.length = 150;
 }
 
 export const user = (w: World): Club => w.clubs[w.userClub];
@@ -173,7 +177,8 @@ export function startSeason(w: World): void {
   // Teto salarial fixo da divisão do usuário.
   if (!w.playerCareer) u.wageCap = capFor(w, u);
   refreshVacancies(w);
-  if (!w.playerCareer) startMonth(w);
+  if (!w.playerCareer) { startMonth(w); startYouthLeagues(w); }
+  ensureRecords(w);
   pushMessage(w, {
     kind: 'board',
     title: `Temporada ${w.season}: objetivo da diretoria`,
@@ -454,6 +459,7 @@ export function applyResult(w: World, m: Match, res: MatchResult): void {
   if (derby && clubsIds.includes(w.userClub)) {
     const s = m.h === w.userClub ? 0 : 1;
     w.board.conf = clamp(w.board.conf + (winner === s ? DERBY_BOARD : winner === 1 - s ? -DERBY_BOARD : 0), 0, 100);
+    if (winner === s) fansDerby(w, s === 0 ? m.a : m.h, true);
   }
 }
 
@@ -468,7 +474,8 @@ export function simMatch(w: World, m: Match, opts: SimOptions = {}): Sim {
 export function simulateWeek(w: World): void {
   const wk = currentWeek(w);
   if (!wk) return;
-  for (const m of wk.matches) if (!m.played) simMatch(w, m);
+  for (const m of wk.matches) if (!m.played) simMatch(w, m, m.h === w.userClub || m.a === w.userClub ? {} : { fast: true });
+  if (wk.type === 'league' && !w.playerCareer) playYouthRound(w, wk.round, leagueRounds(w));
 }
 
 // ---------- Evolução ----------
@@ -496,8 +503,18 @@ function develop(p: Player, club: Club | undefined, share = 1): void {
 const DAILY_RECOVERY = [0.3, 0.1, 0.1, 0.25, 0.1, 0.15];
 
 function processCalendarDay(w: World, day: number): void {
-  if (day >= 6) return;
-  const trainingDay = DAY_ACTIVITY[day] === 'Treino';
+  processCalendarDays(w, day, day + 1);
+}
+
+/**
+ * Dias de preparação [from, to) numa passada só pelos jogadores (o fim de semana da CPU processa os seis dias
+ * de uma vez): recuperação somada, evolução pelos dias de treino e chance de lesão acumulada.
+ */
+function processCalendarDays(w: World, from: number, to: number): void {
+  to = Math.min(to, 6);
+  if (from >= to) return;
+  let recovery = 0, trainingDays = 0;
+  for (let d = from; d < to; d++) { recovery += DAILY_RECOVERY[d]; if (DAY_ACTIVITY[d] === 'Treino') trainingDays++; }
   const ownerOf: Record<string, Club> = {};
   for (const club of Object.values(w.clubs)) {
     for (const id of club.squad) ownerOf[id] = club;
@@ -509,11 +526,13 @@ function processCalendarDay(w: World, day: number): void {
   for (const p of Object.values(w.players)) {
     const club = ownerOf[p.id];
     const tr = club ? TRAINING[club.trainingInt] : TRAINING.mid;
-    const rec = clamp(0.8 + attr(p, 'fol') / 250, 0.9, 1.2) + (hasTrait(p, 'motorzinho') ? 0.08 : 0);
-    p.fitness = clamp(p.fitness + tr.recover * DAILY_RECOVERY[day] * rec, 0, 100);
-    if (!trainingDay) continue;
-    develop(p, club, devShare);
-    if (club && !p.youth && !p.inj && chance(0.0035 * tr.injury / 3)) {
+    if (p.fitness < 100) {
+      const rec = clamp(0.8 + attr(p, 'fol') / 250, 0.9, 1.2) + (hasTrait(p, 'motorzinho') ? 0.08 : 0);
+      p.fitness = clamp(p.fitness + tr.recover * recovery * rec, 0, 100);
+    }
+    if (!trainingDays) continue;
+    develop(p, club, devShare * trainingDays);
+    if (club && !p.youth && !p.inj && chance(1 - Math.pow(1 - 0.0035 * tr.injury / 3, trainingDays))) {
       const sev = randi(1, 3);
       p.inj = injuryWeeks(sev, club.training);
       p.injType = injuryLabel(sev);
@@ -557,7 +576,7 @@ function closeKnockoutWeek(w: World, wk: Week): void {
       if (mine) {
         w.board.conf = clamp(w.board.conf + Math.round(20 * compWeight(comp)), 0, 100);
         sponsorTitle(w, name);
-        if (!w.playerCareer) celebrateTitle(w, comp);
+        if (!w.playerCareer) { celebrateTitle(w, comp); fansTitle(w, comp, name); }
       }
     }
   }
@@ -569,10 +588,11 @@ export function endWeek(w: World): WeekReport {
   const report: WeekReport = { news: [] };
 
   // Chamadas diretas do motor (CPU/testes/saves antigos) completam a preparação.
-  for (let day = w.day ?? 0; day < 6; day++) processCalendarDay(w, day);
+  processCalendarDays(w, w.day ?? 0, 6);
   w.day = 0;
 
   if (wk && wk.type !== 'league') closeKnockoutWeek(w, wk);
+  if (wk && wk.type === 'league') recordsWeek(w, wk, (d) => table(w, d));
 
   // Jogadores
   const ownerOf: Record<string, Club> = {};
@@ -603,8 +623,8 @@ export function endWeek(w: World): WeekReport {
   const ownerWages: Record<string, number> = {};
   for (const p of Object.values(w.players)) {
     if (p.loan) ownerWages[p.loan.from] = (ownerWages[p.loan.from] || 0) + p.wage * (1 - p.loan.wageShare);
-    // A multa acompanha a valorização: nunca fica abaixo de 1,8× o valor atual.
-    if (p.clubId && p.contract > 0 && !p.youth) {
+    // A multa acompanha a valorização: nunca fica abaixo de 1,8× o valor atual (conferida a cada 4 semanas).
+    if (w.week % 4 === 0 && p.clubId && p.contract > 0 && !p.youth) {
       const v = valueOf(p);
       if (p.releaseClause < v * RELEASE_MIN_MULT) p.releaseClause = Math.round((v * 2.5) / 10000) * 10000;
     }
@@ -692,7 +712,12 @@ export function endWeek(w: World): WeekReport {
   }
   if (w.week === WINDOWS[1][0]) aiListPlayers(w);
   if (w.week <= seasonWeeks(w)) renewalReminders(w);
-  if (!w.playerCareer) closeMonth(w, w.week > seasonWeeks(w));
+  if (!w.playerCareer) {
+    settlePress(w);
+    fansWeek(w);
+    if (w.week === callupWeek(w)) youthCallups(w);
+    closeMonth(w, w.week > seasonWeeks(w));
+  }
   if (w.week > seasonWeeks(w)) {
     report.seasonEnd = seasonEnd(w);
   } else {
@@ -724,7 +749,7 @@ export function seasonEnd(w: World): SeasonSummary {
     t.forEach((r, i) => addMoney(w, r.id, Math.max(0, Math.round((17 - (i + 1)) * base * wealth)), 'prize'));
     champions[div] = t[0].id;
     w.clubs[t[0].id].trophies.push({ season: w.season, comp: competitionName(div) });
-    if (t[0].id === u.id && !w.playerCareer) { sponsorTitle(w, competitionName(div)); celebrateTitle(w, div); }
+    if (t[0].id === u.id && !w.playerCareer) { sponsorTitle(w, competitionName(div)); celebrateTitle(w, div); fansTitle(w, div, competitionName(div)); }
     if (info.down) for (const r of t.slice(-PROMOTION_SPOTS)) moves.push({ club: r.id, from: div, to: info.down });
     if (info.up) for (const r of t.slice(0, PROMOTION_SPOTS)) moves.push({ club: r.id, from: div, to: info.up });
   }
@@ -767,6 +792,7 @@ export function seasonEnd(w: World): SeasonSummary {
     user: { club: u.id, league: u.league, div: u.div, pos: userPos, objective: w.board.label, success, goals: extra.results.map((r) => ({ label: r.label, ok: r.ok })) },
   };
   w.history.push(entry);
+  recordsSeasonEnd(w, champions);
 
   const qualified = continentalQualifiers(w, tables);
   w.qualified = qualified;

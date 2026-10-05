@@ -13,6 +13,7 @@ import { LoanCard } from "./LoanCard";
 import { CareerCard } from "./CareerCard";
 import { CloudCard } from "./CloudCard";
 import { SponsorCard } from "./SponsorCard";
+import { FansCard } from "./FansCard";
 import { BoardCard } from "@/components/home/BoardCard";
 
 /** Clube: finanças, estrutura, treino, ingressos, empréstimo, diretoria, carreira e nuvem. */
@@ -42,6 +43,7 @@ export function ClubScreen() {
       <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
         {w.sponsorOffers?.length ? <SponsorCard /> : null}
         <BoardCard />
+        <FansCard />
         <BudgetCard />
         <SeasonFinancesCard />
         {!w.sponsorOffers?.length && <SponsorCard />}

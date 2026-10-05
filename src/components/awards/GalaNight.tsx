@@ -127,11 +127,11 @@ export function GalaNight({ gala, onDone }: { gala: Gala; onDone: () => void }) 
       {/* Palco: fundo, holofotes e piso */}
       <div aria-hidden className="pointer-events-none fixed inset-0">
         <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 50% 15%, #3b1d5c 0%, #160d2b 45%, #07050f 100%)" }} />
-        <div className="animate-spot-sweep absolute -top-10 left-[12%] h-[120vh] w-40 origin-top bg-gradient-to-b from-gold-200/30 to-transparent blur-md [clip-path:polygon(40%_0,60%_0,100%_100%,0_100%)]" />
+        <div className="animate-spot-sweep absolute -top-10 left-[12%] h-[120vh] w-40 origin-top bg-gradient-to-b from-gold-300/30 to-transparent blur-md [clip-path:polygon(40%_0,60%_0,100%_100%,0_100%)]" />
         <div className="animate-spot-sweep absolute -top-10 right-[12%] h-[120vh] w-40 origin-top bg-gradient-to-b from-sky-200/25 to-transparent blur-md [clip-path:polygon(40%_0,60%_0,100%_100%,0_100%)]" style={{ animationDelay: "-2.5s" }} />
         <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#2a1440] to-transparent" />
         {Array.from({ length: 14 }, (_, i) => (
-          <span key={i} className="animate-sparkle absolute size-1.5 rounded-full bg-gold-200" style={{ left: `${(i * 37) % 100}%`, top: `${(i * 53) % 90}%`, animationDelay: `${(i % 7) * 0.3}s` }} />
+          <span key={i} className="animate-sparkle absolute size-1.5 rounded-full bg-gold-300" style={{ left: `${(i * 37) % 100}%`, top: `${(i * 53) % 90}%`, animationDelay: `${(i % 7) * 0.3}s` }} />
         ))}
       </div>
 
@@ -180,7 +180,7 @@ export function GalaNight({ gala, onDone }: { gala: Gala; onDone: () => void }) 
                 </ul>
                 {phase.step === "envelope" && (
                   <div className="mt-8 flex flex-col items-center">
-                    <div className="animate-envelope-shake relative grid h-24 w-36 place-items-center rounded-lg bg-gradient-to-br from-gold-200 to-gold-500 shadow-[0_10px_40px_rgb(250_204_21/0.35)]">
+                    <div className="animate-envelope-shake relative grid h-24 w-36 place-items-center rounded-lg bg-gradient-to-br from-gold-300 to-gold-500 shadow-[0_10px_40px_rgb(250_204_21/0.35)]">
                       <span aria-hidden className="absolute inset-x-0 top-0 h-12 origin-top bg-gold-300 [clip-path:polygon(0_0,100%_0,50%_100%)]" />
                       <Mail className="relative size-8 text-ink-950/70" aria-hidden />
                     </div>

@@ -213,3 +213,15 @@ body {
   .animate-curtain-left, .animate-curtain-right { animation-duration: 0.01s; animation-delay: 0s; }
   .animate-spot-sweep, .animate-shimmer-text, .animate-envelope-shake, .animate-reveal-flip, .animate-trophy-lift, .animate-glow-pulse, .animate-sparkle { animation: none; }
 }
+
+/* Coletiva de imprensa: flashes das câmeras */
+@keyframes press-flash { 0%, 100% { opacity: 0; } 4% { opacity: 1; } 10% { opacity: 0; } 55% { opacity: 0; } 58% { opacity: 0.8; } 62% { opacity: 0; } }
+.press-flash { opacity: 0; animation: press-flash 3.2s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { .press-flash { animation: none; } }
+
+/* Recorde quebrado: a placa racha e o número antigo é riscado */
+@keyframes record-crack { from { stroke-dashoffset: 260; } to { stroke-dashoffset: 0; } }
+.record-crack { fill: none; stroke: rgb(250 204 21 / 0.55); stroke-width: 1.6; stroke-dasharray: 260; stroke-dashoffset: 260; animation: record-crack 0.7s 0.6s ease-out forwards; }
+@keyframes record-strike { from { transform: scaleX(0) rotate(-6deg); } to { transform: scaleX(1) rotate(-6deg); } }
+.record-strike { transform-origin: left center; transform: scaleX(0) rotate(-6deg); animation: record-strike 0.45s 0.5s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) { .record-crack, .record-strike { animation: none; stroke-dashoffset: 0; transform: rotate(-6deg); } }

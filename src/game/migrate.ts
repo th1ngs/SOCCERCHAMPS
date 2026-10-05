@@ -8,16 +8,20 @@ import { CLUBS, TICKET_PRICES, injuryLabel } from './data';
 import { ATTR_KEYS } from './data';
 import { capFor, clubWages, sponsorValue, wageCapFor } from './finance';
 import { makeGoals } from './goals';
+import { unpackWorld } from './pack';
 import { startMonth } from './ceremonies';
 import { refreshVacancies } from './jobs';
 import { offerSponsors } from './sponsors';
 import { refreshScoutMarket, scoutStaff, seedScoutStaff } from './scouts';
+import { ensureRecords } from './champrecords';
+import { torcida } from './fans';
+import { startYouthLeagues } from './youthcomp';
 import { MIN_COMPATIBLE_VERSION, WORLD_VERSION, youthWage, meanSquadOvr, rollAttrs, rollStar, rollTraits, seedMissingClubs, valueOf } from './gen';
 import { DIVISIONS, LEAGUES } from './leagues';
 import { pickCaptain, pickFkTaker, pickPenTaker } from './squad';
 import { DEFAULT_INSTRUCTIONS } from './tactics';
-import type { Club, Player, World } from './types';
-import { pushMessage, rebalanceDivisions, startSeason } from './world';
+import type { Club, Match, Player, World } from './types';
+import { pushMessage, rebalanceDivisions, seasonWeeks, startSeason } from './world';
 
 /** Save de uma versão antiga (sem ligas) ou malformado. */
 export class IncompatibleSaveError extends Error {
@@ -72,7 +76,54 @@ function repairRemainingMandos(w: World): void {
       update(match.a, false);
     }
   }
+  breakLongRuns(w);
   w.scheduleRevision = 1;
+}
+
+/**
+ * Passada final: o returno espelha o turno, então na virada podem sobrar 4 mandos iguais seguidos. Inverte os dois
+ * jogos de um confronto (ida e volta ainda não disputadas) quando isso encurta a sequência sem piorar a de ninguém.
+ */
+function breakLongRuns(w: World): void {
+  const seq = new Map<string, Match[]>();
+  const pairs = new Map<string, Match[]>();
+  const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+  for (const week of w.weeks) {
+    if (!week || week.type !== 'league') continue;
+    for (const m of week.matches) {
+      if (!(m.comp in DIVISIONS)) continue;
+      for (const id of [m.h, m.a]) seq.set(id, [...(seq.get(id) ?? []), m]);
+      const k = pairKey(m.h, m.a);
+      pairs.set(k, [...(pairs.get(k) ?? []), m]);
+    }
+  }
+  const maxRun = (id: string): number => {
+    let best = 0, run = 0, prev: boolean | null = null;
+    for (const m of seq.get(id) ?? []) {
+      if (m.played) { run = 0; prev = null; continue; }
+      const home = m.h === id;
+      run = home === prev ? run + 1 : 1;
+      prev = home;
+      best = Math.max(best, run);
+    }
+    return best;
+  };
+  for (let iter = 0; iter < 4; iter++) {
+    let changed = false;
+    for (const id of seq.keys()) {
+      if (maxRun(id) <= 3) continue;
+      for (const m of seq.get(id) ?? []) {
+        const legs = pairs.get(pairKey(m.h, m.a)) ?? [];
+        if (m.played || legs.length !== 2 || legs.some((x) => x.played)) continue;
+        const other = m.h === id ? m.a : m.h;
+        const before = Math.max(maxRun(id), maxRun(other));
+        for (const x of legs) [x.h, x.a] = [x.a, x.h];
+        if (Math.max(maxRun(id), maxRun(other)) < before || maxRun(id) <= 3 && maxRun(other) <= 3) { changed = true; break; }
+        for (const x of legs) [x.h, x.a] = [x.a, x.h];
+      }
+    }
+    if (!changed) break;
+  }
 }
 
 /** O save pode ser carregado por esta versão do motor (v3+, todos os clubes com liga e divisão válidas)? */
@@ -135,6 +186,7 @@ export function migrateWorld(w: World): World {
     const v = isObj(w) && typeof (w as Loose<World>).version === 'number' ? (w as Loose<World>).version ?? null : null;
     throw new IncompatibleSaveError(v);
   }
+  unpackWorld(w);
   const lw = w as Loose<World>;
   if (typeof lw.day !== 'number' || lw.day < 0 || lw.day > 6) w.day = 0;
   if (lw.scheduleRevision !== 1 && Array.isArray(w.weeks)) repairRemainingMandos(w);
@@ -216,6 +268,18 @@ export function migrateWorld(w: World): World {
   }
   // v11: Jogador do Mês (a contagem começa na migração) e cerimônias.
   if ((lw.version ?? 0) < 11 && !w.playerCareer && !w.month && w.clubs[w.userClub]) startMonth(w);
+  // v12: torcida organizada, campeonatos e seleções de base, coletivas e recordes do campeonato.
+  if ((lw.version ?? 0) < 12 && w.clubs[w.userClub]) {
+    w.youthCallups ??= [];
+    w.press ??= [];
+    w.recordBreaks ??= [];
+    if (!w.playerCareer) {
+      torcida(w);
+      // Campeonatos de base só começam no meio do caminho se ainda há rodadas pela frente.
+      if (!w.youthLeagues && w.week <= Math.round(seasonWeeks(w) / 3)) startYouthLeagues(w);
+    }
+    ensureRecords(w);
+  }
   if (!(typeof lw.version === 'number' && lw.version >= WORLD_VERSION)) w.version = WORLD_VERSION;
   return w;
 }

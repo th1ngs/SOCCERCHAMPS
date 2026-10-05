@@ -11,6 +11,7 @@ import { gzipSync } from 'node:zlib';
 import { seasonAwards } from '../src/game/awards';
 import { postMatchInsights } from '../src/components/match/postMatch';
 import { calendarHighlights } from '../src/components/home/calendarEvents';
+import { isDeepStrictEqual } from 'node:util';
 import * as G from '../src/game';
 import {
   CLUBS, DIVISIONS, DIVISION_IDS, DIVISION_SIZE, LEAGUE_ROUNDS, PROMOTION_SPOTS, IncompatibleSaveError, LEAGUES, LEAGUE_IDS, LOAN_OPTIONS, Sim, TRAITS,
@@ -288,7 +289,7 @@ const adhoc = (w: World, h: string, a: string): Match => ({ id: 'chk' + h + a, h
 
 function runV2Checks(w: World): void {
   const u = user(w);
-  assert(w.version === WORLD_VERSION && WORLD_VERSION === 11, 'World v11');
+  assert(w.version === WORLD_VERSION && WORLD_VERSION === 12, 'World v12');
 
   // Características e Craque
   const all = Object.values(w.players);
@@ -714,9 +715,12 @@ function runV4Checks(): void {
   console.log(`counterOffer ok: walkout / improved ${formatMoney(im.fee ?? 0)} / accepted ${formatMoney(ceilC)}`);
 
   // ---- lista de observação ----
-  const wp = others.find((p) => ![li.id, li2.id, target.id, nt.id, bt.id, cl.id].includes(p.id) && p.clubId !== buyer.id) as G.Player;
+  // Só jogadores de outro clube de verdade (emprestados pelo usuário são dele) e fora da lista de venda: quem já
+  // está listado quando entra na observação não muda de estado, então não há aviso a dar.
+  const watchable = (p: G.Player) => !!p.clubId && p.clubId !== u.id && p.clubId !== buyer.id && !p.loan && !p.listed && !G.isOwnPlayer(w, p);
+  const wp = others.find((p) => ![li.id, li2.id, target.id, nt.id, bt.id, cl.id].includes(p.id) && watchable(p)) as G.Player;
   assert(G.toggleWatch(w, wp.id) && w.watchlist.includes(wp.id), 'toggleWatch liga');
-  const wp2 = others.find((p) => p.id !== wp.id && ![li.id, li2.id, target.id, nt.id, bt.id, cl.id].includes(p.id) && p.clubId !== buyer.id) as G.Player;
+  const wp2 = others.find((p) => p.id !== wp.id && ![li.id, li2.id, target.id, nt.id, bt.id, cl.id].includes(p.id) && watchable(p)) as G.Player;
   G.toggleWatch(w, wp2.id);
   assert(!G.toggleWatch(w, wp2.id) && !w.watchlist.includes(wp2.id), 'toggleWatch desliga');
   wp.listed = true;
@@ -730,7 +734,7 @@ function runV4Checks(): void {
   // A CPU pode vender o observado na mesma semana (venda em crise): aí o aviso é de troca de clube.
   // Se a CPU tirou o jogador da lista (ou ele saiu do mundo) antes do fechamento da semana, não há aviso a dar.
   const wpNow = w.players[wp.id];
-  assert(!wpNow || !wpNow.listed || w.inbox.some((m) => m.id >= idBefore && m.pid === wp.id && /lista de venda|trocou de clube|sem clube/.test(m.body)), 'aviso: entrou na lista de venda (ou trocou de clube)');
+  assert(!wpNow || !wpNow.listed || w.inbox.some((m) => m.id >= idBefore && m.pid === wp.id && /lista de venda|trocou de clube|sem clube/.test(m.body)), `aviso: entrou na lista de venda (ou trocou de clube) [msgs novas ${w.nextMsg - idBefore}, inbox ${w.inbox.length}, listed ${wpNow?.listed}, clube ${wpNow?.clubId}, watch ${w.watchlist.includes(wp.id)}]`);
   const dest = Object.values(w.clubs).find((c) => c.id !== u.id && c.id !== wp.clubId && c.squad.length < 30) as G.Club;
   G.transfer(w, wp.id, dest.id, 0, true);
   const id2 = w.nextMsg;
@@ -887,6 +891,7 @@ function runV5Checks(): void {
   runShapeChecks();
   runV10Checks();
   runV11Checks();
+  runV12Checks();
   runPlayerCareerChecks();
   console.log(`finance ok: receita/sem 1ª div eng ${formatMoney(rev('eng'))}, bra ${formatMoney(rev('bra'))}, arg ${formatMoney(rev('arg'))}; teto ${formatMoney(u.wageCap)}`);
 }
@@ -1299,4 +1304,84 @@ function runV11Checks(): void {
   G.celebrateTitle(w, 'cup:bra');
   assert(G.nextCeremony(w)?.kind === 'title' && G.titleName('cup:bra') === 'Copa do Brasil', 'comemoração de título na fila');
   console.log(`v11 ok: ${months.length} prêmios mensais, gala com ${gala.categories.length} categorias, Bola de Ouro: ${gala.categories.at(-1)!.nominees[0].name}`);
+}
+
+/** Torcida, campeonatos e seleções de base, coletivas, recordes do campeonato e save compacto (World v12). */
+function runV12Checks(): void {
+  const w = freshWorld();
+  const u = user(w);
+  // Save compacto: ida e volta sem perder nada.
+  // (fitness e moral são gravados com 1 casa decimal)
+  const ref = JSON.parse(JSON.stringify(w)) as World;
+  for (const p of Object.values(ref.players)) { p.fitness = Math.round(p.fitness * 10) / 10; p.morale = Math.round(p.morale * 10) / 10; }
+  const packed = JSON.parse(JSON.stringify(G.packWorld(w))) as World;
+  assert(JSON.stringify(packed).length < JSON.stringify(ref).length * 0.85, 'save compacto menor');
+  G.unpackWorld(packed);
+  assert(isDeepStrictEqual(packed, ref), 'packWorld/unpackWorld ida e volta');
+
+  assert(w.youthLeagues?.season === w.season && G.YOUTH_CATS.every((c) => w.youthLeagues!.cats[c].table.length === Object.values(w.clubs).filter((x) => x.div === u.div).length), 'campeonatos de base montados');
+  const recs = w.champRecords?.[u.div];
+  assert(recs && Object.keys(recs.allTime).length >= 8 && recs.biggestWin.value > 500 && Object.keys(recs.titles).length > 0, 'recordes semeados com o passado');
+  const titlesBefore = { ...recs!.titles };
+  const tones: G.PressTone[] = ['confiante', 'humilde', 'provocador', 'evasivo'];
+  const posts: G.PressPostTone[] = ['elogiar', 'assumir', 'arbitragem', 'cobrar'];
+  const season = w.season;
+  let ps: G.SeasonSummary | null = null, pressed = 0, other = 0;
+  while (w.season === season) {
+    const wk = G.currentWeek(w);
+    const m = wk?.matches.find((x) => x.h === u.id || x.a === u.id);
+    const cpu = wk?.matches.find((x) => x.h !== u.id && x.a !== u.id);
+    if (cpu && G.pressReason(w, cpu)) other++;
+    if (m && G.pressReason(w, m)) {
+      const pc = G.pressBefore(w, m, tones[pressed % 4])!;
+      assert(pc.tone && pc.headline && pc.fx && G.pressFor(w, m.id) === pc, 'coletiva antes do jogo registrada');
+      pressed++;
+    }
+    simulateWeek(w);
+    if (m?.played && G.pressFor(w, m.id)) {
+      const pc = G.pressAfter(w, m, posts[pressed % 4])!;
+      assert(pc.post && pc.postHeadline && G.pressAfterQuestion(w, m), 'coletiva depois do jogo');
+    }
+    if (endWeek(w).seasonEnd) { ps = w.pendingSeason!; break; }
+  }
+  assert(other === 0, 'coletiva só nos jogos do usuário');
+  assert(pressed >= 2 && (w.press ?? []).every((p) => !p.tone || !!p.settled), `${pressed} coletivas, todas repercutidas`);
+  assert(w.inbox.some((m) => m.title.includes('Técnico do') || m.title.includes('Polêmica')), 'manchete da coletiva na caixa');
+
+  // Torcida
+  const t = w.torcida!;
+  assert(t && t.club === u.id && t.members > 0 && t.group.length > 3, 'torcida organizada criada');
+  const evs = t.events.length;
+  G.fansTitle(w, 'cup:bra', 'Copa do Brasil');
+  assert(t.events.length === evs + 1 && t.events.at(-1)!.kind === 'carreata' && G.fanEvent(w, t.events.at(-1)!.id), 'carreata no título');
+
+  // Base
+  for (const c of G.YOUTH_CATS) {
+    const lg = w.youthLeagues!.cats[c];
+    assert(lg.round === lg.rounds.length && lg.champion && lg.final && [lg.final.h, lg.final.a].includes(lg.champion), `${c}: turno completo, final e campeão`);
+    const top = G.youthScorers(lg, 1)[0];
+    assert(top && top.goals <= 30, `${c}: artilharia realista (${top?.goals})`);
+  }
+  const call = w.youthCallups?.find((c) => c.season === season);
+  assert(call && Object.keys(call.sub17).length >= 8 && Object.values(call.sub17).every((ids) => ids.length <= 20 && ids.every((id) => w.players[id].age <= 17)), 'convocação sub-17');
+  assert(Object.values(call!.sub20).every((ids) => ids.every((id) => w.players[id].age > 17 && w.players[id].age <= 20)), 'convocação sub-20');
+
+  // Recordes
+  const champ = ps!.tables[u.div][0].id;
+  assert(recs!.titles[champ] === (titlesBefore[champ] ?? 0) + 1, 'título conta para o maior campeão');
+  assert(Object.keys(recs!.allTime).some((k) => !k.startsWith('leg:')) && Object.keys(recs!.cur).length === 0 && recs!.curSeason === season + 1, 'gols da temporada entram na história');
+  assert((w.recordBreaks ?? []).every((b) => b.div === u.div && b.now && b.text) && (w.recordBreaks ?? []).every((b) => (w.ceremonies ?? []).some((c) => c.kind === 'record' && c.id === b.id) || (w.ceremonies ?? []).length === 8), 'recordes quebrados avisados');
+  const top = G.allTimeScorers(w, u.div, 1)[0];
+  assert(top && top.goals >= 150, 'maior artilheiro da história');
+
+  const youthChamps = G.YOUTH_CATS.map((c) => w.clubs[w.youthLeagues!.cats[c].champion!]?.short).join('/');
+  // Migração v12
+  while (G.nextCeremony(w)) G.popCeremony(w);
+  newSeason(w);
+  const old = JSON.parse(JSON.stringify(w)) as World;
+  old.version = 11;
+  delete old.torcida; delete old.youthLeagues; delete old.youthCallups; delete old.press; delete old.champRecords; delete old.recordBreaks;
+  const mig = G.migrateWorld(old);
+  assert(mig.version === WORLD_VERSION && mig.torcida && mig.youthLeagues && Array.isArray(mig.youthCallups) && mig.champRecords?.[user(mig).div], 'migração v12');
+  console.log(`v12 ok: ${pressed} coletivas, torcida ${t.group} (${t.members.toLocaleString('pt-BR')} sócios, ${t.events.length} eventos), campeões de base ${youthChamps}, ${(w.recordBreaks ?? []).length} recordes quebrados`);
 }

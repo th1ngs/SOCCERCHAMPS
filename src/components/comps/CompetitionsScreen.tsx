@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import { Award, CalendarDays, ChartNoAxesColumn, Flag as FlagIcon, Goal, History, Trophy } from "lucide-react";
+import { Award, CalendarDays, Medal, ChartNoAxesColumn, Flag as FlagIcon, Goal, History, Trophy } from "lucide-react";
 import { CONT_SLOTS, LIB_SLOTS, competitionInfo, competitionName, cupId, divisionName, DIVISIONS, isSouthAmerican, isStateCup, knockoutStatus, leagueCupId, LEAGUE_IDS, LEAGUES, PROMOTION_SPOTS, DIVISION_SIZE, leagueRanking, leagueStars, leagueTier, superCupId, user } from "@/game";
 import type { DivisionId, KnockoutId, LeagueId } from "@/game/types";
 import { PageHeader } from "@/components/ui/primitives";
@@ -18,6 +18,7 @@ const FixturesView = dynamic(() => import("./FixturesView").then((m) => m.Fixtur
 const HistoryView = dynamic(() => import("./HistoryView").then((m) => m.HistoryView));
 const NationsView = dynamic(() => import("./NationsView").then((m) => m.NationsView));
 const StatesView = dynamic(() => import("./StatesView").then((m) => m.StatesView));
+const RecordsView = dynamic(() => import("./RecordsView").then((m) => m.RecordsView));
 const AwardsView = dynamic(() => import("./AwardsView").then((m) => m.AwardsView));
 const LeaguesRankingView = dynamic(() => import("./LeaguesRankingView").then((m) => m.LeaguesRankingView));
 
@@ -25,7 +26,7 @@ type GlobalTab = "cont" | "ranking" | "nations" | "awards" | "scorers" | "fixtur
 /** Escopo da tela: uma liga (com sub-abas) ou uma aba global. */
 export type CompScope = LeagueId | GlobalTab;
 /** Sub-aba de uma liga: uma divisão, um mata-mata da liga ou os estaduais (Brasil). */
-type LeagueSub = DivisionId | KnockoutId | "states";
+type LeagueSub = DivisionId | KnockoutId | "states" | "records";
 /** Continentais na aba global. */
 const CONTINENTALS: KnockoutId[] = ["cont", "eur2", "lib", "sud", "inter"];
 
@@ -100,6 +101,7 @@ export function CompetitionsScreen() {
         ...(league === "bra" && Object.keys(w.cups).some(isStateCup)
           ? [{ value: "states" as LeagueSub, label: <><Trophy aria-hidden /> Estaduais</>, mark: Object.keys(w.cups).some((c) => isStateCup(c) && inComp(c as KnockoutId)) }]
           : []),
+        ...(LEAGUES[league].divisions.some((d) => !!w.champRecords?.[d]) ? [{ value: "records" as LeagueSub, group: true, label: <><Medal aria-hidden /> Recordes</> }] : []),
       ]
     : [];
   const subIsDiv = !!sub && sub in DIVISIONS;
@@ -107,7 +109,7 @@ export function CompetitionsScreen() {
   const title = league ? (
     <span className="inline-flex items-center gap-3">
       <Flag code={league} className="h-[0.7em] rounded-[3px] ring-1 ring-black/25" />
-      {sub === "states" ? "Estaduais" : subIsDiv ? divisionName(sub as DivisionId) : competitionName(sub as string)}
+      {sub === "records" ? "Recordes" : sub === "states" ? "Estaduais" : subIsDiv ? divisionName(sub as DivisionId) : competitionName(sub as string)}
     </span>
   ) : (
     "Competições"
@@ -118,7 +120,9 @@ export function CompetitionsScreen() {
     return `Nível ${leagueTier(league).toLowerCase()} (${leagueStars(league).toFixed(1).replace(".", ",")} de 5)${rank ? `, ${rank}ª do ranking das ligas` : ""}.`;
   })() : "";
   const subtitle = league
-    ? sub === "states"
+    ? sub === "records"
+      ? "Maiores artilheiros da história, marcas de temporada, maior goleada e maiores campeões. Quando um recorde cai na sua divisão, você é avisado."
+      : sub === "states"
       ? "Campeonatos estaduais no começo da temporada: os clubes de cada estado em mata-mata de jogo único."
       : subIsDiv
         ? `${divisionSubtitle(sub as DivisionId)} ${level}`
@@ -143,7 +147,7 @@ export function CompetitionsScreen() {
       {!league && <div className="mb-5" />}
       <div role="tabpanel" aria-label={typeof title === "string" ? title : undefined}>
         {league && sub ? (
-          sub === "states" ? <StatesView /> : subIsDiv ? <LeagueTable key={sub} div={sub as DivisionId} /> : sub === "ne" ? <ContView key={sub} comp="ne" /> : <CupView key={sub} comp={sub as KnockoutId} />
+          sub === "records" ? <RecordsView key={league} league={league} /> : sub === "states" ? <StatesView /> : subIsDiv ? <LeagueTable key={sub} div={sub as DivisionId} /> : sub === "ne" ? <ContView key={sub} comp="ne" /> : <CupView key={sub} comp={sub as KnockoutId} />
         ) : scope === "cont" ? (
           <>
             <TabStrip

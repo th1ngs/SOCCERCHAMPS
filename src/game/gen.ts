@@ -30,7 +30,7 @@ export function meanSquadOvr(w: World): number {
 }
 
 /** Versão atual do formato do World. */
-export const WORLD_VERSION = 11;
+export const WORLD_VERSION = 12;
 /** Saves a partir desta versão podem ser migrados. */
 export const MIN_COMPATIBLE_VERSION = 3;
 

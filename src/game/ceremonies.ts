@@ -202,7 +202,8 @@ export function markGalaSeen(w: World): void {
 }
 
 /** Nome de uma competição para a comemoração ("Série A", "Copa do Brasil"…). */
-export const titleName = (comp: string): string => (isDivision(comp) ? divisionName(comp) : competitionName(comp));
+export const titleName = (comp: string): string =>
+  comp.startsWith('youth:') ? (comp === 'youth:sub17' ? 'Sub-17 (base)' : 'Sub-20 (base)') : isDivision(comp) ? divisionName(comp) : competitionName(comp);
 
 /** Quantos prêmios da gala ficaram com o clube do usuário. */
 export const galaWins = (w: World, gala: Gala): number => gala.categories.filter((c) => c.nominees[0]?.club === w.userClub).length;

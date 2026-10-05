@@ -2,16 +2,19 @@
 
 import { useEffect, useRef } from "react";
 import { ChevronRight, IdCard } from "lucide-react";
-import { MONTHS, divisionName, nextCeremony, titleName } from "@/game";
+import { LEAGUES, MONTHS, NATION_KITS, divisionName, fanEvent, nextCeremony, recordBreak, titleName } from "@/game";
 import type { AwardPlayer, Ceremony, MonthAward } from "@/game/types";
 import { Audio } from "@/arcade/audio";
 import { useWorld } from "@/components/game/GameProvider";
 import { Button } from "@/components/ui/Button";
 import { Confetti } from "@/components/ui/Confetti";
 import { Crest } from "@/components/ui/Crest";
+import { Flag } from "@/components/ui/Flag";
 import { PlayerAvatar } from "@/components/player/PlayerAvatar";
 import { cn } from "@/lib/cn";
 import { AwardIcon } from "./AwardIcon";
+import { FansView } from "./FansView";
+import { RecordView } from "./RecordView";
 
 function useStage(onClose: () => void) {
   const ref = useRef<HTMLButtonElement>(null);
@@ -137,12 +140,62 @@ function TitleView({ c, onClose }: { c: Extract<Ceremony, { kind: "title" }>; on
   );
 }
 
+/** Convocação para a seleção de base: cartões das promessas com a camisa da seleção. */
+function CallupView({ c, onClose }: { c: Extract<Ceremony, { kind: "callup" }>; onClose: () => void }) {
+  const { world: w, setOverlay } = useWorld();
+  const ref = useStage(onClose);
+  const list = c.ids.map((id, i) => ({ p: w.players[id], cat: c.cats[i] })).filter((x) => !!x.p);
+  const nat = list[0]?.p.nat ?? "bra";
+  const [k1, k2] = NATION_KITS[nat]?.colors ?? ["#facc15", "#16a34a"];
+  return (
+    <div role="dialog" aria-modal="true" aria-label="Promessas convocadas" className="fixed inset-0 z-[60] grid place-items-center overflow-y-auto p-4" style={{ background: `radial-gradient(circle at 50% 30%, color-mix(in srgb, ${k2} 45%, #07121f) 0%, #07121f 72%)` }}>
+      <span aria-hidden className="animate-celebrate-rays pointer-events-none fixed left-1/2 top-[30%] -ml-[80vmax] -mt-[80vmax] size-[160vmax] opacity-15" style={{ background: `repeating-conic-gradient(from 0deg, ${k1} 0deg 5deg, transparent 5deg 15deg)` }} />
+      <Confetti seed={c.season + list.length} colors={[k1, k2, "#ffffff"]} count={44} duration={3} />
+      <div className="relative flex w-full max-w-md flex-col items-center text-center">
+        <span className="animate-stamp rounded-xl border-4 border-gold-400 bg-ink-950/70 px-4 py-1 font-display text-4xl font-extrabold uppercase italic text-gold-400">Convocado{list.length > 1 ? "s" : ""}!</span>
+        <p className="animate-slide-up mt-3 text-mist" style={{ animationDelay: "250ms" }}>Promessas da sua base chamadas para as seleções de base.</p>
+        <ul className="mt-5 grid w-full gap-3">
+          {list.map(({ p, cat }, i) => {
+            const kit = NATION_KITS[p.nat];
+            return (
+              <li key={p.id} className="animate-reveal-flip flex items-center gap-3 rounded-2xl bg-ink-900/90 p-3 text-left ring-2 ring-inset" style={{ animationDelay: `${450 + i * 250}ms`, borderColor: kit?.colors[0], boxShadow: `inset 0 0 0 2px ${kit?.colors[0] ?? "#facc15"}` }}>
+                <PlayerAvatar player={p} size={56} />
+                <span className="min-w-0 flex-1">
+                  <b className="block truncate text-lg">{p.name}</b>
+                  <span className="block text-sm text-mist">{p.age} anos • {p.pos} • overall {Math.round(p.ovr)}</span>
+                  <span className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold text-gold-300">
+                    <Flag code={p.nat} /> Seleção {cat === "sub17" ? "Sub-17" : "Sub-20"} • {LEAGUES[p.nat]?.country}
+                  </span>
+                </span>
+                <Button variant="ghost" size="sm" onClick={() => { onClose(); setOverlay({ kind: "player", pid: p.id }); }}>Ficha</Button>
+              </li>
+            );
+          })}
+        </ul>
+        <p className="animate-slide-up mt-3 text-xs text-mist" style={{ animationDelay: "900ms" }}>Moral +6 e mais valor de mercado; às vezes a experiência rende um ponto de potencial.</p>
+        <Button ref={ref} variant="primary" icon={<ChevronRight />} className="animate-slide-up mt-5" style={{ animationDelay: "1s" }} onClick={onClose}>Continuar</Button>
+      </div>
+    </div>
+  );
+}
+
 /** Mostra a primeira cerimônia da fila (prêmio do mês ou título). `onClose` a tira da fila e segue o fluxo. */
 export function CeremonyHost({ onClose }: { onClose: () => void }) {
   const { world: w } = useWorld();
   const c = nextCeremony(w);
   if (!c) return null;
   if (c.kind === "title") return <TitleView key={`${c.comp}-${c.season}`} c={c} onClose={onClose} />;
+  if (c.kind === "fans") {
+    const ev = fanEvent(w, c.id);
+    const club = w.clubs[w.torcida?.club ?? w.userClub];
+    if (!ev || !club) return <Skip onClose={onClose} />;
+    return <FansView key={ev.id} club={club} group={w.torcida?.group ?? "Torcida"} ev={ev} onClose={onClose} />;
+  }
+  if (c.kind === "callup") return <CallupView key={`callup-${c.season}`} c={c} onClose={onClose} />;
+  if (c.kind === "record") {
+    const b = recordBreak(w, c.id);
+    return b ? <RecordView key={b.id} b={b} onClose={onClose} /> : <Skip onClose={onClose} />;
+  }
   const a = w.monthAwards?.find((x) => x.id === c.id);
   if (!a) return <Skip onClose={onClose} />;
   return <MonthAwardView key={a.id} a={a} onClose={onClose} />;

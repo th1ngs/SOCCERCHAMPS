@@ -1,5 +1,6 @@
 // Save local da carreira: JSON compactado com gzip + base64 no localStorage.
 import type { World } from "@/game/types";
+import { packWorld } from "@/game/pack";
 import { canCompress, fromBase64, gunzip, gzip, toBase64 } from "./compress";
 
 const KEY = "scm.save.v3";
@@ -9,7 +10,7 @@ const GZ = "gz:";
 
 export async function writeLocal(w: World): Promise<boolean> {
   try {
-    const json = JSON.stringify(w);
+    const json = JSON.stringify(packWorld(w));
     const value = canCompress() ? GZ + toBase64(await gzip(json)) : json;
     localStorage.setItem(KEY, value);
     return true;

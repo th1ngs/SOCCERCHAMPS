@@ -337,6 +337,8 @@ export interface Player {
   cria?: string;
   /** Jogos e gols pela seleção (Copa das Nações). */
   intl?: [apps: number, goals: number];
+  /** Convocações para seleções de base (v12). */
+  ycalls?: number;
   /** Última conversa (temporada × 100 + semana), para não repetir cobranças (v6). */
   talkedAt?: number;
   /** Promessa de mais chances feita numa conversa: quando e quantos jogos o time e ele tinham. */
@@ -691,6 +693,36 @@ export interface Talk {
 
 /** Conversa no vestiário antes de um jogo (v6). */
 export type TeamTalkKey = 'motivar' | 'tranquilizar' | 'cobrar';
+/** Tom da resposta na coletiva antes do jogo grande (v12). */
+export type PressTone = 'confiante' | 'humilde' | 'provocador' | 'evasivo';
+/** Tom da resposta na coletiva depois do jogo grande (v12). */
+export type PressPostTone = 'elogiar' | 'assumir' | 'arbitragem' | 'cobrar';
+/** Efeitos de uma resposta na coletiva (moral do elenco, humor da torcida, confiança da diretoria). */
+export interface PressEffects { morale: number; fans: number; board: number }
+/** Coletiva de imprensa de um jogo grande (v12): pergunta, resposta, manchete e efeitos, antes e depois. */
+export interface PressConf {
+  season: number;
+  week: number;
+  matchId: string;
+  opp: string;
+  /** Por que o jogo é grande ("Clássico", "Semifinal da Copa…"). */
+  reason: string;
+  question: string;
+  tone?: PressTone;
+  headline?: string;
+  fx?: PressEffects;
+  /** Multiplicador de rendimento do time do usuário e do adversário (provocação inflama os dois). */
+  mult?: number;
+  oppMult?: number;
+  /** Consequência da resposta de antes do jogo, aplicada ao fim da semana com o resultado. */
+  settled?: string;
+  settledFx?: PressEffects;
+  postQuestion?: string;
+  post?: PressPostTone;
+  postHeadline?: string;
+  postFx?: PressEffects;
+}
+
 export interface TeamTalk {
   season: number;
   week: number;
@@ -827,7 +859,74 @@ export interface MonthAward {
   manager: { club: string; name: string; pts: number; j: number } | null;
 }
 /** Cerimônia esperando a tela: prêmio do mês ou comemoração de título (v11). */
-export type Ceremony = { kind: 'month'; id: string } | { kind: 'title'; comp: string; season: number; club: string };
+export type Ceremony =
+  | { kind: 'month'; id: string } | { kind: 'title'; comp: string; season: number; club: string } | { kind: 'fans'; id: string }
+  | { kind: 'callup'; season: number; ids: string[]; cats: YouthCat[] } | { kind: 'record'; id: string };
+/** Recordes de um campeonato (v12). */
+export type ChampRecordKey = 'allTime' | 'seasonGoals' | 'biggestWin' | 'points' | 'teamGoals' | 'titles';
+/** Marca de um recorde: valor, dono e temporada (sem `pid` nas lendas inventadas do passado). */
+export interface RecordMark { value: number; name: string; club: string; season: number; pid?: string; score?: string }
+/** Recordes de uma divisão: artilheiros da história, marcas de temporada, maior goleada e títulos. */
+export interface DivRecords {
+  /** Gols de liga na divisão em temporadas encerradas (os 30 maiores; lendas sem id usam a chave "leg:…"). */
+  allTime: Record<string, { name: string; club: string; goals: number }>;
+  seasonGoals: RecordMark;
+  biggestWin: RecordMark;
+  points: RecordMark;
+  teamGoals: RecordMark;
+  /** Títulos por clube (com a história inventada antes da carreira). */
+  titles: Record<string, number>;
+  /** Gols de liga na temporada atual, por jogador. */
+  cur: Record<string, number>;
+  curSeason: number;
+  /** Recordes já anunciados nesta temporada (o aviso sai uma vez; depois o valor só sobe). */
+  live: Partial<Record<ChampRecordKey, boolean>>;
+}
+/** Um recorde que caiu (aviso + cerimônia). */
+export interface RecordBreak { id: string; season: number; week: number; div: DivisionId; key: ChampRecordKey; title: string; text: string; old: RecordMark | null; now: RecordMark }
+export type YouthCat = 'sub17' | 'sub20';
+export interface YouthRow { id: string; p: number; j: number; v: number; e: number; d: number; gf: number; ga: number }
+/** Campeonato de base de uma categoria (v12). */
+export interface YouthLeague {
+  rounds: [string, string][][];
+  /** Próxima rodada a jogar. */
+  round: number;
+  table: YouthRow[];
+  scorers: Record<string, { name: string; club: string; goals: number }>;
+  /** Resultados por rodada: [mandante, visitante, gols, gols]. */
+  results: [string, string, number, number][][];
+  final: { h: string; a: string; hs: number; as: number; pens: [number, number] | null } | null;
+  champion: string | null;
+}
+/** Convocação das seleções de base de uma temporada: nacionalidade → ids. */
+export interface YouthCallup {
+  season: number;
+  sub17: Record<string, string[]>;
+  sub20: Record<string, string[]>;
+}
+export type FanEventKind = 'faixas' | 'protesto' | 'cobranca' | 'festa' | 'mosaico' | 'carreata';
+/** Evento da torcida organizada (v12). */
+export interface FanEvent {
+  id: string;
+  season: number;
+  week: number;
+  kind: FanEventKind;
+  title: string;
+  banners: string[];
+  /** Efeitos aplicados: confiança da diretoria, moral do elenco e variação de sócios. */
+  board: number;
+  morale: number;
+  members: number;
+}
+/** Torcida organizada do clube do usuário (v12). */
+export interface Torcida {
+  club: string;
+  group: string;
+  members: number;
+  events: FanEvent[];
+  /** Semana absoluta (temporada × 100 + semana) do último evento. */
+  lastWeek: number;
+}
 export type GalaIcon = 'trophy' | 'boot' | 'assist' | 'star' | 'sprout' | 'glove' | 'clipboard' | 'ball';
 export interface GalaNominee {
   kind: 'player' | 'club' | 'coach';
@@ -997,6 +1096,16 @@ export interface World {
   monthAwards?: MonthAward[];
   ceremonies?: Ceremony[];
   galaSeen?: number;
+  /** Campeonatos de base da temporada (divisão do usuário) e convocações das seleções de base (v12). */
+  youthLeagues?: { season: number; div: DivisionId; cats: Record<YouthCat, YouthLeague> } | null;
+  youthCallups?: YouthCallup[];
+  /** Recordes dos campeonatos da liga do usuário e os últimos recordes quebrados (v12). */
+  champRecords?: Partial<Record<DivisionId, DivRecords>>;
+  recordBreaks?: RecordBreak[];
+  /** Coletivas de imprensa dos jogos grandes (v12, as últimas 12). */
+  press?: PressConf[];
+  /** Torcida organizada do clube do usuário (v12). */
+  torcida?: Torcida | null;
   /** Últimas Noites de Gala (para rever). */
   galas?: Gala[];
   /** Vagas de treinador abertas e candidaturas do usuário (v10). */
@@ -1143,6 +1252,8 @@ export interface SimOptions {
   neutral?: boolean;
   /** O clube do usuário controla as substituições (jogo ao vivo). */
   interactive?: boolean;
+  /** Jogo da CPU (sem o usuário): força recalculada a cada 3 minutos para simular mais rápido. */
+  fast?: boolean;
 }
 
 export interface SideStrength {

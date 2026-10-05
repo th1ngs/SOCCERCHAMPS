@@ -1,5 +1,6 @@
 // Cliente da API de carreiras na nuvem (Postgres via rotas /api).
 import type { World } from "@/game/types";
+import { packWorld } from "@/game/pack";
 import { canCompress, gzip } from "./compress";
 
 export interface CloudSaved { code: string; updatedAt: string }
@@ -13,7 +14,7 @@ async function call<T>(url: string, init?: RequestInit): Promise<T> {
 
 /** Corpo da requisição com o save; compactado com gzip quando o navegador permite. */
 async function saveBody(data: World): Promise<RequestInit> {
-  const json = JSON.stringify({ data });
+  const json = JSON.stringify({ data: packWorld(data) });
   if (!canCompress()) return { body: json, headers: { "Content-Type": "application/json" } };
   return { body: (await gzip(json)) as BodyInit, headers: { "Content-Type": "application/octet-stream", "X-Save-Encoding": "gzip" } };
 }

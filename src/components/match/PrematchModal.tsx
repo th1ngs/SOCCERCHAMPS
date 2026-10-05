@@ -13,6 +13,7 @@ import { Crest } from "@/components/ui/Crest";
 import { Flag } from "@/components/ui/Flag";
 import { Alert, Badge, OvrBadge, PosBadge, SectionTitle } from "@/components/ui/primitives";
 import { StatBar } from "./StatBars";
+import { PressBefore } from "./PressConference";
 import { findMatch, roundLabel, settleMatch, simOptions, venueName } from "./matchUtils";
 
 function LineupList({ w, club }: { w: World; club: Club }) {
@@ -269,6 +270,8 @@ export function PrematchModal({ matchId }: { matchId: string }) {
             <span>Fora deste jogo (lesão/suspensão), substituídos automaticamente: {changes.join(", ")}.</span>
           </Alert>
         )}
+
+        <PressBefore m={m} />
 
         <TeamTalkPicker w={w} m={m} onTalk={talk} />
 

@@ -13,6 +13,7 @@ import { Crest } from "@/components/ui/Crest";
 import { Alert, Badge, PosBadge, SectionTitle } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
 import { StatBar } from "./StatBars";
+import { PressAfter } from "./PressConference";
 import { clearStored, compName, findMatch, resultKey, statRows, type StoredResult } from "./matchUtils";
 import { postMatchInsights } from "./postMatch";
 
@@ -152,6 +153,8 @@ export function SummaryModal({ matchId }: { matchId: string }) {
             ))}
           </section>
         )}
+
+        <PressAfter m={m} />
 
         {insights.length > 0 && (
           <section>

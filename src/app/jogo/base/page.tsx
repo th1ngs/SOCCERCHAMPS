@@ -31,6 +31,7 @@ import { ScoutingCard } from "@/components/youth/ScoutingCard";
 import { TrialCard } from "@/components/youth/TrialCard";
 import { TrialResultModal } from "@/components/youth/TrialResultModal";
 import { YouthList, type YouthActions } from "@/components/youth/YouthList";
+import { YouthCompsCard } from "@/components/youth/YouthCompsCard";
 import {
   academySummary,
   focusName,
@@ -206,6 +207,9 @@ export default function BasePage() {
 
       <AcademySummary s={summary} season={world.season} />
 
+      <div className="mb-4 grid gap-4 lg:grid-cols-2">
+        <YouthCompsCard />
+      </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <TrialCard
           homeLeague={homeLeague}

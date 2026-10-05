@@ -12,7 +12,9 @@ import { clamp, gauss, pick, rand, randi, weighted } from './util';
 /** Desenho em campo de um lado (lados antigos, sem `shape`, usam a formação). */
 const sideShape = (side: SimSide): FormationSlot[] => side.shape ?? FORMATIONS[side.formation];
 
-const SHOOT_W: Record<Position, number> = { GOL: 0, ZAG: 0.5, LAT: 0.8, VOL: 1.1, MEI: 3, ATA: 6 };
+const SHOOT_W: Record<Position, number> = { GOL: 0, ZAG: 0.6, LAT: 0.95, VOL: 1.25, MEI: 3, ATA: 4.2 };
+/** Quem já marcou na partida finaliza menos (o time divide as chances; hat-tricks ficam raros). */
+const SCORED_DAMP = 0.5;
 const ASSIST_W: Record<Position, number> = { GOL: 0.05, ZAG: 0.4, LAT: 2, VOL: 1.4, MEI: 4, ATA: 2.2 };
 const FOUL_W: Record<Position, number> = { GOL: 0.1, ZAG: 3, LAT: 2, VOL: 3, MEI: 1.2, ATA: 0.8 };
 export const MAX_SUBS = 5;
@@ -67,6 +69,13 @@ const devAvg = (p: Player, ks: AttrKey[]): number => ks.reduce((s, k) => s + dev
 const staminaMult = (p: Player): number => clamp(1.3 - attr(p, 'fol') / 166, 0.72, 1.15);
 
 /** Clássico entre dois clubes (um tem o outro como rival). */
+/** Efeito da coletiva de imprensa desta semana no rendimento (o usuário e, se provocado, o adversário). */
+function pressMult(w: World, clubId: string): number {
+  const pc = w.press?.find((x) => x.season === w.season && x.week === w.week && x.tone);
+  if (!pc || w.playerCareer) return 1;
+  return clubId === w.userClub ? pc.mult ?? 1 : clubId === pc.opp ? pc.oppMult ?? 1 : 1;
+}
+
 export function isDerbyClubs(w: World, a: string, b: string): boolean {
   const ca = w.clubs[a], cb = w.clubs[b];
   return !!ca && !!cb && (ca.rival === b || cb.rival === a);
@@ -110,6 +119,8 @@ export class Sim {
   fresh: SimEvent[] | null = null;
   /** Forças calculadas no minuto atual. */
   cur: SideStrength[] = [];
+  /** Chave do estado em que `cur` foi calculada (jogos rápidos). */
+  curKey = '';
   /** Lesão no time do usuário (modo interativo) aguardando substituição manual. */
   pendingInjury: { side: number; pid: string } | null = null;
   /** Clássico (rivais). */
@@ -138,7 +149,7 @@ export class Sim {
       auto: !(user && this.opts.interactive),
       formation: club.formation, shape: shapeOf(club), tactic: club.tactic, baseTactic: club.tactic,
       instr: { ...(club.instr ?? DEFAULT_INSTRUCTIONS) }, mods: null,
-      talk: user && w.teamTalk && w.teamTalk.season === w.season && w.teamTalk.week === w.week ? w.teamTalk.mult : 1,
+      talk: (user && w.teamTalk && w.teamTalk.season === w.season && w.teamTalk.week === w.week ? w.teamTalk.mult : 1) * pressMult(w, clubId),
       on, bench: club.bench.slice(), subs: 0, played: on.map((o) => o.pid),
     };
   }
@@ -241,7 +252,13 @@ export class Sim {
       if (this.derby) this.log('info', null, say('derby', { h: this.sides[0].club.name, a: this.sides[1].club.name }));
     }
     this.minute++;
-    this.cur = [this.strength(0), this.strength(1)];
+    // Jogos rápidos (CPU x CPU): a força só é recalculada a cada 3 minutos ou quando algo muda (placar, substituição,
+    // expulsão, tática); o cansaço muda devagar.
+    const key = this.opts.fast ? `${this.score[0]}${this.score[1]}|${this.sides[0].on.length}${this.sides[1].on.length}|${this.sides[0].subs}${this.sides[1].subs}|${this.sides[0].tactic}${this.sides[1].tactic}` : '';
+    if (!this.opts.fast || !this.curKey || this.minute % 3 === 1 || key !== this.curKey) {
+      this.cur = [this.strength(0), this.strength(1)];
+      this.curKey = key;
+    }
     const pHome = c3(this.cur[0].M) / (c3(this.cur[0].M) + c3(this.cur[1].M));
     const s = Math.random() < pHome ? 0 : 1;
     this.stats.poss[s]++;
@@ -407,6 +424,13 @@ export class Sim {
     return clamp(c, 0.5, 0.93);
   }
 
+  /** Gols do jogador nesta partida. */
+  private goalsBy(pid: string): number {
+    let n = 0;
+    for (const g of this.goals) if (g.pid === pid) n++;
+    return n;
+  }
+
   shot(s: number, ratio: number, penalty: boolean, forced?: OnField): BallKind {
     const side = this.sides[s], opp = this.sides[1 - s];
     const field = this.outfield(side);
@@ -414,7 +438,7 @@ export class Sim {
     const taker = penalty ? field.find((o) => o.pid === side.club.penTaker) : undefined;
     const shooterO = forced ?? (penalty
       ? taker || field.slice().sort((a, b) => this.penRating(this.P(b.pid)) - this.penRating(this.P(a.pid)))[0]
-      : (weighted(field, (o) => SHOOT_W[this.slotPos(side, o)] * Math.pow(this.A(side, o, 'fin') / 70, 2)) as OnField));
+      : (weighted(field, (o) => SHOOT_W[this.slotPos(side, o)] * Math.pow(this.A(side, o, 'fin') / 70, 1.3) * Math.pow(SCORED_DAMP, this.goalsBy(o.pid))) as OnField));
     const shooter = this.P(shooterO.pid);
     const gkO = opp.on.find((o) => this.slotPos(opp, o) === 'GOL');
     const gkName = gkO ? this.P(gkO.pid).name : 'o goleiro improvisado';
@@ -423,7 +447,7 @@ export class Sim {
     const gkP = gkO ? this.P(gkO.pid) : undefined;
     let xg = penalty
       ? this.penChance(shooter, gkP, gkEff)
-      : clamp((Math.pow(Math.random(), 1.7) * 0.26 + 0.025) * Math.pow(shEff / gkEff, 1.3) * Math.pow(ratio, 0.5), 0.02, 0.7);
+      : clamp((Math.pow(Math.random(), 1.7) * 0.29 + 0.028) * Math.pow(shEff / gkEff, 1.0) * Math.pow(ratio, 0.5), 0.02, 0.7);
     if (!penalty) {
       // Finalização acima/abaixo do esperado para o overall muda a qualidade do chute.
       xg *= clamp(Math.pow(attr(shooter, 'fin') / (shooter.ovr + 3), 0.7), 0.7, 1.15);
