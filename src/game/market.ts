@@ -2,7 +2,7 @@
 import { LOAN_INTEREST, LOAN_OPTIONS, LOAN_WEEKS, POS } from './data';
 import { assignNumbers, clubWage, makeYouth, releaseClauseFor, valueOf } from './gen';
 import { clubWages, financeProfile } from './finance';
-import { LEAGUES, prestigeOf } from './leagues';
+import { clubBaseOvr, LEAGUES, prestigeOf } from './leagues';
 import { hash01 } from './scouting';
 import { bestScoutSkill, specialistFor } from './scouts';
 import { endLoan, recordTransfer } from './transfers';
@@ -370,6 +370,50 @@ export function aiTransfers(w: World): void {
     const fa = freeAgentFor(w, c, pos);
     if (fa) transfer(w, fa.id, c.id, 0, true);
   }
+}
+
+/**
+ * A CPU contrata agentes livres (v12.1): os melhores livres assinam rápido com o clube mais prestigiado que os aceita
+ * e que melhora com eles (entra entre os dois melhores da posição, ou está no nível do elenco), com folha e caixa para
+ * o salário. Quanto mais velho o jogador e mais avançada a temporada, menos exigente ele fica com o tamanho do clube.
+ * Na vida real craque não fica parado no mercado; quem sobra é o jogador mediano.
+ */
+export function aiSignFreeAgents(w: World, limit = 6, minOvr = 70): number {
+  const clubs = Object.values(w.clubs).filter((c) => !managesClub(w, c.id)).sort((a, b) => prestigeOf(b) - prestigeOf(a));
+  const free = w.free
+    .map((id) => w.players[id])
+    .filter((p) => p && !p.clubId && p.ovr >= minOvr && !isProtagonist(w, p.id) && !w.negotiations?.[p.id])
+    .sort((a, b) => b.ovr - a.ovr);
+  const userDiv = user(w).div;
+  // Nível dos maiores clubes do mundo: um craque sempre aceita esses, mesmo acima do nível deles.
+  const elite = Math.max(...clubs.map(clubBaseOvr)) - 3;
+  const signed = new Set<string>();
+  let n = 0;
+  for (const p of free) {
+    if (n >= limit) break;
+    const patience = 5 + (p.age >= 31 ? 4 : p.age >= 28 ? 2 : 0) + Math.min(8, Math.floor(w.week / 6));
+    const club = clubs.find((c) => {
+      if (signed.has(c.id) || c.squad.length >= 30) return false;
+      const base = clubBaseOvr(c);
+      // O jogador aceita o clube (não muito abaixo do nível dele) e o clube melhora com ele.
+      if (p.ovr > base + patience && base < elite) return false;
+      const better = clubPlayers(w, c).filter((x) => x && x.pos === p.pos && x.ovr >= p.ovr - 1).length;
+      if (better >= 2 && p.ovr < base) return false;
+      // Sem clube, o jogador baixa o pedido com o passar das semanas (até 35% menos).
+      const wage = clubWage(w, c.id, p.ovr) * (1 - Math.min(0.35, w.week * 0.01));
+      if (c.money < wage * 10) return false;
+      // Por um reforço de verdade (acima do nível do elenco) a diretoria aceita estourar o teto.
+      return !c.wageCap || clubWages(w, c) + wage <= c.wageCap * (p.ovr >= base + 3 ? 1.2 : p.ovr >= base ? 1.1 : 1.03);
+    });
+    if (!club) continue;
+    transfer(w, p.id, club.id, 0, true);
+    signed.add(club.id);
+    n++;
+    if (p.ovr >= 72 && club.div === userDiv) {
+      pushMessage(w, { kind: 'news', title: `Mercado: ${p.name} acerta com o ${club.name}`, body: `${p.name} (${p.pos}, ${Math.round(p.ovr)}, ${p.age} anos) estava sem clube e assinou com o ${club.name}.` });
+    }
+  }
+  return n;
 }
 
 /**

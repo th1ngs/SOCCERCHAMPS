@@ -54,6 +54,17 @@
 - Save compacto (`pack.ts`): jogadores gravados sem os campos no valor padrão; `unpackWorld` restaura antes da migração.
 - Teste instável de mandos corrigido (`breakLongRuns` na migração do calendário).
 
+## Mercado de agentes livres realista (v12.1)
+- A CPU renova quase sempre os titulares e peças importantes (os 14 melhores do elenco: 93%); reservas fracos e
+  veteranos saem mais. Antes, 25% de qualquer contrato vencido virava agente livre, inclusive craques.
+- `aiSignFreeAgents` (toda semana, até 6; na pré-temporada, todas as rodadas necessárias): os livres de 70+ (66+ na
+  pré-temporada) assinam com o clube mais prestigiado que os aceita e melhora com eles. Os maiores clubes do mundo
+  sempre podem contratar um craque; o jogador baixa o pedido com as semanas e, por um reforço de verdade, a diretoria
+  aceita passar um pouco do teto.
+- A lista de livres sempre tem medianos (40 com overall 60+ na pré-temporada e 20 na janela do meio do ano), em geral
+  veteranos sem contrato; o corte da lista (máximo 200) tira os piores.
+- Carreira nova: o elenco sorteado do usuário nunca começa acima do teto salarial da liga.
+
 ## Migração (v11 → v12)
 Cria a torcida, os recordes da liga e as listas de coletivas e convocações. Os campeonatos de base começam na hora se a
 temporada estiver no primeiro terço; senão, na próxima temporada.

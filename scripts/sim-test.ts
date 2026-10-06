@@ -1378,6 +1378,10 @@ function runV12Checks(): void {
   // Migração v12
   while (G.nextCeremony(w)) G.popCeremony(w);
   newSeason(w);
+  // Mercado de livres realista: craques não ficam sem clube; sobram os medianos.
+  const free = w.free.map((id) => w.players[id]).filter(Boolean);
+  assert(free.filter((p) => p.ovr >= 80).length <= 2, `craques sem clube na pré-temporada: ${free.filter((p) => p.ovr >= 80).map((p) => Math.round(p.ovr)).join(',')}`);
+  assert(free.filter((p) => p.ovr >= 60).length >= 30, 'agentes livres medianos disponíveis');
   const old = JSON.parse(JSON.stringify(w)) as World;
   old.version = 11;
   delete old.torcida; delete old.youthLeagues; delete old.youthCallups; delete old.press; delete old.champRecords; delete old.recordBreaks;

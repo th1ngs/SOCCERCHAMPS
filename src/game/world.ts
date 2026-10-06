@@ -13,7 +13,7 @@ import {
   LEAGUE_ROUNDS, LEGACY_SEASON_WEEKS, PROMOTION_SPOTS, TOTAL_WEEKS, DIVISION_SIZE, competitionName, compLeague, compWeight, cupId, cupRoundName,
   clubBaseOvr, compWith, divisionFullName, firstDivisions, isKnockout, knockoutPrizeBySize, matchStage, prestigeOf, roundNameBySize,
 } from './leagues';
-import { aiInvest, aiListPlayers, aiOffersToUser, aiTransfers, promoteYouth, transfer } from './market';
+import { aiInvest, aiListPlayers, aiOffersToUser, aiSignFreeAgents, aiTransfers, promoteYouth, transfer } from './market';
 import { potentialRange, processScoutQueue } from './scouting';
 import { refreshScoutMarket, scoutPayroll } from './scouts';
 import { renewalReminders } from './renewals';
@@ -176,6 +176,12 @@ export function startSeason(w: World): void {
   if (!w.playerCareer && !u.sponsorDeal && !w.sponsorOffers) offerSponsors(w);
   // Teto salarial fixo da divisão do usuário.
   if (!w.playerCareer) u.wageCap = capFor(w, u);
+  // Carreira nova: o elenco sorteado nunca começa acima do teto (corta os salários na proporção).
+  const pay = clubWages(w, u);
+  if (!w.playerCareer && !w.history.length && u.wageCap && pay > u.wageCap * 0.97) {
+    const k = (u.wageCap * 0.97) / pay;
+    for (const p of clubPlayers(w, u)) if (p) p.wage = Math.max(100, Math.floor((p.wage * k) / 100) * 100);
+  }
   refreshVacancies(w);
   if (!w.playerCareer) { startMonth(w); startYouthLeagues(w); }
   ensureRecords(w);
@@ -659,6 +665,8 @@ export function endWeek(w: World): WeekReport {
   if (w.finance.length > 60) w.finance.shift();
   w.finWeek = {};
 
+  // Agentes livres podem assinar a qualquer momento da temporada.
+  aiSignFreeAgents(w, 6);
   if (windowOpen(w)) {
     const deadline = isDeadlineDay(w);
     const before = w.transfers.length;
@@ -710,7 +718,11 @@ export function endWeek(w: World): WeekReport {
     processApplications(w);
     if (w.week % VACANCY_EVERY === 0) refreshVacancies(w);
   }
-  if (w.week === WINDOWS[1][0]) aiListPlayers(w);
+  if (w.week === WINDOWS[1][0]) {
+    aiListPlayers(w);
+    // Janela do meio do ano: chegam ao mercado veteranos medianos que rescindiram (metade da faixa da pré-temporada).
+    for (let k = w.free.filter((id) => w.players[id]?.ovr >= 60).length; k < FREE_MEDIAN / 2; k++) makeFreeAgent(w, true);
+  }
   if (w.week <= seasonWeeks(w)) renewalReminders(w);
   if (!w.playerCareer) {
     settlePress(w);
@@ -922,7 +934,7 @@ export function newSeason(w: World): void {
       if (managesClub(w, c.id)) {
         news.push(`${p.name} encerrou o contrato e deixou o clube.`);
         toFree(w, p);
-      } else if (chance(c.wageCap && clubWages(w, c) > c.wageCap ? 0.5 : 0.75)) {
+      } else if (chance(cpuRenewChance(w, c, p))) {
         p.contract = randi(1, 3);
         p.wage = clubWage(w, c.id, p.ovr);
         p.releaseClause = releaseClauseFor(p);
@@ -946,6 +958,8 @@ export function newSeason(w: World): void {
   }
   // Clubes da CPU completam o elenco
   // Os clubes mais prestigiados escolhem primeiro entre os agentes livres (antes valia a ordem do cadastro).
+  // Antes da reposição, os bons agentes livres acertam com quem os quer (várias rodadas de assinaturas).
+  for (let k = 0; k < 6 && aiSignFreeAgents(w, 999, 66) > 0; k++);
   for (const c of Object.values(w.clubs).sort((a, b) => prestigeOf(b) - prestigeOf(a))) if (!managesClub(w, c.id)) aiMaintain(w, c);
   // Nova safra da base
   const intake: Player[] = [];
@@ -962,9 +976,11 @@ export function newSeason(w: World): void {
     const extra = c.youth.map((id) => w.players[id]).sort((a, b) => b.pot - a.pot).slice(AI_YOUTH_MAX);
     for (const p of extra) removePlayer(w, p);
   }
-  // Agentes livres: mantém entre FREE_MIN e FREE_MAX (descarta os piores).
+  // Agentes livres: mantém entre FREE_MIN e FREE_MAX (descarta os piores), sempre com uma faixa de medianos (60+).
   w.free = w.free.filter((id) => w.players[id]);
+  for (let k = w.free.filter((id) => w.players[id].ovr >= 60).length; k < FREE_MEDIAN; k++) makeFreeAgent(w, true);
   if (w.free.length > FREE_MAX) {
+    // Saem do mundo os piores (vão para ligas menores); os bons já foram contratados pela CPU (aiSignFreeAgents).
     const sorted = w.free.map((id) => w.players[id]).filter((p) => !isProtagonist(w, p.id)).sort((a, b) => a.ovr - b.ovr);
     for (const p of sorted.slice(0, w.free.length - FREE_MAX)) removePlayer(w, p);
   }
@@ -1000,6 +1016,21 @@ export function newSeason(w: World): void {
     pushMessage(w, { kind: 'youth', pid: best.id, title: `Nova safra da base: ${intake.length} garotos`, body: `Chegaram à base: ${intake.map((p) => `${p.name} (${p.pos}, ${p.age})`).join(', ')}. Destaque para ${best.name}, com potencial estimado em ${range}.` });
   }
 }
+
+/**
+ * Chance de a CPU renovar um contrato que vence: titulares e peças importantes quase sempre ficam; reservas fracos e
+ * veteranos saem mais. Com a folha acima do teto, renova menos (mas segura os melhores).
+ */
+function cpuRenewChance(w: World, c: Club, p: Player): number {
+  const rank = clubPlayers(w, c).filter((x) => x && !x.youth && x.ovr > p.ovr).length;
+  let pr = rank < 14 ? 0.93 : rank < 20 ? 0.7 : 0.45;
+  if (p.age >= 33) pr -= 0.25;
+  if (c.wageCap && clubWages(w, c) > c.wageCap) pr -= rank < 14 ? 0.1 : 0.25;
+  return clamp(pr, 0.15, 0.95);
+}
+
+/** Agentes livres medianos (overall 60+) garantidos no começo de cada temporada. */
+const FREE_MEDIAN = 40;
 
 /** Quanto acima do nível de um clube (overall esperado do elenco) um agente livre ainda aceita assinar com ele. */
 const FREE_AGENT_CEILING = 5;

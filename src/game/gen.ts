@@ -353,10 +353,11 @@ export function newWorld(managerName: string, clubId: string): World {
   return w;
 }
 
-export function makeFreeAgent(w: World): Player {
-  const age = randi(21, 34);
+/** Agente livre gerado. `band` cria um veterano mediano (overall 60–72), o perfil típico de quem fica sem contrato. */
+export function makeFreeAgent(w: World, band = false): Player {
+  const age = band ? randi(26, 34) : randi(21, 34);
   const pos = pick(POS);
-  const ovr = clamp(55 + gauss() * 7, 42, 80);
+  const ovr = band ? rand(60, 72) : clamp(55 + gauss() * 7, 42, 80);
   const p = newPlayer(w, { pos, age, ovr, pot: ovr + (age < 24 ? rand(2, 8) : 0), contract: 0, nat: rollNat(pick(LEAGUE_IDS), 0) });
   w.free.push(p.id);
   return p;
